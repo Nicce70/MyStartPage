@@ -1,16 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
-import useLocalStorage from '../hooks/useLocalStorage';
-import CalendarEvents from './CalendarEvents';
-import { ChevronDownIcon } from './Icons';
 
 interface CalendarProps {
   themeClasses: typeof themes.default;
+  holidayCountry: string;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
+interface Holiday {
+  date: string;
+  localName: string;
+}
+
+const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [isEventsCollapsed, setIsEventsCollapsed] = useLocalStorage('startpage-calendar-events-collapsed', false);
+  const [holidays, setHolidays] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    if (!holidayCountry) {
+      setHolidays(new Map());
+      return;
+    }
+
+    const year = currentDate.getFullYear();
+    const cacheKey = `holidays-${year}-${holidayCountry}`;
+    
+    try {
+      const cachedData = sessionStorage.getItem(cacheKey);
+      if (cachedData) {
+        setHolidays(new Map(JSON.parse(cachedData)));
+        return;
+      }
+    } catch (e) {
+      console.error("Could not read from session storage", e);
+    }
+
+    fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${holidayCountry}`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Network response was not ok (${response.status})`);
+        }
+        return response.json();
+      })
+      .then((data: Holiday[]) => {
+        if (Array.isArray(data)) {
+          const holidayMap = new Map(data.map(h => [h.date, h.localName]));
+          setHolidays(holidayMap);
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(Array.from(holidayMap.entries())));
+          } catch (e) {
+             console.error("Could not write to session storage", e);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Failed to fetch public holidays:', error);
+        setHolidays(new Map()); // Clear holidays on error
+      });
+  }, [currentDate.getFullYear(), holidayCountry]);
+
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -102,10 +149,20 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
                 return <div key={dayIndex} className={`${themeClasses.columnBg} ${cellBorderClass}`}></div>;
               }
               const isToday = isCurrentMonth && day === todayDate;
-              const isWeekend = dayIndex >= 5;
-              const isSpecialDay = day === 1 && month === 10;
+              
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const holidayName = holidays.get(dateStr);
+              const isHoliday = !!holidayName;
+              
+              const isSaturday = dayIndex === 5;
+              const isSunday = dayIndex === 6;
 
-              const dayTextColor = isWeekend ? 'text-red-500' : themeClasses.linkText;
+              let dayTextColor = themeClasses.linkText;
+              if (isHoliday || isSunday) {
+                dayTextColor = 'text-red-500';
+              } else if (isSaturday) {
+                dayTextColor = 'text-orange-400';
+              }
 
               return (
                 <a
@@ -113,15 +170,17 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
                   href={getGoogleCalendarUrl(day)}
                   target="_blank"
                   rel="noopener noreferrer"
+                  title={holidayName}
                   className={`flex items-center justify-center border text-sm font-bold cursor-pointer transition-colors 
                     ${cellBorderClass}
                     ${isToday
                       ? `${todayBgClass} ${todayTextClass}`
+                      // FIX: The dayTextColor needs to be applied correctly.
                       : `${themeClasses.linkBg} ${dayTextColor} ${themeClasses.linkHoverBg}`
                     }`}
                 >
                   <span>
-                    {isSpecialDay ? `*${day}` : day}
+                    {day}
                   </span>
                 </a>
               );
@@ -133,7 +192,7 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
   };
 
   return (
-    <div className={`${themeClasses.groupBg} ${themeClasses.modalText} p-2 rounded-md select-none`}>
+    <div className={`${themeClasses.modalText} rounded-md select-none`}>
       <div className={`${themeClasses.modalBg} text-center py-1 mb-2`}>
         <h2 className="font-bold text-lg">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
       </div>
@@ -147,7 +206,7 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
       <div className="flex justify-between mt-2">
         <button
           onClick={() => changeMonth(-1)}
-          className={`${themeClasses.buttonPrimary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
           aria-label="Previous month"
           title="Previous month"
         >
@@ -157,7 +216,7 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
         </button>
         <button
           onClick={goToCurrentMonth}
-          className={`${themeClasses.buttonPrimary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
           aria-label="Current month"
           title="Current month"
         >
@@ -167,7 +226,7 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
         </button>
         <button
           onClick={() => changeMonth(1)}
-          className={`${themeClasses.buttonPrimary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
           aria-label="Next month"
           title="Next month"
         >
@@ -176,22 +235,6 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses }) => {
           </svg>
         </button>
       </div>
-      
-      <div
-        className={`mt-3 pt-3 border-t ${themeClasses.dashedBorder} cursor-pointer group/events`}
-        onClick={() => setIsEventsCollapsed(!isEventsCollapsed)}
-      >
-        <div className="flex justify-between items-center">
-          <h3 className="font-bold text-base">Upcoming Events</h3>
-          <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} group-hover/events:text-white transition-transform duration-200 ${!isEventsCollapsed ? 'rotate-180' : ''}`} />
-        </div>
-      </div>
-      
-      {!isEventsCollapsed && (
-        <div className="mt-2">
-          <CalendarEvents themeClasses={themeClasses} />
-        </div>
-      )}
     </div>
   );
 };

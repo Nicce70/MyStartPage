@@ -1,9 +1,12 @@
 import React from 'react';
-// FIX: Import the 'Column' type.
-import type { Column, Group, Link, ModalState } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem } from '../types';
+import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, WEATHER_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
-import { PencilIcon, TrashIcon, PlusIcon, GripVerticalIcon, ChevronDownIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, GripVerticalIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon } from './Icons';
 import type { themes } from '../themes';
+import Calendar from './Calendar';
+import ToDo from './ToDo';
+import Weather from './Weather';
 
 type DraggedItem = 
   | { type: 'link'; link: Link; sourceGroupId: string; sourceColumnId: string }
@@ -21,10 +24,15 @@ interface GroupItemProps {
   openModal: (type: ModalState['type'], data?: any) => void;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
+  openLinksInNewTab: boolean;
+  holidayCountry: string;
+  todos: ToDoItem[];
+  setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
+  weatherCity: string;
 }
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses
+  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, holidayCountry, todos, setTodos, weatherCity
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -59,6 +67,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
   };
 
   const isDraggingThis = isEditMode && draggedItem?.type === 'group' && draggedItem.group.id === group.id;
+  const isCalendarWidget = group.id === CALENDAR_WIDGET_ID;
+  const isTodoWidget = group.id === TODO_WIDGET_ID;
+  const isWeatherWidget = group.id === WEATHER_WIDGET_ID;
 
   return (
     <div
@@ -81,9 +92,14 @@ const GroupItem: React.FC<GroupItemProps> = ({
           {!isEditMode && (
             <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
           )}
-          <h2 className="text-lg font-bold text-slate-200 truncate">{group.name}</h2>
+          <h2 className={`text-lg font-bold ${themeClasses.header} truncate flex items-center gap-2`}>
+            {isCalendarWidget && <CalendarDaysIcon className="w-5 h-5" />}
+            {isTodoWidget && <ClipboardDocumentCheckIcon className="w-5 h-5" />}
+            {isWeatherWidget && <SunIcon className="w-5 h-5" />}
+            {group.name}
+          </h2>
         </div>
-        {isEditMode && (
+        {isEditMode && !isCalendarWidget && !isTodoWidget && !isWeatherWidget && (
           <div className="flex items-center gap-2 opacity-0 group-hover/header:opacity-100 transition-opacity">
             <button onClick={() => openModal('addLink', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
               <PlusIcon className="w-5 h-5" />
@@ -98,28 +114,37 @@ const GroupItem: React.FC<GroupItemProps> = ({
         )}
       </div>
       {!group.isCollapsed && (
-        <div className="space-y-2">
-          {group.links.map(link => (
-            <LinkItem
-              key={link.id}
-              link={link}
-              groupId={group.id}
-              columnId={columnId}
-              isEditMode={isEditMode}
-              onEdit={() => openModal('editLink', { link, groupId: group.id, columnId })}
-              onDelete={() => openModal('deleteLink', { link, groupId: group.id, columnId })}
-              isDragging={draggedItem?.type === 'link' && draggedItem.link.id === link.id}
-              onDragStart={onDragStart}
-              onDrop={onDrop}
-              themeClasses={themeClasses}
-            />
-          ))}
-          {group.links.length === 0 && (
-             <div className="text-center py-4 text-slate-500 text-sm">
-               {isEditMode ? "Drop links here or click '+' to add." : "No links in this group."}
-             </div>
-          )}
-        </div>
+        isCalendarWidget ? (
+          <Calendar themeClasses={themeClasses} holidayCountry={holidayCountry} />
+        ) : isTodoWidget ? (
+          <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} />
+        ) : isWeatherWidget ? (
+          <Weather city={weatherCity} themeClasses={themeClasses} />
+        ) : (
+          <div className="space-y-2">
+            {group.links.map(link => (
+              <LinkItem
+                key={link.id}
+                link={link}
+                groupId={group.id}
+                columnId={columnId}
+                isEditMode={isEditMode}
+                onEdit={() => openModal('editLink', { link, groupId: group.id, columnId })}
+                onDelete={() => openModal('deleteLink', { link, groupId: group.id, columnId })}
+                isDragging={draggedItem?.type === 'link' && draggedItem.link.id === link.id}
+                onDragStart={onDragStart}
+                onDrop={onDrop}
+                themeClasses={themeClasses}
+                openLinksInNewTab={openLinksInNewTab}
+              />
+            ))}
+            {group.links.length === 0 && (
+               <div className="text-center py-4 text-slate-500 text-sm">
+                 {isEditMode ? "Drop links here or click '+' to add." : "No links in this group."}
+               </div>
+            )}
+          </div>
+        )
       )}
     </div>
   );

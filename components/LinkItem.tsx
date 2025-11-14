@@ -20,9 +20,10 @@ interface LinkItemProps {
   onDrop: (target: { columnId: string; groupId?: string; linkId?: string }) => void;
   isDragging: boolean;
   themeClasses: typeof themes.default;
+  openLinksInNewTab: boolean;
 }
 
-const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses }) => {
+const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses, openLinksInNewTab }) => {
   const [imgError, setImgError] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -64,7 +65,11 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
 
   const handleItemClick = () => {
     if (!isEditMode) {
-      window.open(link.url, '_blank', 'noopener,noreferrer');
+      if (openLinksInNewTab) {
+        window.open(link.url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.location.href = link.url;
+      }
     }
   };
 

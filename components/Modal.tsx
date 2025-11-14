@@ -31,7 +31,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeCl
       onClick={onClose}
     >
       <div 
-        className={`${themeClasses.modalBg} rounded-lg shadow-xl w-full max-w-md p-6`}
+        className={`${themeClasses.modalBg} rounded-lg shadow-xl w-full max-w-xl p-6`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">

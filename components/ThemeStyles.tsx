@@ -10,8 +10,8 @@ const ThemeStyles: React.FC<ThemeStylesProps> = ({ theme }) => {
   const styles = `
     /* For Webkit-based browsers (Chrome, Safari) */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 12px;
+      height: 12px;
     }
 
     ::-webkit-scrollbar-track {
@@ -20,8 +20,8 @@ const ThemeStyles: React.FC<ThemeStylesProps> = ({ theme }) => {
 
     ::-webkit-scrollbar-thumb {
       background-color: ${theme.scrollbarThumb};
-      border-radius: 4px;
-      border: 2px solid ${theme.scrollbarTrack};
+      border-radius: 6px;
+      border: 3px solid ${theme.scrollbarTrack};
     }
 
     ::-webkit-scrollbar-thumb:hover {

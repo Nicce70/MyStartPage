@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Column, Group, Link, ModalState } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, GripVerticalIcon } from './Icons';
 import type { themes } from '../themes';
@@ -21,10 +21,17 @@ interface ColumnProps {
   showColumnTitles: boolean;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
+  openLinksInNewTab: boolean;
+  widthClass: string;
+  isDeletable: boolean;
+  holidayCountry: string;
+  todos: ToDoItem[];
+  setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
+  weatherCity: string;
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses
+  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthClass, isDeletable, holidayCountry, todos, setTodos, weatherCity
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -68,9 +75,9 @@ const ColumnComponent: React.FC<ColumnProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex-shrink-0 w-80 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+      className={`flex-shrink-0 ${widthClass} rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
-      {(isEditMode || showColumnTitles) && (
+      {showColumnTitles && (
         <div className="flex justify-between items-center mb-4 group/header p-2">
           <div className="flex items-center gap-2 truncate">
             {isEditMode && <GripVerticalIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />}
@@ -84,14 +91,16 @@ const ColumnComponent: React.FC<ColumnProps> = ({
               <button onClick={() => openModal('editColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
                 <PencilIcon className="w-4 h-4" />
               </button>
-              <button onClick={() => openModal('deleteColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
-                <TrashIcon className="w-4 h-4" />
-              </button>
+              {isDeletable && (
+                <button onClick={() => openModal('deleteColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
             </div>
           )}
         </div>
       )}
-      <div className={`space-y-${groupGap} p-2 ${(isEditMode || showColumnTitles) ? 'pt-0' : ''}`}>
+      <div className={`space-y-${groupGap} p-2 ${showColumnTitles ? 'pt-0' : ''}`}>
         {column.groups.map(group => (
           <GroupItem
             key={group.id}
@@ -104,6 +113,11 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             openModal={openModal}
             onToggleGroupCollapsed={onToggleGroupCollapsed}
             themeClasses={themeClasses}
+            openLinksInNewTab={openLinksInNewTab}
+            holidayCountry={holidayCountry}
+            todos={todos}
+            setTodos={setTodos}
+            weatherCity={weatherCity}
           />
         ))}
          {column.groups.length === 0 && (

@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
-import { PlusIcon, PencilIcon, CogIcon } from './components/Icons';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import Calendar from './components/Calendar';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme } from './types';
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem } from './types';
+import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 
 // Simple UUID generator
 const uuidv4 = () => {
@@ -51,10 +51,20 @@ const DEFAULT_COLUMNS: Column[] = [
 const DEFAULT_SETTINGS: Settings = {
   columnGap: 4,
   groupGap: 4,
+  columnWidth: 4,
   showColumnTitles: true,
   theme: 'default',
   scale: 6,
   showCalendar: false,
+  showTodos: false,
+  openLinksInNewTab: true,
+  holidayCountry: 'SE',
+  showSearch: false,
+  searchEngine: 'google',
+  centerContent: false,
+  backgroundImage: '',
+  showWeather: false,
+  weatherCity: 'Stockholm, SE',
 };
 
 const scaleMap: { [key: number]: string } = {
@@ -71,6 +81,24 @@ const scaleMap: { [key: number]: string } = {
   11: '15px',
 };
 
+const columnWidthMap: { [key: number]: string } = {
+  1: 'w-60', // 240px
+  2: 'w-64', // 256px
+  3: 'w-72', // 288px
+  4: 'w-80', // 320px (default)
+  5: 'w-[22rem]', // 352px
+  6: 'w-96', // 384px
+  7: 'w-[26rem]', // 416px
+  8: 'w-[28rem]', // 448px
+  9: 'w-[30rem]', // 480px
+};
+
+const searchEngines: { [key: string]: { name: string; url: string } } = {
+  google: { name: 'Google', url: 'https://www.google.com/search?q=' },
+  duckduckgo: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
+  bing: { name: 'Bing', url: 'https://www.bing.com/search?q=' },
+  brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=' },
+};
 
 type DraggedItem = 
   | { type: 'link'; link: Link; sourceGroupId: string; sourceColumnId: string }
@@ -83,12 +111,15 @@ function App() {
   const [columns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
   const [settings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
   const [pageTitle, setPageTitle] = useLocalStorage<string>('startpage-title', 'My Startpage');
+  const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [themeClasses, setThemeClasses] = useState<Theme>(themes.default);
+  const [importData, setImportData] = useState<BackupData | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -104,6 +135,27 @@ function App() {
     setThemeClasses(themes[settings.theme] || themes.default);
     document.body.className = themes[settings.theme]?.body || themes.default.body;
   }, [settings.theme]);
+
+  useEffect(() => {
+    if (settings.backgroundImage) {
+      document.body.style.backgroundImage = `url('${settings.backgroundImage}')`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+    } else {
+      document.body.style.backgroundImage = '';
+      document.body.style.backgroundSize = '';
+      document.body.style.backgroundPosition = '';
+      document.body.style.backgroundAttachment = '';
+    }
+
+    return () => {
+      document.body.style.backgroundImage = '';
+      document.body.style.backgroundSize = '';
+      document.body.style.backgroundPosition = '';
+      document.body.style.backgroundAttachment = '';
+    };
+  }, [settings.backgroundImage]);
   
   useEffect(() => {
     if (modal) {
@@ -116,9 +168,81 @@ function App() {
   }, [modal]);
 
   const openModal = (type: ModalState['type'], data?: any) => setModal({ type, data });
-  const closeModal = () => setModal(null);
+  const closeModal = () => {
+    setModal(null);
+    if (modal?.type === 'importConfirm') {
+        setImportData(null);
+    }
+  };
 
   const handleSettingsChange = (newSettings: Settings) => {
+    const oldShowCalendar = settings.showCalendar;
+    const newShowCalendar = newSettings.showCalendar;
+    const oldShowTodos = settings.showTodos;
+    const newShowTodos = newSettings.showTodos;
+    const oldShowWeather = settings.showWeather;
+    const newShowWeather = newSettings.showWeather;
+  
+    let updatedColumns = JSON.parse(JSON.stringify(columns));
+  
+    // Handle Calendar Widget
+    if (newShowCalendar !== oldShowCalendar) {
+      if (newShowCalendar) {
+        const calendarExists = updatedColumns.some((col: Column) => col.groups.some(g => g.id === CALENDAR_WIDGET_ID));
+        if (!calendarExists) {
+          if (updatedColumns.length === 0) {
+            updatedColumns.push({ id: uuidv4(), name: "Column 1", groups: [] });
+          }
+          const calendarWidget: Group = { id: CALENDAR_WIDGET_ID, name: 'Calendar', links: [], isCollapsed: false };
+          updatedColumns[0].groups.unshift(calendarWidget);
+        }
+      } else {
+        updatedColumns = updatedColumns.map((col: Column) => ({
+          ...col,
+          groups: col.groups.filter(g => g.id !== CALENDAR_WIDGET_ID),
+        }));
+      }
+    }
+  
+    // Handle To-Do Widget
+    if (newShowTodos !== oldShowTodos) {
+      if (newShowTodos) {
+        const todoExists = updatedColumns.some((col: Column) => col.groups.some(g => g.id === TODO_WIDGET_ID));
+        if (!todoExists) {
+          if (updatedColumns.length === 0) {
+            updatedColumns.push({ id: uuidv4(), name: "Column 1", groups: [] });
+          }
+          const todoWidget: Group = { id: TODO_WIDGET_ID, name: 'To-Do List', links: [], isCollapsed: false };
+          updatedColumns[0].groups.unshift(todoWidget);
+        }
+      } else {
+        updatedColumns = updatedColumns.map((col: Column) => ({
+          ...col,
+          groups: col.groups.filter(g => g.id !== TODO_WIDGET_ID),
+        }));
+      }
+    }
+
+    // Handle Weather Widget
+    if (newShowWeather !== oldShowWeather) {
+      if (newShowWeather) {
+        const weatherExists = updatedColumns.some((col: Column) => col.groups.some(g => g.id === WEATHER_WIDGET_ID));
+        if (!weatherExists) {
+          if (updatedColumns.length === 0) {
+            updatedColumns.push({ id: uuidv4(), name: "Column 1", groups: [] });
+          }
+          const weatherWidget: Group = { id: WEATHER_WIDGET_ID, name: 'Weather', links: [], isCollapsed: false };
+          updatedColumns[0].groups.unshift(weatherWidget);
+        }
+      } else {
+        updatedColumns = updatedColumns.map((col: Column) => ({
+          ...col,
+          groups: col.groups.filter(g => g.id !== WEATHER_WIDGET_ID),
+        }));
+      }
+    }
+  
+    setColumns(updatedColumns);
     setSettings(newSettings);
   };
 
@@ -182,9 +306,22 @@ function App() {
     let newColumns = [...columns];
 
     switch (modal.type) {
-      case 'deleteColumn':
+      case 'deleteColumn': {
+        const columnToDelete = columns.find(c => c.id === modal.data.id);
+        if (columnToDelete) {
+            if (columnToDelete.groups.some(g => g.id === CALENDAR_WIDGET_ID)) {
+                setSettings(s => ({ ...s, showCalendar: false }));
+            }
+            if (columnToDelete.groups.some(g => g.id === TODO_WIDGET_ID)) {
+                setSettings(s => ({ ...s, showTodos: false }));
+            }
+            if (columnToDelete.groups.some(g => g.id === WEATHER_WIDGET_ID)) {
+                setSettings(s => ({ ...s, showWeather: false }));
+            }
+        }
         newColumns = columns.filter(c => c.id !== modal.data.id);
         break;
+      }
       case 'deleteGroup':
         newColumns = columns.map(c => {
           if (c.id === modal.data.columnId) {
@@ -287,6 +424,7 @@ function App() {
       columns,
       settings,
       pageTitle,
+      todos,
     };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
     const link = document.createElement('a');
@@ -307,12 +445,8 @@ function App() {
         const data = JSON.parse(result) as BackupData;
         
         if (data.version === 1 && data.columns && data.settings && data.pageTitle) {
-          setColumns(data.columns);
-          // Make sure to handle potentially missing new settings
-          setSettings(prevSettings => ({...prevSettings, ...data.settings}));
-          setPageTitle(data.pageTitle);
-          setIsSettingsModalOpen(false); // Close settings after successful import
-          alert("Import successful!");
+          setImportData(data);
+          openModal('importConfirm');
         } else {
           throw new Error("Invalid backup file format.");
         }
@@ -324,10 +458,71 @@ function App() {
     event.target.value = ''; // Reset file input
   };
   
+  const applyImport = () => {
+    if (!importData) return;
+    
+    setColumns(importData.columns);
+    setSettings(prevSettings => ({...prevSettings, ...importData.settings}));
+    setPageTitle(importData.pageTitle);
+    setTodos(importData.todos || []);
+    
+    setIsSettingsModalOpen(false); // Close settings modal
+    closeModal(); // Close confirmation modal
+    
+    alert("Import successful!");
+  };
+
+  const handleResetToDefaults = () => {
+    setColumns(DEFAULT_COLUMNS);
+    setSettings(DEFAULT_SETTINGS);
+    setPageTitle('My Startpage');
+    setTodos([]);
+    closeModal();
+    setIsSettingsModalOpen(false);
+  };
+  
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    const engine = searchEngines[settings.searchEngine] || searchEngines.google;
+    const searchUrl = `${engine.url}${encodeURIComponent(searchQuery)}`;
+    
+    if (settings.openLinksInNewTab) {
+      window.open(searchUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.href = searchUrl;
+    }
+  };
+
   const getModalContent = () => {
     if (!modal) return null;
     
     const { type, data } = modal;
+    
+    if (type === 'importConfirm') {
+      return (
+        <div>
+          <p className={themeClasses.modalMutedText}>Are you sure you want to import this file? This will overwrite all your current settings, columns, and links.</p>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+            <button onClick={applyImport} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Yes, Overwrite</button>
+          </div>
+        </div>
+      );
+    }
+    
+    if (type === 'resetConfirm') {
+      return (
+        <div>
+          <p className={themeClasses.modalMutedText}>Are you sure you want to reset everything? All your columns, groups, links, and settings will be permanently deleted and restored to the default configuration.</p>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+            <button onClick={handleResetToDefaults} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Yes, Reset Everything</button>
+          </div>
+        </div>
+      );
+    }
     
     if (type.startsWith('delete')) {
       let itemName = '';
@@ -411,17 +606,43 @@ function App() {
       case 'deleteColumn': return 'Delete Column';
       case 'deleteGroup': return 'Delete Group';
       case 'deleteLink': return 'Delete Link';
+      case 'importConfirm': return 'Confirm Import';
+      case 'resetConfirm': return 'Confirm Reset';
       default: return '';
     }
   };
 
+  const columnWidthClass = columnWidthMap[settings.columnWidth] || 'w-80';
+
   return (
     <>
       <ThemeStyles theme={themeClasses} />
-      <main className={`min-h-screen py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
-        <header className="flex justify-between items-center mb-6">
-          <h1 className={`text-3xl font-bold ${themeClasses.header} pl-2`}>{pageTitle}</h1>
-          <div className="flex items-center gap-3">
+      <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
+        <header className="flex-shrink-0 grid grid-cols-[1fr_2fr_1fr] items-end gap-4 mb-6">
+          <div className="justify-self-start">
+              <h1 className={`text-3xl font-bold ${themeClasses.header} pl-2 truncate`}>{pageTitle}</h1>
+          </div>
+                    
+          <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative top-2">
+              {settings.showSearch && (
+                  <form onSubmit={handleSearchSubmit} className="w-full relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" />
+                      </div>
+                      <input
+                          type="search"
+                          name="search"
+                          id="search"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder={`Search with ${searchEngines[settings.searchEngine]?.name || 'Google'}...`}
+                          className={`block w-full rounded-md border-0 py-2 pl-10 pr-3 ${themeClasses.inputBg} ${themeClasses.inputFocusRing} placeholder:text-slate-400 sm:text-sm sm:leading-6`}
+                      />
+                  </form>
+              )}
+          </div>
+
+          <div className="justify-self-end flex items-center gap-3">
             <button
               onClick={() => setIsEditMode(!isEditMode)}
               className={`${isEditMode ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors`}
@@ -441,49 +662,46 @@ function App() {
           </div>
         </header>
 
-        <div className="flex items-start overflow-x-auto pb-4" style={{ gap: `${settings.columnGap * 0.25}rem` }}>
-          {settings.showCalendar && (
-            <div className={`flex-shrink-0 w-80 rounded-lg h-fit ${themeClasses.columnBg}`}>
-              {(settings.showColumnTitles) && (
-                <div className="flex justify-between items-center mb-4 group/header p-2">
-                  <div className="flex items-center gap-2 truncate">
-                    <h2 className={`text-xl font-bold ${themeClasses.header} truncate`}>Calendar</h2>
-                  </div>
-                </div>
-              )}
-              <div className={`p-2 ${(settings.showColumnTitles) ? 'pt-0' : ''}`}>
-                <Calendar themeClasses={themeClasses} />
-              </div>
-            </div>
-          )}
-          
-          {columns.map(col => (
-            <ColumnComponent
-              key={col.id}
-              column={col}
-              isEditMode={isEditMode}
-              onDragStart={handleDragStart}
-              onDrop={handleDrop}
-              draggedItem={draggedItem}
-              openModal={openModal}
-              groupGap={settings.groupGap}
-              showColumnTitles={settings.showColumnTitles}
-              onToggleGroupCollapsed={handleToggleGroupCollapsed}
-              themeClasses={themeClasses}
-            />
-          ))}
+        <div className="flex-grow overflow-x-auto pb-4">
+          <div
+            className={`flex items-start h-full ${settings.centerContent ? 'w-fit mx-auto' : ''}`}
+            style={{ gap: `${settings.columnGap * 0.25}rem` }}
+          >
+            {columns.map(col => (
+              <ColumnComponent
+                key={col.id}
+                column={col}
+                isEditMode={isEditMode}
+                onDragStart={handleDragStart}
+                onDrop={handleDrop}
+                draggedItem={draggedItem}
+                openModal={openModal}
+                groupGap={settings.groupGap}
+                showColumnTitles={isEditMode || settings.showColumnTitles}
+                onToggleGroupCollapsed={handleToggleGroupCollapsed}
+                themeClasses={themeClasses}
+                openLinksInNewTab={settings.openLinksInNewTab}
+                widthClass={columnWidthClass}
+                isDeletable={columns.length > 1}
+                holidayCountry={settings.holidayCountry}
+                todos={todos}
+                setTodos={setTodos}
+                weatherCity={settings.weatherCity}
+              />
+            ))}
 
-          {isEditMode && (
-            <div className="flex-shrink-0 w-80">
-              <button
-                onClick={() => openModal('addColumn')}
-                className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}
-              >
-                <PlusIcon />
-                Add Column
-              </button>
-            </div>
-          )}
+            {isEditMode && (
+              <div className={`flex-shrink-0 ${columnWidthClass}`}>
+                <button
+                  onClick={() => openModal('addColumn')}
+                  className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}
+                >
+                  <PlusIcon />
+                  Add Column
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
@@ -495,6 +713,7 @@ function App() {
         themeClasses={themeClasses}
         onExport={handleExport}
         onImport={handleImport}
+        onReset={() => openModal('resetConfirm')}
       />
       
       <Modal

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Column, Group, Link } from '../types';
-import { PencilIcon, TrashIcon, GripVerticalIcon, GlobeIcon } from './Icons';
+import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
 import type { themes } from '../themes';
 
 type DraggedItem = 
@@ -89,7 +89,7 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
       className={`group/link flex items-center justify-between p-2 rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'opacity-30' : `${themeClasses.linkBg} ${themeClasses.linkHoverBg}`} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
     >
       <div className="flex items-center gap-3 truncate">
-        {isEditMode && <GripVerticalIcon className={`w-5 h-5 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0`} />}
+        {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0 cursor-grab`} />}
         {imgError || !faviconUrl ? (
           <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />
         ) : (
@@ -107,7 +107,7 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
         </span>
       </div>
       {isEditMode && (
-        <div className="flex items-center gap-2 opacity-0 group-hover/link:opacity-100 transition-opacity">
+        <div className="flex items-center gap-2 transition-opacity">
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-600 transition-colors`}>
             <PencilIcon className="w-4 h-4" />
           </button>

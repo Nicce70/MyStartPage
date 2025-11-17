@@ -1,12 +1,17 @@
 import React from 'react';
-import type { Column, Group, Link, ModalState, ToDoItem } from '../types';
-import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, WEATHER_WIDGET_ID } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState } from '../types';
+import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
-import { PencilIcon, TrashIcon, PlusIcon, GripVerticalIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, RssIcon, CalculatorIcon, DocumentTextIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
 import Weather from './Weather';
+import Clock from './Clock';
+import Timer from './Timer';
+import RSS from './RSS';
+import Calculator from './Calculator';
+import Scratchpad from './Scratchpad';
 
 type DraggedItem = 
   | { type: 'link'; link: Link; sourceGroupId: string; sourceColumnId: string }
@@ -28,11 +33,19 @@ interface GroupItemProps {
   holidayCountry: string;
   todos: ToDoItem[];
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
-  weatherCity: string;
+  onCalculatorStateChange: (newState: CalculatorState) => void;
+  onScratchpadChange: (groupId: string, newContent: string) => void;
 }
 
+const DEFAULT_CALCULATOR_STATE: CalculatorState = {
+  currentValue: '0',
+  previousValue: null,
+  operator: null,
+  isNewEntry: true,
+};
+
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, holidayCountry, todos, setTodos, weatherCity
+  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, holidayCountry, todos, setTodos, onCalculatorStateChange, onScratchpadChange
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -67,9 +80,20 @@ const GroupItem: React.FC<GroupItemProps> = ({
   };
 
   const isDraggingThis = isEditMode && draggedItem?.type === 'group' && draggedItem.group.id === group.id;
-  const isCalendarWidget = group.id === CALENDAR_WIDGET_ID;
-  const isTodoWidget = group.id === TODO_WIDGET_ID;
-  const isWeatherWidget = group.id === WEATHER_WIDGET_ID;
+  
+  const groupType = group.type || 'links';
+  const widgetType = group.widgetType;
+
+  const isCalendarWidget = widgetType === 'calendar' || group.id === CALENDAR_WIDGET_ID;
+  const isTodoWidget = widgetType === 'todo' || group.id === TODO_WIDGET_ID;
+  const isCalculatorWidget = widgetType === 'calculator' || group.id === CALCULATOR_WIDGET_ID;
+  const isWeatherWidget = widgetType === 'weather';
+  const isClockWidget = widgetType === 'clock';
+  const isTimerWidget = widgetType === 'timer';
+  const isRssWidget = widgetType === 'rss';
+  const isScratchpadWidget = widgetType === 'scratchpad';
+  const isWidget = groupType === 'widget';
+  const isConfigurableWidget = isWeatherWidget || isClockWidget || isTimerWidget || isRssWidget;
 
   return (
     <div
@@ -88,39 +112,89 @@ const GroupItem: React.FC<GroupItemProps> = ({
         onClick={!isEditMode ? () => onToggleGroupCollapsed(columnId, group.id) : undefined}
       >
         <div className="flex items-center gap-2 truncate">
-          {isEditMode && <GripVerticalIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />}
+          {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab`} />}
           {!isEditMode && (
             <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'}`} />
           )}
           <h2 className={`text-lg font-bold ${themeClasses.header} truncate flex items-center gap-2`}>
             {isCalendarWidget && <CalendarDaysIcon className="w-5 h-5" />}
             {isTodoWidget && <ClipboardDocumentCheckIcon className="w-5 h-5" />}
+            {isCalculatorWidget && <CalculatorIcon className="w-5 h-5" />}
             {isWeatherWidget && <SunIcon className="w-5 h-5" />}
+            {isClockWidget && <ClockIcon className="w-5 h-5" />}
+            {isTimerWidget && <TimerIcon className="w-5 h-5" />}
+            {isRssWidget && <RssIcon className="w-5 h-5" />}
+            {isScratchpadWidget && <DocumentTextIcon className="w-5 h-5" />}
             {group.name}
           </h2>
         </div>
-        {isEditMode && !isCalendarWidget && !isTodoWidget && !isWeatherWidget && (
-          <div className="flex items-center gap-2 opacity-0 group-hover/header:opacity-100 transition-opacity">
-            <button onClick={() => openModal('addLink', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
-              <PlusIcon className="w-5 h-5" />
-            </button>
-            <button onClick={() => openModal('editGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
-              <PencilIcon className="w-4 h-4" />
-            </button>
-            <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+
+        <div className="flex items-center">
+          {isEditMode && (
+            <div className="flex items-center gap-2 transition-opacity">
+              {isConfigurableWidget && (
+                <button onClick={() => openModal('editWidgetSettings', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                  <CogIcon className="w-5 h-5" />
+                </button>
+              )}
+              {!isWidget && (
+                <button onClick={() => openModal('addLink', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                  <PlusIcon className="w-5 h-5" />
+                </button>
+              )}
+              <button onClick={() => openModal('editGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                <PencilIcon className="w-4 h-4" />
+              </button>
+              {!isCalendarWidget && (
+                  <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
+                      <TrashIcon className="w-4 h-4" />
+                  </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       {!group.isCollapsed && (
         isCalendarWidget ? (
           <Calendar themeClasses={themeClasses} holidayCountry={holidayCountry} />
         ) : isTodoWidget ? (
           <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} />
+        ) : isCalculatorWidget ? (
+          <Calculator
+            themeClasses={themeClasses}
+            state={group.calculatorState || DEFAULT_CALCULATOR_STATE}
+            onStateChange={onCalculatorStateChange}
+          />
         ) : isWeatherWidget ? (
-          <Weather city={weatherCity} themeClasses={themeClasses} />
-        ) : (
+          <Weather city={group.widgetSettings?.city || ''} themeClasses={themeClasses} />
+        ) : isClockWidget ? (
+          <Clock
+            timezone={group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
+            showSeconds={group.widgetSettings?.showSeconds}
+            themeClasses={themeClasses}
+          />
+        ) : isTimerWidget ? (
+          <Timer
+            initialDuration={group.widgetSettings?.timerDuration ?? 300}
+            playSound={group.widgetSettings?.timerPlaySound}
+            themeClasses={themeClasses}
+            onOpenSettings={() => openModal('editWidgetSettings', { group, columnId })}
+          />
+        ) : isRssWidget ? (
+          <RSS
+            rssUrl={group.widgetSettings?.rssUrl || ''}
+            itemCount={group.widgetSettings?.rssItemCount || 5}
+            themeClasses={themeClasses}
+            openLinksInNewTab={openLinksInNewTab}
+          />
+        ) : isScratchpadWidget ? (
+          <Scratchpad
+            content={group.widgetSettings?.scratchpadContent || ''}
+            onChange={(newContent) => onScratchpadChange(group.id, newContent)}
+            themeClasses={themeClasses}
+            isEditMode={isEditMode}
+          />
+        ) : ( // Default to 'links' group
           <div className="space-y-2">
             {group.links.map(link => (
               <LinkItem

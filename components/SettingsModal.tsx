@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import Modal from './Modal';
-import type { Settings } from '../types';
+import type { Settings, Group, Theme } from '../types';
 import { themes } from '../themes';
 import { ArrowDownTrayIcon, ArrowUpTrayIcon } from './Icons';
 
@@ -35,6 +35,8 @@ const countries = [
   { code: 'BR', name: 'Brazil' },
 ];
 
+const APP_VERSION = '2.2';
+
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('layout');
@@ -66,18 +68,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     { id: 'features', name: 'Features' },
     { id: 'theme', name: 'Theme' },
     { id: 'backup', name: 'Backup & Restore' },
+    { id: 'about', name: 'About' },
   ];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Settings" themeClasses={themeClasses}>
       <div className={`${themeClasses.modalMutedText}`}>
         <div className="border-b border-slate-700 mb-6">
-          <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                className={`flex-shrink-0 whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
                     ? `border-indigo-500 ${themeClasses.modalText}`
                     : `border-transparent ${themeClasses.modalMutedText} hover:border-slate-400 hover:text-slate-200`
@@ -130,7 +133,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
               </div>
 
               <div>
-                <label htmlFor="columnWidth" className="block text-sm font-medium">Column Width</label>
+                <label htmlFor="columnWidth" className="block text-sm font-medium">Global Column Size</label>
                 <input
                   type="range"
                   id="columnWidth"
@@ -142,8 +145,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer mt-2"
                 />
                 <div className="flex justify-between text-xs text-slate-400 px-1">
-                  <span>Narrow</span>
-                  <span>Wide</span>
+                  <span>Smaller</span>
+                  <span>Larger</span>
                 </div>
               </div>
 
@@ -226,53 +229,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                 </select>
               </div>
-
-              <div className="flex items-center justify-between">
-                <label htmlFor="showTodos" className="text-sm font-medium">Show To-Do List</label>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="showTodos"
-                    name="showTodos"
-                    checked={settings.showTodos}
-                    onChange={handleToggleChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
-              </div>
-              
-              <div className="pt-6 border-t border-slate-700 space-y-4">
-                  <div className="flex items-center justify-between">
-                      <label htmlFor="showWeather" className="text-sm font-medium">Show Weather Widget</label>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                              type="checkbox"
-                              id="showWeather"
-                              name="showWeather"
-                              checked={settings.showWeather}
-                              onChange={handleToggleChange}
-                              className="sr-only peer" />
-                          <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                      </label>
-                  </div>
-
-                  {settings.showWeather && (
-                    <div>
-                        <label htmlFor="weatherCity" className="block text-sm font-medium">City</label>
-                         <p className="text-xs text-slate-400 mt-1 mb-2">E.g., "London, GB" or "New York"</p>
-                        <input
-                            type="text"
-                            id="weatherCity"
-                            name="weatherCity"
-                            value={settings.weatherCity}
-                            onChange={handleTextChange}
-                            placeholder="Enter city name"
-                            className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
-                    </div>
-                  )}
-              </div>
-
 
               <div className="pt-6 border-t border-slate-700 space-y-4">
                 <div className="flex items-center justify-between">
@@ -357,7 +313,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   {settings.backgroundImage && (
                     <button
                       onClick={() => onSettingsChange({ ...settings, backgroundImage: '' })}
-                      className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg transition-colors text-sm`}
+                      className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg text-sm`}
                     >
                       Clear
                     </button>
@@ -403,6 +359,71 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     >
                         Reset to Defaults
                     </button>
+                </div>
+            </div>
+          )}
+          
+          {activeTab === 'about' && (
+            <div className="space-y-4 text-sm leading-relaxed max-h-[350px] overflow-y-auto pr-2">
+                <h3 className={`text-lg font-bold ${themeClasses.modalText}`}>About My Startpage</h3>
+                <p className="text-xs text-slate-400">Version {APP_VERSION}</p>
+                
+                <div>
+                    <h4 className="font-semibold mb-1">How Your Data is Saved</h4>
+                    <p>
+                        All your settings, links, and widgets are stored directly in your web browser's local storage. 
+                        This means your data stays on your device and is not sent to any external server, ensuring your privacy.
+                    </p>
+                </div>
+
+                <div>
+                    <h4 className="font-semibold mb-1 text-amber-400">Important: Backup Your Data</h4>
+                    <p>
+                        Because all data is stored locally, it can be permanently lost if you clear your browser's data, 
+                        if the browser has a critical error, or if you switch to a different device.
+                    </p>
+                    <p className="mt-2">
+                        We <strong className="font-bold">strongly recommend</strong> that you regularly use the "Export Data" feature 
+                        in the "Backup & Restore" tab to save a backup file of your configuration to a safe place.
+                    </p>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700">
+                    <h4 className="font-semibold mb-1">Running Locally & Open Source</h4>
+                    <p>
+                        This startpage is fully open-source. You can download the complete source code from GitHub and run it entirely on your own computer.
+                    </p>
+                    <p className="mt-2">
+                        There are two main ways to run it locally:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-2 mt-2">
+                        <li>
+                            <strong>Run the source code directly with a development server (recommended for development):</strong><br />
+                            This requires Node.js installed on your computer.<br />
+                            After downloading, navigate to the project folder in your terminal and run:<br />
+                            <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
+                                npm install<br />
+                                npm run dev
+                            </code><br />
+                            This starts a local development server (using Vite) that automatically compiles the TypeScript/TSX files and refreshes your browser as you make changes.
+                        </li>
+                        <li>
+                            <strong>Run the compiled static files (suitable for preview or production):</strong><br />
+                            The project can be built into static files (usually in a <code>/docs</code> or <code>/dist</code> folder). You can serve these files with any simple static file server, for example Python’s built-in HTTP server:<br />
+                            <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>python -m http.server</code><br />
+                            Navigate into the folder containing the built files before running the command. This method serves the already compiled JavaScript and assets but doesn’t support live updates or editing.
+                        </li>
+                    </ol>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700">
+                    <h4 className="font-semibold mb-1">Credits</h4>
+                    <p>
+                        This is a freeware application created by Niklas Holmgren.
+                    </p>
+                    <p>
+                        Powered by Google AI Studio.
+                    </p>
                 </div>
             </div>
           )}

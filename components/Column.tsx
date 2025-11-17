@@ -1,7 +1,7 @@
 import React from 'react';
-import type { Column, Group, Link, ModalState, ToDoItem } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState } from '../types';
 import GroupItem from './GroupColumn';
-import { PencilIcon, TrashIcon, PlusIcon, GripVerticalIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
 
 type DraggedItem = 
@@ -22,16 +22,17 @@ interface ColumnProps {
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
-  widthClass: string;
+  widthStyle: React.CSSProperties;
   isDeletable: boolean;
   holidayCountry: string;
   todos: ToDoItem[];
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
-  weatherCity: string;
+  onCalculatorStateChange: (newState: CalculatorState) => void;
+  onScratchpadChange: (groupId: string, newContent: string) => void;
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthClass, isDeletable, holidayCountry, todos, setTodos, weatherCity
+  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, holidayCountry, todos, setTodos, onCalculatorStateChange, onScratchpadChange
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -67,6 +68,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
 
   return (
     <div
+      style={widthStyle}
       draggable={isEditMode}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -75,17 +77,17 @@ const ColumnComponent: React.FC<ColumnProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`flex-shrink-0 ${widthClass} rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+      className={`flex-shrink-0 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       {showColumnTitles && (
         <div className="flex justify-between items-center mb-4 group/header p-2">
           <div className="flex items-center gap-2 truncate">
-            {isEditMode && <GripVerticalIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />}
+            {isEditMode && <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />}
             <h2 className={`text-xl font-bold ${themeClasses.header} truncate`}>{column.name}</h2>
           </div>
           {isEditMode && (
-            <div className="flex items-center gap-2 opacity-0 group-hover/header:opacity-100 transition-opacity">
-              <button onClick={() => openModal('addGroup', { columnId: column.id })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+            <div className="flex items-center gap-2 transition-opacity">
+              <button onClick={() => openModal('addWidget', { columnId: column.id })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
                 <PlusIcon className="w-5 h-5" />
               </button>
               <button onClick={() => openModal('editColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
@@ -117,7 +119,8 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             holidayCountry={holidayCountry}
             todos={todos}
             setTodos={setTodos}
-            weatherCity={weatherCity}
+            onCalculatorStateChange={onCalculatorStateChange}
+            onScratchpadChange={onScratchpadChange}
           />
         ))}
          {column.groups.length === 0 && (

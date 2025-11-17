@@ -1,5 +1,5 @@
 // FIX: Import `React` to resolve namespace errors for type annotations.
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [storedValue, setStoredValue] = useState<T>(() => {
@@ -8,9 +8,14 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<R
     }
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : initialValue;
+      const parsedItem = item ? JSON.parse(item) : initialValue;
+      // For objects, merge stored settings with defaults to handle new settings properties gracefully.
+      if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue) && typeof parsedItem === 'object' && parsedItem !== null && !Array.isArray(parsedItem)) {
+        return { ...(initialValue as object), ...(parsedItem as object) } as T;
+      }
+      return parsedItem;
     } catch (error) {
-      console.error(error);
+      console.error(`Error reading localStorage key "${key}":`, error);
       return initialValue;
     }
   });
@@ -23,21 +28,9 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<R
         window.localStorage.setItem(key, JSON.stringify(valueToStore));
       }
     } catch (error) {
-      console.error(error);
+      console.error(`Error setting localStorage key "${key}":`, error);
     }
   };
-
-  useEffect(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
-      }
-    } catch (error) {
-        console.error("Could not parse localStorage item", error)
-    }
-  }, [key]);
-
 
   return [storedValue, setValue];
 }

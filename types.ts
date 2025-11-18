@@ -1,9 +1,18 @@
 export interface Link {
   id: string;
+  type: 'link';
   name: string;
   url: string;
   comment?: string;
 }
+
+export interface Separator {
+  id: string;
+  type: 'separator';
+}
+
+export type GroupItemType = Link | Separator;
+
 
 export interface CalculatorState {
   currentValue: string;
@@ -15,12 +24,15 @@ export interface CalculatorState {
 export interface Group {
   id:string;
   name: string;
-  links: Link[];
+  items: GroupItemType[];
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency';
   widgetSettings?: {
     city?: string;
+    weatherShowForecast?: boolean;
+    weatherShowTime?: boolean;
+    weatherTimezone?: string;
     timezone?: string;
     showSeconds?: boolean;
     timerDuration?: number; // Duration in seconds
@@ -29,8 +41,14 @@ export interface Group {
     rssUrl?: string;
     rssItemCount?: number;
     scratchpadContent?: string;
+    countdownTitle?: string;
+    countdownDate?: string;
+    holidayCountry?: string;
+    currencyBase?: string;
+    currencyTargets?: string[];
   };
   calculatorState?: CalculatorState;
+  links?: Link[]; // For data migration
 }
 
 export interface Column {
@@ -53,9 +71,7 @@ export interface Settings {
   showColumnTitles: boolean;
   theme: string;
   scale: number;
-  showCalendar: boolean;
   openLinksInNewTab: boolean;
-  holidayCountry: string;
   showSearch: boolean;
   searchEngine: string;
   centerContent: boolean;
@@ -101,7 +117,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteLink' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator';
 
 export interface ModalState {
   type: ModalType;
@@ -127,8 +143,14 @@ export interface WeatherData {
     areaName: { value: string }[];
   }[];
   weather: {
+    date: string;
     maxtempC: string;
     mintempC: string;
+    hourly: {
+        weatherIconUrl: { value: string }[];
+        // FIX: Add missing 'weatherDesc' property to match API response and fix type error in Weather.tsx.
+        weatherDesc: { value: string }[];
+    }[];
   }[];
 }
 

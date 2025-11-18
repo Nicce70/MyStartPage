@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon } from './components/Icons';
+import CurrencySettingsForm from './components/CurrencySettingsForm';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState } from './types';
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 
 // Simple UUID generator
@@ -26,9 +27,9 @@ const DEFAULT_COLUMNS: Column[] = [
       {
         id: uuidv4(),
         name: "Work",
-        links: [
-          { id: uuidv4(), name: "Gmail", url: "https://mail.google.com", comment: "Work Email" },
-          { id: uuidv4(), name: "Google Calendar", url: "https://calendar.google.com" },
+        items: [
+          { id: uuidv4(), type: 'link', name: "Gmail", url: "https://mail.google.com", comment: "Work Email" },
+          { id: uuidv4(), type: 'link', name: "Google Calendar", url: "https://calendar.google.com" },
         ],
         type: 'links',
       },
@@ -42,15 +43,51 @@ const DEFAULT_COLUMNS: Column[] = [
       {
         id: uuidv4(),
         name: "General",
-        links: [
-          { id: uuidv4(), name: "Reddit", url: "https://www.reddit.com" },
-          { id: uuidv4(), name: "Bluesky", url: "https://bsky.app/" },
+        items: [
+          { id: uuidv4(), type: 'link', name: "Reddit", url: "https://www.reddit.com" },
+          { id: uuidv4(), type: 'link', name: "Bluesky", url: "https://bsky.app/" },
         ],
         type: 'links'
       },
     ]
   }
 ];
+
+const runDataMigrationAndValidation = (data: any): Column[] => {
+  if (!Array.isArray(data)) {
+    console.warn('LocalStorage data for columns is not an array, resetting to default.');
+    return DEFAULT_COLUMNS;
+  }
+
+  const validatedColumns = data.map(col => {
+    if (!col || typeof col !== 'object' || !col.id) return null;
+
+    const groups = Array.isArray(col.groups) ? col.groups.map(group => {
+      if (!group || typeof group !== 'object' || !group.id) return null;
+      
+      let items = group.items;
+      // Migration from old `links` property
+      if (Array.isArray(group.links) && !items) {
+        items = group.links.map((link: any) => ({ ...link, type: 'link' as const }));
+      }
+      
+      // Ensure items is a valid array and filter out bad entries
+      if (!Array.isArray(items)) {
+        items = [];
+      } else {
+        items = items.filter(item => item && typeof item === 'object' && item.id && item.type);
+      }
+      
+      const migratedGroup = { ...group, items };
+      delete migratedGroup.links; // remove old property
+      return migratedGroup;
+    }).filter(Boolean) : [];
+
+    return { ...col, groups };
+  }).filter(Boolean);
+
+  return validatedColumns as Column[];
+};
 
 const DEFAULT_SETTINGS: Settings = {
   columnGap: 4,
@@ -59,13 +96,26 @@ const DEFAULT_SETTINGS: Settings = {
   showColumnTitles: true,
   theme: 'default',
   scale: 6,
-  showCalendar: false,
   openLinksInNewTab: true,
-  holidayCountry: 'SE',
   showSearch: false,
   searchEngine: 'google',
   centerContent: false,
   backgroundImage: '',
+};
+
+const sanitizeSettings = (data: any): Settings => {
+  const cleanSettings = { ...DEFAULT_SETTINGS };
+  const validKeys = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
+
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    validKeys.forEach(key => {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+         // @ts-ignore
+         cleanSettings[key] = data[key];
+      }
+    });
+  }
+  return cleanSettings;
 };
 
 const scaleMap: { [key: number]: string } = {
@@ -90,7 +140,7 @@ const searchEngines: { [key: string]: { name: string; url: string } } = {
 };
 
 type DraggedItem = 
-  | { type: 'link'; link: Link; sourceGroupId: string; sourceColumnId: string }
+  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
   | { type: 'group'; group: Group; sourceColumnId: string }
   | { type: 'column'; column: Column }
   | null;
@@ -98,6 +148,26 @@ type DraggedItem =
 // FIX: Property 'supportedValuesOf' does not exist on type 'typeof Intl' in some TypeScript configurations.
 // Use optional chaining with a type assertion and provide a fallback to the user's current timezone.
 const timezones = (Intl as any).supportedValuesOf?.('timeZone') ?? [Intl.DateTimeFormat().resolvedOptions().timeZone];
+
+const countries = [
+  { code: '', name: 'None' },
+  { code: 'SE', name: 'Sweden' },
+  { code: 'NO', name: 'Norway' },
+  { code: 'DK', name: 'Denmark' },
+  { code: 'FI', name: 'Finland' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'US', name: 'United States' },
+  { code: 'FR', name: 'France' },
+  { code: 'ES', name: 'Spain' },
+  { code: 'IT', name: 'Italy' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'CN', name: 'China' },
+  { code: 'IN', name: 'India' },
+  { code: 'BR', name: 'Brazil' },
+];
 
 const TimerSettingsForm: React.FC<{
   group: Group;
@@ -188,11 +258,101 @@ const TimerSettingsForm: React.FC<{
   );
 };
 
+const WeatherSettingsForm: React.FC<{
+  group: Group;
+  themeClasses: Theme;
+}> = ({ group, themeClasses }) => {
+  const [showTime, setShowTime] = useState(group.widgetSettings?.weatherShowTime ?? false);
+  const currentCity = group.widgetSettings?.city || '';
+  const currentShowForecast = group.widgetSettings?.weatherShowForecast ?? false;
+  const currentTimezone = group.widgetSettings?.weatherTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="city" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label>
+        <input
+          type="text"
+          id="city"
+          name="city"
+          defaultValue={currentCity}
+          required
+          placeholder="e.g., London, GB"
+          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+        />
+      </div>
+      <div className="flex items-center justify-between pt-2">
+        <label htmlFor="weatherShowForecast" className="text-sm font-medium">Show 2-day forecast</label>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            id="weatherShowForecast"
+            name="weatherShowForecast"
+            defaultChecked={currentShowForecast}
+            className="sr-only peer"
+          />
+          <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+        </label>
+      </div>
+
+      <div className="pt-4 mt-4 border-t border-slate-700 space-y-4">
+        <div className="flex items-center justify-between">
+          <label htmlFor="weatherShowTime" className="text-sm font-medium">Show local time</label>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              id="weatherShowTime"
+              name="weatherShowTime"
+              checked={showTime}
+              onChange={(e) => setShowTime(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+
+        {showTime && (
+          <div>
+            <label htmlFor="weatherTimezone" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Timezone</label>
+            <select
+              id="weatherTimezone"
+              name="weatherTimezone"
+              defaultValue={currentTimezone}
+              required
+              className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} max-h-60`}
+            >
+              {timezones.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function App() {
-  const [columns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
-  const [settings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
+  const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
+  const [rawSettings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
   const [pageTitle, setPageTitle] = useLocalStorage<string>('startpage-title', 'My Startpage');
   const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
+
+  const columns = useMemo(() => runDataMigrationAndValidation(rawColumns), [rawColumns]);
+  const settings = useMemo(() => sanitizeSettings(rawSettings), [rawSettings]);
+
+  useEffect(() => {
+    if (JSON.stringify(rawColumns) !== JSON.stringify(columns)) {
+      setColumns(columns);
+    }
+  }, [rawColumns, columns, setColumns]);
+
+  useEffect(() => {
+    // If raw settings contain legacy keys that are not in DEFAULT_SETTINGS, clean them up.
+    // We rely on sanitizeSettings to filter them out.
+    // Using JSON.stringify for comparison is sufficient here.
+    if (JSON.stringify(rawSettings) !== JSON.stringify(settings)) {
+        setSettings(settings);
+    }
+  }, [rawSettings, settings, setSettings]);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -296,31 +456,6 @@ function App() {
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
-    const oldShowCalendar = settings.showCalendar;
-    const newShowCalendar = newSettings.showCalendar;
-  
-    let updatedColumns = JSON.parse(JSON.stringify(columns));
-  
-    // Handle Calendar Widget
-    if (newShowCalendar !== oldShowCalendar) {
-      if (newShowCalendar) {
-        const calendarExists = updatedColumns.some((col: Column) => col.groups.some(g => g.id === CALENDAR_WIDGET_ID));
-        if (!calendarExists) {
-          if (updatedColumns.length === 0) {
-            updatedColumns.push({ id: uuidv4(), name: "Widgets", groups: [] });
-          }
-          const calendarWidget: Group = { id: CALENDAR_WIDGET_ID, name: 'Calendar', links: [], isCollapsed: false, type: 'widget', widgetType: 'calendar' };
-          updatedColumns[0].groups.unshift(calendarWidget);
-        }
-      } else {
-        updatedColumns = updatedColumns.map((col: Column) => ({
-          ...col,
-          groups: col.groups.filter(g => g.id !== CALENDAR_WIDGET_ID),
-        }));
-      }
-    }
-  
-    setColumns(updatedColumns);
     setSettings(newSettings);
   };
 
@@ -345,7 +480,7 @@ function App() {
         break;
       case 'addGroup': {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
-        if (col) col.groups.push({ id: uuidv4(), name, links: [], type: 'links' });
+        if (col) col.groups.push({ id: uuidv4(), name, items: [], type: 'links' });
         setColumns(newColumns);
         break;
       }
@@ -364,6 +499,11 @@ function App() {
             if (group.widgetType === 'weather') {
                 const city = formData.get('city') as string;
                 group.widgetSettings.city = city;
+                group.widgetSettings.weatherShowForecast = formData.has('weatherShowForecast');
+                group.widgetSettings.weatherShowTime = formData.has('weatherShowTime');
+                if (formData.has('weatherShowTime')) {
+                    group.widgetSettings.weatherTimezone = formData.get('weatherTimezone') as string;
+                }
             } else if (group.widgetType === 'clock') {
                 const timezone = formData.get('timezone') as string;
                 const showSeconds = formData.has('showSeconds');
@@ -387,6 +527,19 @@ function App() {
                 const rssItemCount = parseInt(formData.get('rssItemCount') as string, 10) || 5;
                 group.widgetSettings.rssUrl = rssUrl;
                 group.widgetSettings.rssItemCount = rssItemCount;
+            } else if (group.widgetType === 'countdown') {
+                const countdownTitle = formData.get('countdownTitle') as string;
+                const countdownDate = formData.get('countdownDate') as string;
+                group.widgetSettings.countdownTitle = countdownTitle;
+                group.widgetSettings.countdownDate = new Date(countdownDate).toISOString();
+            } else if (group.widgetType === 'calendar') {
+                const holidayCountry = formData.get('holidayCountry') as string;
+                group.widgetSettings.holidayCountry = holidayCountry;
+            } else if (group.widgetType === 'currency') {
+                const currencyBase = formData.get('currencyBase') as string;
+                const currencyTargets = formData.getAll('currencyTargets') as string[];
+                group.widgetSettings.currencyBase = currencyBase;
+                group.widgetSettings.currencyTargets = currencyTargets;
             }
         }
         setColumns(newColumns);
@@ -395,15 +548,15 @@ function App() {
       case 'addLink': {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
-        if (group) group.links.push({ id: uuidv4(), name, url: url.startsWith('https://') || url.startsWith('http://') ? url : `https://${url}`, comment });
+        if (group) group.items.push({ id: uuidv4(), type: 'link', name, url: url.startsWith('https://') || url.startsWith('http://') ? url : `https://${url}`, comment });
         setColumns(newColumns);
         break;
       }
       case 'editLink': {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
-        const link = group?.links.find((l: Link) => l.id === modal.data.link.id);
-        if (link) {
+        const link = group?.items.find((l: GroupItemType) => l.id === modal.data.link.id);
+        if (link && link.type === 'link') {
           link.name = name;
           link.url = url;
           link.comment = comment;
@@ -415,7 +568,28 @@ function App() {
     closeModal();
   };
   
-  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad', columnId: string) => {
+  const handleAddSeparator = (groupId: string, columnId: string) => {
+    setColumns(prevColumns => prevColumns.map(col => {
+      if (col.id === columnId) {
+        return {
+          ...col,
+          groups: col.groups.map(g => {
+            if (g.id === groupId) {
+              return {
+                ...g,
+                items: [...g.items, { id: uuidv4(), type: 'separator' }]
+              };
+            }
+            return g;
+          })
+        };
+      }
+      return col;
+    }));
+    closeModal();
+  };
+
+  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad' | 'countdown' | 'calendar' | 'currency', columnId: string) => {
     const newColumns = JSON.parse(JSON.stringify(columns));
     const col = newColumns.find((c: Column) => c.id === columnId);
     if (!col) return;
@@ -426,16 +600,21 @@ function App() {
         newWidget = {
             id: uuidv4(),
             name: "Weather",
-            links: [],
+            items: [],
             type: 'widget',
             widgetType: 'weather',
-            widgetSettings: { city: 'Stockholm' }
+            widgetSettings: { 
+              city: 'Stockholm', 
+              weatherShowForecast: false,
+              weatherShowTime: false,
+              weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }
         };
     } else if (widgetType === 'clock') {
       newWidget = {
           id: uuidv4(),
           name: "Clock",
-          links: [],
+          items: [],
           type: 'widget',
           widgetType: 'clock',
           widgetSettings: { 
@@ -447,7 +626,7 @@ function App() {
         newWidget = {
             id: uuidv4(),
             name: "Timer / Stopwatch",
-            links: [],
+            items: [],
             type: 'widget',
             widgetType: 'timer',
             widgetSettings: { 
@@ -460,7 +639,7 @@ function App() {
         newWidget = {
             id: uuidv4(),
             name: "RSS Feed",
-            links: [],
+            items: [],
             type: 'widget',
             widgetType: 'rss',
             widgetSettings: { 
@@ -472,7 +651,7 @@ function App() {
         newWidget = { 
           id: TODO_WIDGET_ID, 
           name: 'To-Do List', 
-          links: [], 
+          items: [], 
           isCollapsed: false, 
           type: 'widget', 
           widgetType: 'todo' 
@@ -481,7 +660,7 @@ function App() {
         newWidget = { 
             id: CALCULATOR_WIDGET_ID, 
             name: 'Calculator', 
-            links: [], 
+            items: [], 
             isCollapsed: false, 
             type: 'widget', 
             widgetType: 'calculator',
@@ -496,11 +675,47 @@ function App() {
         newWidget = {
             id: uuidv4(),
             name: "Scratchpad",
-            links: [],
+            items: [],
             type: 'widget',
             widgetType: 'scratchpad',
             widgetSettings: { 
               scratchpadContent: ''
+            }
+        };
+    } else if (widgetType === 'countdown') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Countdown",
+            items: [],
+            type: 'widget',
+            widgetType: 'countdown',
+            widgetSettings: { 
+              countdownTitle: 'My Event',
+              countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+            }
+        };
+    } else if (widgetType === 'calendar') {
+        newWidget = { 
+          id: CALENDAR_WIDGET_ID, 
+          name: 'Calendar', 
+          items: [], 
+          isCollapsed: false, 
+          type: 'widget', 
+          widgetType: 'calendar',
+          widgetSettings: {
+            holidayCountry: 'SE'
+          }
+        };
+    } else if (widgetType === 'currency') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Currency Converter",
+            items: [],
+            type: 'widget',
+            widgetType: 'currency',
+            widgetSettings: { 
+              currencyBase: 'SEK',
+              currencyTargets: ['USD', 'EUR', 'NOK']
             }
         };
     } else {
@@ -519,12 +734,6 @@ function App() {
 
     switch (modal.type) {
       case 'deleteColumn': {
-        const columnToDelete = columns.find(c => c.id === modal.data.id);
-        if (columnToDelete) {
-            if (columnToDelete.groups.some(g => g.id === CALENDAR_WIDGET_ID)) {
-                setSettings(s => ({ ...s, showCalendar: false }));
-            }
-        }
         newColumns = columns.filter(c => c.id !== modal.data.id);
         break;
       }
@@ -536,14 +745,14 @@ function App() {
           return c;
         });
         break;
-      case 'deleteLink':
+      case 'deleteItem':
         newColumns = columns.map(c => {
           if (c.id === modal.data.columnId) {
             return {
               ...c,
               groups: c.groups.map(g => {
                 if (g.id === modal.data.groupId) {
-                  return { ...g, links: g.links.filter(l => l.id !== modal.data.link.id) };
+                  return { ...g, items: g.items.filter(i => i.id !== modal.data.item.id) };
                 }
                 return g;
               })
@@ -562,17 +771,17 @@ function App() {
     setDraggedItem(item);
   };
   
-  const handleDrop = (target: { columnId: string; groupId?: string; linkId?: string }) => {
+  const handleDrop = (target: { columnId: string; groupId?: string; itemId?: string }) => {
     if (!draggedItem) return;
 
     let newColumns = JSON.parse(JSON.stringify(columns));
 
     // Remove the dragged item from its original position
-    if (draggedItem.type === 'link') {
+    if (draggedItem.type === 'groupItem') {
       const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
       const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
       if (sourceGroup) {
-        sourceGroup.links = sourceGroup.links.filter((l: Link) => l.id !== draggedItem.link.id);
+        sourceGroup.items = sourceGroup.items.filter((i: GroupItemType) => i.id !== draggedItem.item.id);
       }
     } else if (draggedItem.type === 'group') {
       const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
@@ -584,12 +793,12 @@ function App() {
     }
     
     // Add the dragged item to its new position
-    if (draggedItem.type === 'link') {
+    if (draggedItem.type === 'groupItem') {
       const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
       const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
       if (targetGroup) {
-        const targetLinkIndex = target.linkId ? targetGroup.links.findIndex((l: Link) => l.id === target.linkId) : targetGroup.links.length;
-        targetGroup.links.splice(targetLinkIndex, 0, draggedItem.link);
+        const targetItemIndex = target.itemId ? targetGroup.items.findIndex((i: GroupItemType) => i.id === target.itemId) : targetGroup.items.length;
+        targetGroup.items.splice(targetItemIndex, 0, draggedItem.item);
       }
     } else if (draggedItem.type === 'group') {
       const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
@@ -667,7 +876,7 @@ function App() {
   const applyImport = () => {
     if (!importData) return;
     
-    setColumns(importData.columns);
+    setColumns(runDataMigrationAndValidation(importData.columns));
     setSettings(prevSettings => ({...prevSettings, ...importData.settings}));
     setPageTitle(importData.pageTitle);
     setTodos(importData.todos || []);
@@ -744,9 +953,122 @@ function App() {
     
     const { type, data } = modal;
 
+    if (type === 'addLinkOrSeparator') {
+      return (
+        <div>
+            <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to the group:</p>
+            <div className="space-y-3">
+                <button 
+                    onClick={() => setModal({ type: 'addLink', data })}
+                    className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                >
+                   <LinkIcon className="w-5 h-5" />
+                   <span className="font-semibold">Link</span>
+                </button>
+                <button 
+                    onClick={() => handleAddSeparator(data.groupId, data.columnId)}
+                    className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                >
+                   <MinusIcon className="w-5 h-5" />
+                   <span className="font-semibold">Separator</span>
+                </button>
+            </div>
+        </div>
+      );
+    }
+
     if (type === 'addWidget') {
-        const todoExists = columns.some(col => col.groups.some(g => g.id === TODO_WIDGET_ID));
-        const calculatorExists = columns.some(col => col.groups.some(g => g.id === CALCULATOR_WIDGET_ID));
+        const todoExists = columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
+        const calculatorExists = columns.some(col => col.groups.some(g => g.widgetType === 'calculator'));
+        const calendarExists = columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
+
+        const multiInstanceWidgets = (
+          <>
+            <button 
+                onClick={() => handleAddWidget('weather', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <SunIcon className="w-5 h-5" />
+               <span className="font-semibold">Weather Widget</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('clock', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <ClockIcon className="w-5 h-5" />
+               <span className="font-semibold">Clock Widget</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('timer', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <TimerIcon className="w-5 h-5" />
+               <span className="font-semibold">Timer / Stopwatch Widget</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('rss', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <RssIcon className="w-5 h-5" />
+               <span className="font-semibold">RSS Feed Widget</span>
+            </button>
+             <button 
+                onClick={() => handleAddWidget('currency', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <BanknotesIcon className="w-5 h-5" />
+               <span className="font-semibold">Currency Widget</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('scratchpad', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <DocumentTextIcon className="w-5 h-5" />
+               <span className="font-semibold">Scratchpad Widget</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('countdown', data.columnId)}
+                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+            >
+               <PartyPopperIcon className="w-5 h-5" />
+               <span className="font-semibold">Countdown Widget</span>
+            </button>
+          </>
+        );
+
+        const singleInstanceWidgets = (
+          <>
+            {!calendarExists && (
+              <button 
+                  onClick={() => handleAddWidget('calendar', data.columnId)}
+                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+              >
+                  <CalendarDaysIcon className="w-5 h-5" />
+                  <span className="font-semibold">Calendar Widget</span>
+              </button>
+            )}
+            {!todoExists && (
+              <button 
+                  onClick={() => handleAddWidget('todo', data.columnId)}
+                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+              >
+                  <ClipboardDocumentCheckIcon className="w-5 h-5" />
+                  <span className="font-semibold">To-Do List Widget</span>
+              </button>
+            )}
+            {!calculatorExists && (
+              <button 
+                  onClick={() => handleAddWidget('calculator', data.columnId)}
+                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+              >
+                  <CalculatorIcon className="w-5 h-5" />
+                  <span className="font-semibold">Calculator Widget</span>
+              </button>
+            )}
+          </>
+        );
+
+        const hasSingleInstanceWidgets = !calendarExists || !todoExists || !calculatorExists;
 
         return (
             <div>
@@ -759,59 +1081,16 @@ function App() {
                        <LinkIcon className="w-5 h-5" />
                        <span className="font-semibold">Link Group</span>
                     </button>
+                    
                     <hr className={`border-slate-700 my-3`}/>
-                    <button 
-                        onClick={() => handleAddWidget('weather', data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <SunIcon className="w-5 h-5" />
-                       <span className="font-semibold">Weather Widget</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddWidget('clock', data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <ClockIcon className="w-5 h-5" />
-                       <span className="font-semibold">Clock Widget</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddWidget('timer', data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <TimerIcon className="w-5 h-5" />
-                       <span className="font-semibold">Timer / Stopwatch Widget</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddWidget('rss', data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <RssIcon className="w-5 h-5" />
-                       <span className="font-semibold">RSS Feed Widget</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddWidget('scratchpad', data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <DocumentTextIcon className="w-5 h-5" />
-                       <span className="font-semibold">Scratchpad Widget</span>
-                    </button>
-                    {!todoExists && (
-                      <button 
-                          onClick={() => handleAddWidget('todo', data.columnId)}
-                          className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                      >
-                         <ClipboardDocumentCheckIcon className="w-5 h-5" />
-                         <span className="font-semibold">To-Do List Widget</span>
-                      </button>
-                    )}
-                    {!calculatorExists && (
-                      <button 
-                          onClick={() => handleAddWidget('calculator', data.columnId)}
-                          className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                      >
-                         <CalculatorIcon className="w-5 h-5" />
-                         <span className="font-semibold">Calculator Widget</span>
-                      </button>
+                    
+                    {multiInstanceWidgets}
+
+                    {hasSingleInstanceWidgets && (
+                      <>
+                        <hr className={`border-slate-700 my-3`}/>
+                        {singleInstanceWidgets}
+                      </>
                     )}
                 </div>
             </div>
@@ -846,7 +1125,7 @@ function App() {
       let itemName = '';
       if (type === 'deleteColumn') itemName = data.name;
       if (type === 'deleteGroup') itemName = data.group.name;
-      if (type === 'deleteLink') itemName = data.link.name;
+      if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this separator';
       
       return (
         <div>
@@ -862,23 +1141,9 @@ function App() {
     if (type === 'editWidgetSettings') {
       const { group } = data;
       if (group.widgetType === 'weather') {
-          const currentCity = group.widgetSettings?.city || '';
           return (
               <form onSubmit={handleFormSubmit} ref={formRef}>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="city" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label>
-                    <input
-                      type="text"
-                      id="city"
-                      name="city"
-                      defaultValue={currentCity}
-                      required
-                      placeholder="e.g., London, GB"
-                      className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                    />
-                  </div>
-                </div>
+                <WeatherSettingsForm group={group} themeClasses={themeClasses} />
                 <div className="flex justify-end gap-3 pt-6">
                   <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
                   <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
@@ -969,6 +1234,79 @@ function App() {
             </form>
         );
       }
+
+      if (group.widgetType === 'countdown') {
+        const targetDate = new Date(group.widgetSettings?.countdownDate || Date.now());
+        const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(targetDate.getTime() - tzoffset)).toISOString().slice(0, 16);
+
+        return (
+            <form onSubmit={handleFormSubmit} ref={formRef}>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="countdownTitle" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Event Title</label>
+                  <input
+                    type="text"
+                    id="countdownTitle"
+                    name="countdownTitle"
+                    defaultValue={group.widgetSettings?.countdownTitle || 'My Event'}
+                    required
+                    placeholder="e.g., Vacation"
+                    className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                  />
+                </div>
+                <div>
+                    <label htmlFor="countdownDate" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Date and Time</label>
+                    <input 
+                        type="datetime-local" 
+                        id="countdownDate" 
+                        name="countdownDate"
+                        defaultValue={localISOTime}
+                        required
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} 
+                    />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6">
+                <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+              </div>
+            </form>
+        );
+      }
+
+      if (group.widgetType === 'calendar') {
+        return (
+          <form onSubmit={handleFormSubmit} ref={formRef}>
+            <div>
+              <label htmlFor="holidayCountry" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Country for Holidays</label>
+              <select
+                id="holidayCountry"
+                name="holidayCountry"
+                defaultValue={group.widgetSettings?.holidayCountry || 'SE'}
+                className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+              >
+                {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 pt-6">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+            </div>
+          </form>
+        );
+      }
+      if (group.widgetType === 'currency') {
+          return (
+              <form onSubmit={handleFormSubmit} ref={formRef}>
+                <CurrencySettingsForm group={group} themeClasses={themeClasses} />
+                <div className="flex justify-end gap-3 pt-6">
+                  <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                  <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+                </div>
+              </form>
+          );
+      }
     }
     
     const isLink = type === 'addLink' || type === 'editLink';
@@ -983,13 +1321,16 @@ function App() {
       <form onSubmit={handleFormSubmit} ref={formRef}>
         <div className="space-y-4">
           <div>
-            <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+            <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>
+              Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span>
+            </label>
             <input
               type="text"
               id="name"
               name="name"
               defaultValue={currentName}
               required
+              maxLength={30}
               className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
             />
           </div>
@@ -1026,12 +1367,15 @@ function App() {
                 />
               </div>
               <div>
-                <label htmlFor="comment" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Comment (optional)</label>
+                <label htmlFor="comment" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>
+                  Comment (optional) <span className="text-xs font-normal opacity-70">(max 150 chars)</span>
+                </label>
                 <input
                   type="text"
                   id="comment"
                   name="comment"
                   defaultValue={currentComment}
+                  maxLength={150}
                   className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                 />
               </div>
@@ -1057,10 +1401,11 @@ function App() {
       case 'editLink': return 'Edit Link';
       case 'deleteColumn': return 'Delete Column';
       case 'deleteGroup': return 'Delete Group';
-      case 'deleteLink': return 'Delete Link';
+      case 'deleteItem': return `Delete ${modal.data.item.type === 'link' ? 'Link' : 'Separator'}`;
       case 'importConfirm': return 'Confirm Import';
       case 'resetConfirm': return 'Confirm Reset';
       case 'addWidget': return 'Add to Column';
+      case 'addLinkOrSeparator': return 'Add to Group';
       case 'editWidgetSettings': return 'Widget Settings';
       default: return '';
     }
@@ -1081,8 +1426,19 @@ function App() {
       <ThemeStyles theme={themeClasses} />
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
         <header className="flex-shrink-0 grid grid-cols-[1fr_2fr_1fr] items-end gap-4 mb-6">
-          <div className="justify-self-start">
-              <h1 className={`text-3xl font-bold ${themeClasses.header} pl-2 truncate`}>{pageTitle}</h1>
+          <div className="justify-self-start w-full min-w-0">
+              {isEditMode ? (
+                <input
+                  type="text"
+                  value={pageTitle}
+                  onChange={(e) => setPageTitle(e.target.value)}
+                  maxLength={30}
+                  className={`text-3xl font-bold bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none pl-2 w-full ${themeClasses.header}`}
+                  placeholder="Page Title"
+                />
+              ) : (
+                <h1 className={`text-3xl font-bold ${themeClasses.header} pl-2 truncate`}>{pageTitle}</h1>
+              )}
           </div>
                     
           <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative top-2">
@@ -1146,7 +1502,6 @@ function App() {
                 openLinksInNewTab={settings.openLinksInNewTab}
                 widthStyle={getColumnStyle(col.width)}
                 isDeletable={columns.length > 0}
-                holidayCountry={settings.holidayCountry}
                 todos={todos}
                 setTodos={setTodos}
                 onCalculatorStateChange={handleCalculatorStateChange}

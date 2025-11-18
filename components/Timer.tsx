@@ -6,9 +6,10 @@ interface TimerProps {
   themeClasses: typeof themes.default;
   playSound?: boolean;
   onOpenSettings: () => void;
+  isEditMode: boolean;
 }
 
-const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound = true, onOpenSettings }) => {
+const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound = true, onOpenSettings, isEditMode }) => {
   const [timeLeft, setTimeLeft] = useState(initialDuration);
   const [isActive, setIsActive] = useState(false);
   const isStopwatch = initialDuration === 0;
@@ -33,7 +34,7 @@ const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound 
 
   // Effect to handle the countdown/countup interval
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !isEditMode) { // Do not run timer in edit mode
       intervalRef.current = window.setInterval(() => {
         if (isStopwatch) {
           setTimeLeft(t => t + 1);
@@ -66,7 +67,7 @@ const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound 
         clearInterval(intervalRef.current);
       }
     };
-  }, [isActive, isStopwatch, playSound, playAlarm]);
+  }, [isActive, isStopwatch, playSound, playAlarm, isEditMode]);
 
 
   const handleStartPause = () => {
@@ -110,20 +111,21 @@ const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound 
         <button
           onClick={handleStartPause}
           className={`${themeClasses.buttonPrimary} font-semibold py-2 px-3 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-          disabled={isFinished && !isActive}
+          disabled={isEditMode || (isFinished && !isActive)}
         >
           {isActive ? 'Pause' : 'Start'}
         </button>
         <button
             onClick={onOpenSettings}
             className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
-            disabled={isActive}
+            disabled={isEditMode || isActive}
         >
             Set
         </button>
         <button
           onClick={handleReset}
-          className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg transition-colors text-sm`}
+          className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={isEditMode}
         >
           Reset
         </button>

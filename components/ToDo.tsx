@@ -65,20 +65,20 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses }) => {
       <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
         {todos.map(todo => (
           <li key={todo.id} className="group/todo flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3 min-w-0">
               <input
                 type="checkbox"
                 checked={todo.completed}
                 onChange={() => handleToggleItem(todo.id)}
-                className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass}`}
+                className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass} mt-1 flex-shrink-0`}
               />
-              <span className={`transition-colors ${todo.completed ? `line-through ${themeClasses.textSubtle}` : themeClasses.modalText}`}>
+              <span className={`transition-colors break-all ${todo.completed ? `line-through ${themeClasses.textSubtle}` : themeClasses.modalText}`}>
                 {todo.text}
               </span>
             </div>
             <button
               onClick={() => handleDeleteItem(todo.id)}
-              className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full ${themeClasses.buttonIconHoverBg} transition-colors opacity-0 group-hover/todo:opacity-100`}
+              className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full ${themeClasses.buttonIconHoverBg} transition-colors opacity-0 group-hover/todo:opacity-100 flex-shrink-0`}
             >
               <TrashIcon className="w-4 h-4" />
             </button>

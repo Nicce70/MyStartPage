@@ -15,27 +15,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const countries = [
-  { code: '', name: 'None' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'NO', name: 'Norway' },
-  { code: 'DK', name: 'Denmark' },
-  { code: 'FI', name: 'Finland' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'US', name: 'United States' },
-  { code: 'FR', name: 'France' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'CN', name: 'China' },
-  { code: 'IN', name: 'India' },
-  { code: 'BR', name: 'Brazil' },
-];
-
-const APP_VERSION = '2.2';
+const APP_VERSION = '2.3';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -202,35 +182,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
           {activeTab === 'features' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <label htmlFor="showCalendar" className="text-sm font-medium">Show Calendar</label>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="showCalendar"
-                    name="showCalendar"
-                    checked={settings.showCalendar}
-                    onChange={handleToggleChange}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
-              </div>
-              
-              <div>
-                <label htmlFor="holidayCountry" className="block text-sm font-medium">Country for Holidays</label>
-                <select
-                  id="holidayCountry"
-                  name="holidayCountry"
-                  value={settings.holidayCountry}
-                  onChange={handleTextChange}
-                  className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                >
-                  {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
-                </select>
-              </div>
-
-              <div className="pt-6 border-t border-slate-700 space-y-4">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                     <label htmlFor="showSearch" className="text-sm font-medium">Show Search Bar</label>
                     <label className="relative inline-flex items-center cursor-pointer">

@@ -1,11 +1,13 @@
 import React from 'react';
-import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState, GroupItemType } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
 
-type DraggedItem = 
-  | { type: 'link'; link: Link; sourceGroupId: string; sourceColumnId: string }
+// FIX: Aligned DraggedItem type with the rest of the application to resolve type mismatch errors.
+// It now uses a generic 'groupItem' type to handle both links and separators.
+type DraggedItem =
+  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
   | { type: 'group'; group: Group; sourceColumnId: string }
   | { type: 'column'; column: Column }
   | null;
@@ -24,7 +26,6 @@ interface ColumnProps {
   openLinksInNewTab: boolean;
   widthStyle: React.CSSProperties;
   isDeletable: boolean;
-  holidayCountry: string;
   todos: ToDoItem[];
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
   onCalculatorStateChange: (newState: CalculatorState) => void;
@@ -32,7 +33,7 @@ interface ColumnProps {
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, holidayCountry, todos, setTodos, onCalculatorStateChange, onScratchpadChange
+  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -80,13 +81,13 @@ const ColumnComponent: React.FC<ColumnProps> = ({
       className={`flex-shrink-0 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       {showColumnTitles && (
-        <div className="flex justify-between items-center mb-4 group/header p-2">
-          <div className="flex items-center gap-2 truncate">
-            {isEditMode && <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />}
-            <h2 className={`text-xl font-bold ${themeClasses.header} truncate`}>{column.name}</h2>
+        <div className="flex justify-between items-start mb-4 group/header p-2">
+          <div className="flex items-start gap-2 min-w-0">
+            {isEditMode && <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1" />}
+            <h2 className={`text-xl font-bold ${themeClasses.header} break-all`}>{column.name}</h2>
           </div>
           {isEditMode && (
-            <div className="flex items-center gap-2 transition-opacity">
+            <div className="flex items-center gap-2 transition-opacity flex-shrink-0 ml-2">
               <button onClick={() => openModal('addWidget', { columnId: column.id })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
                 <PlusIcon className="w-5 h-5" />
               </button>
@@ -116,7 +117,6 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onToggleGroupCollapsed={onToggleGroupCollapsed}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}
-            holidayCountry={holidayCountry}
             todos={todos}
             setTodos={setTodos}
             onCalculatorStateChange={onCalculatorStateChange}

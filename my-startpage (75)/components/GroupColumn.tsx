@@ -1,0 +1,269 @@
+import React from 'react';
+import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState } from '../types';
+import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
+import LinkItem from './LinkItem';
+import SeparatorItem from './SeparatorItem';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon } from './Icons';
+import type { themes } from '../themes';
+import Calendar from './Calendar';
+import ToDo from './ToDo';
+import Weather from './Weather';
+import Clock from './Clock';
+import Timer from './Timer';
+import RSS from './RSS';
+import Calculator from './Calculator';
+import Scratchpad from './Scratchpad';
+import Countdown from './Countdown';
+import Currency from './Currency';
+
+type DraggedItem = 
+  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
+  | { type: 'group'; group: Group; sourceColumnId: string }
+  | { type: 'column'; column: Column }
+  | null;
+
+interface GroupItemProps {
+  group: Group;
+  columnId: string;
+  isEditMode: boolean;
+  onDragStart: (item: DraggedItem) => void;
+  onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
+  draggedItem: DraggedItem;
+  openModal: (type: ModalState['type'], data?: any) => void;
+  onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
+  themeClasses: typeof themes.default;
+  openLinksInNewTab: boolean;
+  todos: ToDoItem[];
+  setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
+  onCalculatorStateChange: (newState: CalculatorState) => void;
+  onScratchpadChange: (groupId: string, newContent: string) => void;
+}
+
+const DEFAULT_CALCULATOR_STATE: CalculatorState = {
+  currentValue: '0',
+  previousValue: null,
+  operator: null,
+  isNewEntry: true,
+};
+
+const GroupItem: React.FC<GroupItemProps> = ({
+  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange
+}) => {
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
+  React.useEffect(() => {
+    // When a drag operation ends (draggedItem becomes null), reset the visual indicator.
+    if (!draggedItem) {
+      setIsDragOver(false);
+    }
+  }, [draggedItem]);
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isEditMode || !draggedItem) return;
+    if (draggedItem.type === 'groupItem' || (draggedItem.type === 'group' && draggedItem.group.id !== group.id)) {
+      e.preventDefault();
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = () => setIsDragOver(false);
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isEditMode || !draggedItem) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (draggedItem.type === 'groupItem') {
+        onDrop({ columnId, groupId: group.id });
+    } else if (draggedItem.type === 'group') {
+        onDrop({ columnId, groupId: group.id });
+    }
+    setIsDragOver(false);
+  };
+
+  const isDraggingThis = isEditMode && draggedItem?.type === 'group' && draggedItem.group.id === group.id;
+  
+  const groupType = group.type || 'links';
+  const widgetType = group.widgetType;
+
+  const isCalendarWidget = widgetType === 'calendar';
+  const isTodoWidget = widgetType === 'todo';
+  const isCalculatorWidget = widgetType === 'calculator';
+  const isWeatherWidget = widgetType === 'weather';
+  const isClockWidget = widgetType === 'clock';
+  const isTimerWidget = widgetType === 'timer';
+  const isRssWidget = widgetType === 'rss';
+  const isScratchpadWidget = widgetType === 'scratchpad';
+  const isCountdownWidget = widgetType === 'countdown';
+  const isCurrencyWidget = widgetType === 'currency';
+  const isWidget = groupType === 'widget';
+  const isConfigurableWidget = isWeatherWidget || isClockWidget || isTimerWidget || isRssWidget || isCountdownWidget || isCalendarWidget || isCurrencyWidget;
+
+  return (
+    <div
+      draggable={isEditMode}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        onDragStart({ type: 'group', group, sourceColumnId: columnId });
+      }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`rounded-lg p-3 transition-all duration-200 ${themeClasses.groupBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+    >
+      <div 
+        className={`flex justify-between items-start group/header ${!group.isCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
+        onClick={!isEditMode ? () => onToggleGroupCollapsed(columnId, group.id) : undefined}
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1`} />}
+          {!isEditMode && (
+            <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'} mt-1`} />
+          )}
+          
+          <div className="flex items-start gap-2 min-w-0">
+             {isCalendarWidget && <CalendarDaysIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isTodoWidget && <ClipboardDocumentCheckIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isCalculatorWidget && <CalculatorIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isWeatherWidget && <SunIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isClockWidget && <ClockIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isTimerWidget && <TimerIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isRssWidget && <RssIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isScratchpadWidget && <DocumentTextIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isCountdownWidget && <PartyPopperIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isCurrencyWidget && <BanknotesIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+            <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
+                {group.name}
+            </h2>
+          </div>
+        </div>
+
+        <div className="flex items-center flex-shrink-0 ml-2">
+          {isEditMode && (
+            <div className="flex items-center gap-2 transition-opacity">
+              {isConfigurableWidget && (
+                <button onClick={() => openModal('editWidgetSettings', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                  <CogIcon className="w-5 h-5" />
+                </button>
+              )}
+              {!isWidget && (
+                <button onClick={() => openModal('addLinkOrSeparator', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                  <PlusIcon className="w-5 h-5" />
+                </button>
+              )}
+              <button onClick={() => openModal('editGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                <PencilIcon className="w-4 h-4" />
+              </button>
+              <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
+                  <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {!group.isCollapsed && (
+        isCalendarWidget ? (
+          <Calendar themeClasses={themeClasses} holidayCountry={group.widgetSettings?.holidayCountry || 'SE'} />
+        ) : isTodoWidget ? (
+          <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} />
+        ) : isCalculatorWidget ? (
+          <Calculator
+            themeClasses={themeClasses}
+            state={group.calculatorState || DEFAULT_CALCULATOR_STATE}
+            // FIX: The 'onStateChange' prop for the Calculator component was not defined. It should be assigned 'onCalculatorStateChange' from the component's props.
+            onStateChange={onCalculatorStateChange}
+          />
+        ) : isWeatherWidget ? (
+          <Weather
+            city={group.widgetSettings?.city || ''}
+            showForecast={group.widgetSettings?.weatherShowForecast}
+            showTime={group.widgetSettings?.weatherShowTime}
+            timezone={group.widgetSettings?.weatherTimezone}
+            themeClasses={themeClasses}
+          />
+        ) : isClockWidget ? (
+          <Clock
+            timezone={group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
+            showSeconds={group.widgetSettings?.showSeconds}
+            themeClasses={themeClasses}
+          />
+        ) : isTimerWidget ? (
+          <Timer
+            initialDuration={group.widgetSettings?.timerDuration ?? 300}
+            playSound={group.widgetSettings?.timerPlaySound}
+            themeClasses={themeClasses}
+            onOpenSettings={() => openModal('editWidgetSettings', { group, columnId })}
+            isEditMode={isEditMode}
+          />
+        ) : isRssWidget ? (
+          <RSS
+            rssUrl={group.widgetSettings?.rssUrl || ''}
+            itemCount={group.widgetSettings?.rssItemCount || 5}
+            themeClasses={themeClasses}
+            openLinksInNewTab={openLinksInNewTab}
+          />
+        ) : isScratchpadWidget ? (
+          <Scratchpad
+            content={group.widgetSettings?.scratchpadContent || ''}
+            onChange={(newContent) => onScratchpadChange(group.id, newContent)}
+            themeClasses={themeClasses}
+            isEditMode={isEditMode}
+          />
+        ) : isCountdownWidget ? (
+          <Countdown
+            title={group.widgetSettings?.countdownTitle || ''}
+            targetDate={group.widgetSettings?.countdownDate || ''}
+            themeClasses={themeClasses}
+          />
+        ) : isCurrencyWidget ? (
+          <Currency
+            base={group.widgetSettings?.currencyBase || 'USD'}
+            targets={group.widgetSettings?.currencyTargets || []}
+            themeClasses={themeClasses}
+          />
+        ) : ( // Default to 'links' group
+          <div className="space-y-2">
+            {group.items.map(item =>
+                item.type === 'link' ? (
+                    <LinkItem
+                        key={item.id}
+                        link={item}
+                        groupId={group.id}
+                        columnId={columnId}
+                        isEditMode={isEditMode}
+                        onEdit={() => openModal('editLink', { link: item, groupId: group.id, columnId })}
+                        onDelete={() => openModal('deleteItem', { item, groupId: group.id, columnId })}
+                        isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
+                        onDragStart={onDragStart}
+                        onDrop={onDrop}
+                        themeClasses={themeClasses}
+                        openLinksInNewTab={openLinksInNewTab}
+                    />
+                ) : (
+                    <SeparatorItem
+                        key={item.id}
+                        separator={item}
+                        groupId={group.id}
+                        columnId={columnId}
+                        isEditMode={isEditMode}
+                        onDelete={() => openModal('deleteItem', { item, groupId: group.id, columnId })}
+                        isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
+                        onDragStart={onDragStart}
+                        onDrop={onDrop}
+                        themeClasses={themeClasses}
+                    />
+                )
+            )}
+            {group.items.length === 0 && (
+               <div className="text-center py-4 text-slate-500 text-sm">
+                 {isEditMode ? "Drop items here or click '+' to add." : "No links in this group."}
+               </div>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+};
+
+export default GroupItem;

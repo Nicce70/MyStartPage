@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState, GroupItemType } from '../types';
 import GroupItem from './GroupColumn';
@@ -30,10 +31,11 @@ interface ColumnProps {
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
   onCalculatorStateChange: (newState: CalculatorState) => void;
   onScratchpadChange: (groupId: string, newContent: string) => void;
+  showGroupToggles: boolean;
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange
+  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -121,6 +123,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             setTodos={setTodos}
             onCalculatorStateChange={onCalculatorStateChange}
             onScratchpadChange={onScratchpadChange}
+            showGroupToggles={showGroupToggles}
           />
         ))}
          {column.groups.length === 0 && (

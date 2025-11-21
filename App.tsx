@@ -1,11 +1,15 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
 import CurrencySettingsForm from './components/CurrencySettingsForm';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon } from './components/Icons';
+import WebhookSettingsForm from './components/WebhookSettingsForm';
+import DonationPopup from './components/DonationPopup';
+import QuotePopup from './components/QuotePopup';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
-import { themes } from './themes';
+import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
 import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
@@ -95,12 +99,24 @@ const DEFAULT_SETTINGS: Settings = {
   columnWidth: 4,
   showColumnTitles: true,
   theme: 'default',
+  customThemeColors: {
+    background: '#0f172a', // slate-900
+    panel: '#1e293b',      // slate-800
+    primary: '#6366f1',    // indigo-500
+    secondary: '#475569',  // slate-600
+    text: '#f1f5f9',       // slate-100
+  },
   scale: 6,
   openLinksInNewTab: true,
   showSearch: false,
   searchEngine: 'google',
   centerContent: false,
   backgroundImage: '',
+  showGroupToggles: true,
+  backupReminderInterval: 30,
+  showQuotes: false,
+  quoteCategory: 'inspirational',
+  quoteFrequency: 'daily',
 };
 
 const sanitizeSettings = (data: any): Settings => {
@@ -178,7 +194,7 @@ const TimerSettingsForm: React.FC<{
 
   // Determine the default values for the uncontrolled inputs.
   // These are calculated every render, which is fine because the `key` prop causes a remount.
-  let defaultH, defaultM, defaultS, defaultPlaySound;
+  let defaultH, defaultM, defaultS, defaultPlaySound, defaultOvertime;
   
   if (isStopwatch) {
     // If the form is in stopwatch mode, all values are 0/false.
@@ -186,6 +202,7 @@ const TimerSettingsForm: React.FC<{
     defaultM = 0;
     defaultS = 0;
     defaultPlaySound = false;
+    defaultOvertime = false;
   } else {
     // If the form is in timer mode...
     const savedDuration = group.widgetSettings?.timerDuration;
@@ -196,6 +213,7 @@ const TimerSettingsForm: React.FC<{
         defaultM = 5;
         defaultS = 0;
         defaultPlaySound = true;
+        defaultOvertime = false;
     } else {
         // Otherwise, use the saved duration or the overall default (5 mins).
         const duration = savedDuration ?? 300;
@@ -203,6 +221,7 @@ const TimerSettingsForm: React.FC<{
         defaultM = Math.floor((duration % 3600) / 60);
         defaultS = duration % 60;
         defaultPlaySound = group.widgetSettings?.timerPlaySound ?? true;
+        defaultOvertime = group.widgetSettings?.timerOvertime ?? false;
     }
   }
 
@@ -254,6 +273,23 @@ const TimerSettingsForm: React.FC<{
           <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
         </label>
       </div>
+
+      {!isStopwatch && (
+        <div className={`flex items-center justify-between pt-4 mt-4 border-t border-slate-700 transition-opacity ${isInputsDisabled ? 'opacity-50' : ''}`}>
+            <label htmlFor="timerOvertime" className="text-sm font-medium">Count up after finish (Overtime)</label>
+            <label className="relative inline-flex items-center cursor-pointer">
+            <input
+                type="checkbox"
+                id="timerOvertime"
+                name="timerOvertime"
+                defaultChecked={defaultOvertime}
+                disabled={isInputsDisabled}
+                className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+        </div>
+      )}
     </div>
   );
 };
@@ -330,11 +366,58 @@ const WeatherSettingsForm: React.FC<{
   );
 };
 
+const ColorSelector: React.FC<{
+  currentColor: string;
+  themeClasses: Theme;
+}> = ({ currentColor, themeClasses }) => {
+  const [selected, setSelected] = useState(currentColor || 'default');
+  const ringColorClass = themeClasses.ring.replace('ring-', 'ring-offset-');
+
+  const colors = [
+    { id: 'default', name: 'Default', bgClass: themeClasses.groupBg },
+    { id: 'secondary', name: 'Secondary', bgClass: themeClasses.groupBgSecondary },
+    { id: 'tertiary', name: 'Tertiary', bgClass: themeClasses.groupBgTertiary },
+    { id: 'green', name: 'Green', bgClass: 'bg-[#60B162]' },
+    { id: 'gray', name: 'Light Gray', bgClass: 'bg-[#F2F2F2]' },
+  ];
+
+  return (
+    <div className="mb-4">
+      <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-2`}>Background Color</label>
+      <div className="flex gap-3 flex-wrap">
+        {colors.map((color) => (
+          <label key={color.id} className="relative cursor-pointer group">
+            <input
+              type="radio"
+              name="colorVariant"
+              value={color.id}
+              checked={selected === color.id}
+              onChange={() => setSelected(color.id)}
+              className="sr-only"
+            />
+            <div
+              className={`w-10 h-10 rounded-lg ${color.bgClass} border-2 border-black transition-all ${
+                selected === color.id 
+                  ? `ring-2 ring-white ${ringColorClass}` 
+                  : 'hover:scale-105 opacity-80 hover:opacity-100'
+              }`}
+              title={color.name}
+            ></div>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
   const [rawSettings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
   const [pageTitle, setPageTitle] = useLocalStorage<string>('startpage-title', 'My Startpage');
   const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
+  const [lastBackupDate, setLastBackupDate] = useLocalStorage<string>('startpage-last-backup', '');
+  // Track the installation date to delay initial backup warning
+  const [installDate, setInstallDate] = useLocalStorage<string>('startpage-install-date', '');
 
   const columns = useMemo(() => runDataMigrationAndValidation(rawColumns), [rawColumns]);
   const settings = useMemo(() => sanitizeSettings(rawSettings), [rawSettings]);
@@ -354,6 +437,13 @@ function App() {
     }
   }, [rawSettings, settings, setSettings]);
 
+  // Set install date if not present
+  useEffect(() => {
+    if (!installDate) {
+        setInstallDate(new Date().toISOString());
+    }
+  }, [installDate, setInstallDate]);
+
   const [isEditMode, setIsEditMode] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
@@ -365,6 +455,27 @@ function App() {
   const formRef = useRef<HTMLFormElement>(null);
   const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
 
+  // Check for overdue backup
+  const isBackupOverdue = useMemo(() => {
+      if (!settings.backupReminderInterval || settings.backupReminderInterval === 0) return false;
+      
+      const now = Date.now();
+      let referenceTime: number;
+
+      if (lastBackupDate) {
+          referenceTime = new Date(lastBackupDate).getTime();
+      } else if (installDate) {
+          // If never backed up, count from install date
+          referenceTime = new Date(installDate).getTime();
+      } else {
+          // Fallback if installDate hasn't been set yet (initial render)
+          return false;
+      }
+
+      const daysSince = (now - referenceTime) / (1000 * 60 * 60 * 24);
+      return daysSince > settings.backupReminderInterval;
+  }, [lastBackupDate, installDate, settings.backupReminderInterval]);
+
   useEffect(() => {
     document.title = pageTitle;
   }, [pageTitle]);
@@ -374,9 +485,15 @@ function App() {
   }, [settings.scale]);
 
   useEffect(() => {
-    setThemeClasses(themes[settings.theme] || themes.default);
-    document.body.className = themes[settings.theme]?.body || themes.default.body;
-  }, [settings.theme]);
+    let activeTheme: Theme;
+    if (settings.theme === 'custom' && settings.customThemeColors) {
+      activeTheme = generateCustomTheme(settings.customThemeColors);
+    } else {
+      activeTheme = themes[settings.theme] || themes.default;
+    }
+    setThemeClasses(activeTheme);
+    document.body.className = activeTheme.body;
+  }, [settings.theme, settings.customThemeColors]);
 
   useEffect(() => {
     if (settings.backgroundImage) {
@@ -464,6 +581,14 @@ function App() {
     if (!modal) return;
     
     const formData = new FormData(e.target as HTMLFormElement);
+    
+    // Handle Export Filename
+    if (modal.type === 'exportOptions') {
+        const filename = formData.get('filename') as string || `startpage-backup-${new Date().toISOString().slice(0, 10)}`;
+        handleExportDownload(filename);
+        return;
+    }
+
     const name = formData.get('name') as string;
     const url = formData.get('url') as string;
     const comment = formData.get('comment') as string;
@@ -495,7 +620,16 @@ function App() {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) {
+            // Always update name if present
+            if (name) group.name = name;
+
+            // Update Color Variant
+            if (formData.has('colorVariant')) {
+              group.colorVariant = formData.get('colorVariant');
+            }
+
             if (!group.widgetSettings) group.widgetSettings = {};
+            
             if (group.widgetType === 'weather') {
                 const city = formData.get('city') as string;
                 group.widgetSettings.city = city;
@@ -515,12 +649,14 @@ function App() {
                 if (isStopwatch) {
                     group.widgetSettings.timerDuration = 0;
                     group.widgetSettings.timerPlaySound = false;
+                    group.widgetSettings.timerOvertime = false;
                 } else {
                     const hours = parseInt(formData.get('hours') as string, 10) || 0;
                     const minutes = parseInt(formData.get('minutes') as string, 10) || 0;
                     const seconds = parseInt(formData.get('seconds') as string, 10) || 0;
                     group.widgetSettings.timerDuration = (hours * 3600) + (minutes * 60) + seconds;
                     group.widgetSettings.timerPlaySound = formData.has('timerPlaySound');
+                    group.widgetSettings.timerOvertime = formData.has('timerOvertime');
                 }
             } else if (group.widgetType === 'rss') {
                 const rssUrl = formData.get('rssUrl') as string;
@@ -540,6 +676,18 @@ function App() {
                 const currencyTargets = formData.getAll('currencyTargets') as string[];
                 group.widgetSettings.currencyBase = currencyBase;
                 group.widgetSettings.currencyTargets = currencyTargets;
+            } else if (group.widgetType === 'webhook') {
+                const itemsJson = formData.get('webhookItemsJSON') as string;
+                try {
+                  group.widgetSettings.webhookItems = JSON.parse(itemsJson);
+                } catch (e) {
+                  console.error('Failed to parse webhook items', e);
+                }
+            } else if (group.widgetType === 'solar') {
+                const city = formData.get('solarCity') as string;
+                group.widgetSettings.solarCity = city;
+                group.widgetSettings.solarUse24HourFormat = formData.has('solarUse24HourFormat');
+                group.widgetSettings.solarCompactMode = formData.has('solarCompactMode');
             }
         }
         setColumns(newColumns);
@@ -589,7 +737,7 @@ function App() {
     closeModal();
   };
 
-  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad' | 'countdown' | 'calendar' | 'currency', columnId: string) => {
+  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad' | 'countdown' | 'calendar' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar', columnId: string) => {
     const newColumns = JSON.parse(JSON.stringify(columns));
     const col = newColumns.find((c: Column) => c.id === columnId);
     if (!col) return;
@@ -633,6 +781,7 @@ function App() {
               timerDuration: 300, // 5 minutes default
               timerPlaySound: true,
               isStopwatch: false,
+              timerOvertime: false,
             }
         };
     } else if (widgetType === 'rss') {
@@ -716,6 +865,46 @@ function App() {
             widgetSettings: { 
               currencyBase: 'SEK',
               currencyTargets: ['USD', 'EUR', 'NOK']
+            }
+        };
+    } else if (widgetType === 'webhook') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Webhook Buttons",
+            items: [],
+            type: 'widget',
+            widgetType: 'webhook',
+            widgetSettings: { 
+              webhookItems: []
+            }
+        };
+    } else if (widgetType === 'unit_converter') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Unit Converter",
+            items: [],
+            type: 'widget',
+            widgetType: 'unit_converter',
+        };
+    } else if (widgetType === 'network') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Network Info",
+            items: [],
+            type: 'widget',
+            widgetType: 'network',
+        };
+    } else if (widgetType === 'solar') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Sunrise / Sunset",
+            items: [],
+            type: 'widget',
+            widgetType: 'solar',
+            widgetSettings: {
+                solarCity: 'Stockholm',
+                solarUse24HourFormat: false,
+                solarCompactMode: false
             }
         };
     } else {
@@ -833,7 +1022,11 @@ function App() {
     setColumns(newColumns);
   };
   
-  const handleExport = () => {
+  const onRequestExport = () => {
+      openModal('exportOptions');
+  };
+
+  const handleExportDownload = (filename: string) => {
     const data: BackupData = {
       version: 1,
       columns,
@@ -844,9 +1037,16 @@ function App() {
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
     const link = document.createElement('a');
     link.href = jsonString;
-    const date = new Date().toISOString().slice(0, 10);
-    link.download = `startpage-backup-${date}.json`;
+    
+    // Ensure filename ends with .json
+    const validFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
+    
+    link.download = validFilename;
     link.click();
+    
+    // Update last backup timestamp
+    setLastBackupDate(new Date().toISOString());
+    closeModal();
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -892,6 +1092,8 @@ function App() {
     setSettings(DEFAULT_SETTINGS);
     setPageTitle('My Startpage');
     setTodos([]);
+    setLastBackupDate('');
+    setInstallDate(new Date().toISOString());
     closeModal();
     setIsSettingsModalOpen(false);
   };
@@ -953,6 +1155,35 @@ function App() {
     
     const { type, data } = modal;
 
+    if (type === 'exportOptions') {
+        const defaultFilename = `startpage-backup-${new Date().toISOString().slice(0, 10)}`;
+        return (
+            <form onSubmit={handleFormSubmit}>
+                <div className="space-y-4">
+                    <p className={themeClasses.modalMutedText}>Enter a name for your backup file:</p>
+                    <div>
+                        <label htmlFor="filename" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Filename</label>
+                        <div className="flex items-center">
+                            <input
+                                type="text"
+                                id="filename"
+                                name="filename"
+                                defaultValue={defaultFilename}
+                                required
+                                className={`flex-1 p-2 rounded-l-md border-y border-l ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                            />
+                            <span className={`p-2 border border-l-0 rounded-r-md bg-slate-800/50 text-slate-400`}>.json</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-6">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Download</button>
+                </div>
+            </form>
+        );
+    }
+
     if (type === 'addLinkOrSeparator') {
       return (
         <div>
@@ -983,113 +1214,147 @@ function App() {
         const calendarExists = columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
 
         const multiInstanceWidgets = (
-          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button 
                 onClick={() => handleAddWidget('weather', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <SunIcon className="w-5 h-5" />
-               <span className="font-semibold">Weather Widget</span>
+               <SunIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Weather</span>
             </button>
             <button 
                 onClick={() => handleAddWidget('clock', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <ClockIcon className="w-5 h-5" />
-               <span className="font-semibold">Clock Widget</span>
+               <ClockIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Clock</span>
             </button>
             <button 
                 onClick={() => handleAddWidget('timer', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <TimerIcon className="w-5 h-5" />
-               <span className="font-semibold">Timer / Stopwatch Widget</span>
+               <TimerIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Timer</span>
             </button>
             <button 
                 onClick={() => handleAddWidget('rss', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <RssIcon className="w-5 h-5" />
-               <span className="font-semibold">RSS Feed Widget</span>
+               <RssIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">RSS Feed</span>
             </button>
              <button 
                 onClick={() => handleAddWidget('currency', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <BanknotesIcon className="w-5 h-5" />
-               <span className="font-semibold">Currency Widget</span>
+               <BanknotesIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Currency</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('webhook', data.columnId)}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
+            >
+               <BoltIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Webhook</span>
             </button>
             <button 
                 onClick={() => handleAddWidget('scratchpad', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <DocumentTextIcon className="w-5 h-5" />
-               <span className="font-semibold">Scratchpad Widget</span>
+               <DocumentTextIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Scratchpad</span>
             </button>
             <button 
                 onClick={() => handleAddWidget('countdown', data.columnId)}
-                className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
             >
-               <PartyPopperIcon className="w-5 h-5" />
-               <span className="font-semibold">Countdown Widget</span>
+               <PartyPopperIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Countdown</span>
             </button>
-          </>
+            <button 
+                onClick={() => handleAddWidget('unit_converter', data.columnId)}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
+            >
+               <ScaleIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Unit Converter</span>
+            </button>
+            <button 
+                onClick={() => handleAddWidget('solar', data.columnId)}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
+            >
+               <MoonIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Sunrise / Sunset</span>
+            </button>
+          </div>
         );
 
         const singleInstanceWidgets = (
-          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {!calendarExists && (
               <button 
                   onClick={() => handleAddWidget('calendar', data.columnId)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                  className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
               >
-                  <CalendarDaysIcon className="w-5 h-5" />
-                  <span className="font-semibold">Calendar Widget</span>
+                  <CalendarDaysIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-semibold">Calendar</span>
               </button>
             )}
             {!todoExists && (
               <button 
                   onClick={() => handleAddWidget('todo', data.columnId)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                  className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
               >
-                  <ClipboardDocumentCheckIcon className="w-5 h-5" />
-                  <span className="font-semibold">To-Do List Widget</span>
+                  <ClipboardDocumentCheckIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-semibold">To-Do List</span>
               </button>
             )}
             {!calculatorExists && (
               <button 
                   onClick={() => handleAddWidget('calculator', data.columnId)}
-                  className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                  className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
               >
-                  <CalculatorIcon className="w-5 h-5" />
-                  <span className="font-semibold">Calculator Widget</span>
+                  <CalculatorIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-semibold">Calculator</span>
               </button>
             )}
-          </>
+             <button 
+                  onClick={() => handleAddWidget('network', data.columnId)}
+                  className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
+              >
+                  <WifiIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-semibold">Network Info</span>
+              </button>
+          </div>
         );
 
-        const hasSingleInstanceWidgets = !calendarExists || !todoExists || !calculatorExists;
+        const hasSingleInstanceWidgets = !calendarExists || !todoExists || !calculatorExists || true; // Always true now due to Network
 
         return (
             <div>
                 <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to this column:</p>
-                <div className="space-y-3">
+                <div className="space-y-4">
                     <button 
                         onClick={() => setModal({ type: 'addGroup', data })}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                        className={`w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
                     >
-                       <LinkIcon className="w-5 h-5" />
+                       <LinkIcon className="w-5 h-5 flex-shrink-0" />
                        <span className="font-semibold">Link Group</span>
                     </button>
                     
-                    <hr className={`border-slate-700 my-3`}/>
+                    <hr className={`border-slate-700`}/>
                     
-                    {multiInstanceWidgets}
+                    <div>
+                        <h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Multi-Instance Widgets</h3>
+                        {multiInstanceWidgets}
+                    </div>
 
                     {hasSingleInstanceWidgets && (
                       <>
-                        <hr className={`border-slate-700 my-3`}/>
-                        {singleInstanceWidgets}
+                        <hr className={`border-slate-700`}/>
+                        <div>
+                            <h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>
+                            {singleInstanceWidgets}
+                        </div>
                       </>
                     )}
                 </div>
@@ -1140,23 +1405,16 @@ function App() {
 
     if (type === 'editWidgetSettings') {
       const { group } = data;
-      if (group.widgetType === 'weather') {
-          return (
-              <form onSubmit={handleFormSubmit} ref={formRef}>
-                <WeatherSettingsForm group={group} themeClasses={themeClasses} />
-                <div className="flex justify-end gap-3 pt-6">
-                  <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                  <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-                </div>
-              </form>
-          );
-      }
+      
+      // Widget-specific form content
+      let widgetContent = null;
 
-      if (group.widgetType === 'clock') {
+      if (group.widgetType === 'weather') {
+          widgetContent = <WeatherSettingsForm group={group} themeClasses={themeClasses} />;
+      } else if (group.widgetType === 'clock') {
           const currentTimezone = group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
           const currentShowSeconds = group.widgetSettings?.showSeconds ?? true;
-          return (
-              <form onSubmit={handleFormSubmit} ref={formRef}>
+          widgetContent = (
                   <div className="space-y-4">
                       <div>
                           <label htmlFor="timezone" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Timezone</label>
@@ -1184,31 +1442,13 @@ function App() {
                         </label>
                       </div>
                   </div>
-                  <div className="flex justify-end gap-3 pt-6">
-                      <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                      <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-                  </div>
-              </form>
           );
-      }
-      
-      if (group.widgetType === 'timer') {
-          return (
-              <form onSubmit={handleFormSubmit} ref={formRef}>
-                  <TimerSettingsForm group={group} themeClasses={themeClasses} />
-                  <div className="flex justify-end gap-3 pt-6">
-                      <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                      <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Set</button>
-                  </div>
-              </form>
-          );
-      }
-
-      if (group.widgetType === 'rss') {
+      } else if (group.widgetType === 'timer') {
+          widgetContent = <TimerSettingsForm group={group} themeClasses={themeClasses} />;
+      } else if (group.widgetType === 'rss') {
         const currentUrl = group.widgetSettings?.rssUrl || '';
         const currentItemCount = group.widgetSettings?.rssItemCount || 5;
-        return (
-            <form onSubmit={handleFormSubmit} ref={formRef}>
+        widgetContent = (
               <div className="space-y-4">
                 <div>
                   <label htmlFor="rssUrl" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>RSS Feed URL</label>
@@ -1227,21 +1467,13 @@ function App() {
                     <input type="number" id="rssItemCount" name="rssItemCount" defaultValue={currentItemCount} min="1" max="20" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-6">
-                <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-              </div>
-            </form>
         );
-      }
-
-      if (group.widgetType === 'countdown') {
+      } else if (group.widgetType === 'countdown') {
         const targetDate = new Date(group.widgetSettings?.countdownDate || Date.now());
         const tzoffset = (new Date()).getTimezoneOffset() * 60000;
         const localISOTime = (new Date(targetDate.getTime() - tzoffset)).toISOString().slice(0, 16);
 
-        return (
-            <form onSubmit={handleFormSubmit} ref={formRef}>
+        widgetContent = (
               <div className="space-y-4">
                 <div>
                   <label htmlFor="countdownTitle" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Event Title</label>
@@ -1267,17 +1499,9 @@ function App() {
                     />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-6">
-                <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-              </div>
-            </form>
         );
-      }
-
-      if (group.widgetType === 'calendar') {
-        return (
-          <form onSubmit={handleFormSubmit} ref={formRef}>
+      } else if (group.widgetType === 'calendar') {
+        widgetContent = (
             <div>
               <label htmlFor="holidayCountry" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Country for Holidays</label>
               <select
@@ -1289,24 +1513,88 @@ function App() {
                 {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
               </select>
             </div>
+        );
+      } else if (group.widgetType === 'currency') {
+          widgetContent = <CurrencySettingsForm group={group} themeClasses={themeClasses} />;
+      } else if (group.widgetType === 'webhook') {
+          widgetContent = <WebhookSettingsForm group={group} themeClasses={themeClasses} />;
+      } else if (group.widgetType === 'network') {
+          widgetContent = <div className={`${themeClasses.textSubtle} text-sm text-center py-4`}>This widget automatically displays your network information. No configuration needed.</div>;
+      } else if (group.widgetType === 'solar') {
+          widgetContent = (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="solarCity" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label>
+                  <input
+                    type="text"
+                    id="solarCity"
+                    name="solarCity"
+                    defaultValue={group.widgetSettings?.solarCity || ''}
+                    required
+                    placeholder="e.g., Stockholm"
+                    className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                    <label htmlFor="solarUse24HourFormat" className="text-sm font-medium">Use 24-hour format</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        id="solarUse24HourFormat"
+                        name="solarUse24HourFormat"
+                        defaultChecked={group.widgetSettings?.solarUse24HourFormat}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+                <div className="flex items-center justify-between">
+                    <label htmlFor="solarCompactMode" className="text-sm font-medium">Compact Mode</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        id="solarCompactMode"
+                        name="solarCompactMode"
+                        defaultChecked={group.widgetSettings?.solarCompactMode}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+              </div>
+          );
+      }
+
+      return (
+          <form onSubmit={handleFormSubmit} ref={formRef}>
+            {/* Consolidated Name Input for ALL widgets */}
+            <div className="mb-4">
+                <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>
+                  Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span>
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  defaultValue={group.name}
+                  required
+                  maxLength={30}
+                  className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                />
+            </div>
+            
+            {/* Color Variant Selector */}
+            <ColorSelector currentColor={group.colorVariant || 'default'} themeClasses={themeClasses} />
+
+            {/* Widget Specific Settings */}
+            {widgetContent}
+            
             <div className="flex justify-end gap-3 pt-6">
               <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
               <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
             </div>
           </form>
-        );
-      }
-      if (group.widgetType === 'currency') {
-          return (
-              <form onSubmit={handleFormSubmit} ref={formRef}>
-                <CurrencySettingsForm group={group} themeClasses={themeClasses} />
-                <div className="flex justify-end gap-3 pt-6">
-                  <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                  <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-                </div>
-              </form>
-          );
-      }
+      );
     }
     
     const isLink = type === 'addLink' || type === 'editLink';
@@ -1406,7 +1694,8 @@ function App() {
       case 'resetConfirm': return 'Confirm Reset';
       case 'addWidget': return 'Add to Column';
       case 'addLinkOrSeparator': return 'Add to Group';
-      case 'editWidgetSettings': return 'Widget Settings';
+      case 'editWidgetSettings': return modal.data.group?.type === 'widget' ? 'Widget Settings' : 'Group Settings';
+      case 'exportOptions': return 'Export Backup';
       default: return '';
     }
   };
@@ -1470,13 +1759,24 @@ function App() {
               <span>{isEditMode ? 'Done' : 'Edit'}</span>
             </button>
             {!isEditMode && (
-              <button
-                onClick={() => setIsSettingsModalOpen(true)}
-                className={`${themeClasses.buttonSecondary} p-2 rounded-lg transition-colors`}
-                aria-label="Settings"
-              >
-                <CogIcon className="w-6 h-6" />
-              </button>
+              <div className="flex items-center gap-2">
+                  {isBackupOverdue && (
+                      <button 
+                          onClick={() => onRequestExport()}
+                          className="text-yellow-500 hover:text-yellow-400 transition-colors animate-pulse"
+                          title="Backup Overdue! Click to export data."
+                      >
+                          <ExclamationTriangleIcon className="w-6 h-6" />
+                      </button>
+                  )}
+                  <button
+                    onClick={() => setIsSettingsModalOpen(true)}
+                    className={`${themeClasses.buttonSecondary} p-2 rounded-lg transition-colors`}
+                    aria-label="Settings"
+                  >
+                    <CogIcon className="w-6 h-6" />
+                  </button>
+              </div>
             )}
           </div>
         </header>
@@ -1506,6 +1806,7 @@ function App() {
                 setTodos={setTodos}
                 onCalculatorStateChange={handleCalculatorStateChange}
                 onScratchpadChange={handleScratchpadChange}
+                showGroupToggles={settings.showGroupToggles}
               />
             ))}
 
@@ -1523,6 +1824,9 @@ function App() {
           </div>
         </div>
       </main>
+      
+      <QuotePopup settings={settings} themeClasses={themeClasses} />
+      <DonationPopup themeClasses={themeClasses} />
 
       <SettingsModal
         isOpen={isSettingsModalOpen}
@@ -1530,7 +1834,7 @@ function App() {
         settings={settings}
         onSettingsChange={handleSettingsChange}
         themeClasses={themeClasses}
-        onExport={handleExport}
+        onExport={onRequestExport}
         onImport={handleImport}
         onReset={() => openModal('resetConfirm')}
       />

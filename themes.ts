@@ -1,4 +1,68 @@
-import type { Theme } from '../types';
+
+import type { Theme, CustomThemeColors } from '../types';
+
+// Helper function to darken/lighten a hex color
+const adjustColor = (color: string, amount: number) => {
+  return '#' + color.replace(/^#/, '').replace(/../g, color => ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+};
+
+// Helper to convert hex to RGB for opacity support in Tailwind arbitrary values
+const hexToRgb = (hex: string) => {
+    let c: any;
+    if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+        c= hex.substring(1).split('');
+        if(c.length== 3){
+            c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+        }
+        c= '0x'+c.join('');
+        return [(c>>16)&255, (c>>8)&255, c&255].join(',');
+    }
+    return '0,0,0'; // Fallback
+}
+
+export const generateCustomTheme = (colors: CustomThemeColors): Theme => {
+  const { background, panel, primary, secondary, text } = colors;
+  
+  // Generated variations
+  const primaryHover = adjustColor(primary, -20); // Darker for hover
+  const secondaryHover = adjustColor(secondary, -20);
+  const panelDarker = adjustColor(panel, -20);
+  const panelLighter = adjustColor(panel, 20);
+  const textMuted = `rgba(${hexToRgb(text)}, 0.6)`;
+  const textSubtle = `rgba(${hexToRgb(text)}, 0.4)`;
+
+  return {
+    name: 'Custom',
+    body: `bg-[${background}] text-[${text}]`,
+    header: `text-[${text}]`,
+    buttonPrimary: `bg-[${primary}] hover:bg-[${primaryHover}] text-white`,
+    buttonSecondary: `bg-[${secondary}] hover:bg-[${secondaryHover}] text-white`,
+    buttonDanger: 'bg-red-600 hover:bg-red-500 text-white',
+    buttonIconHoverBg: `hover:bg-[${panelLighter}]`,
+    buttonIconHoverText: `hover:text-[${text}]`,
+    modalBg: `bg-[${panel}]`,
+    modalText: `text-[${text}]`,
+    modalMutedText: `text-[${textMuted}]`,
+    inputBg: `bg-[${panelDarker}] border-[${secondary}] text-[${text}]`,
+    inputFocusRing: `focus:ring-[${primary}] focus:border-[${primary}]`,
+    columnBg: `bg-[${background}]/50`,
+    groupBg: `bg-[${panel}]/80`,
+    groupBgSecondary: `bg-[${panelLighter}]/80`,
+    groupBgTertiary: `bg-[${secondary}]/30`,
+    linkBg: `bg-[${panelDarker}]/50`,
+    linkHoverBg: `hover:bg-[${panelDarker}]`,
+    linkText: `text-[${text}]`,
+    linkHoverText: `hover:text-[${primary}]`,
+    iconMuted: `text-[${textSubtle}]`,
+    ring: `ring-[${primary}]`,
+    dashedBorder: `border-[${secondary}]`,
+    textMuted: `text-[${textMuted}]`,
+    textSubtle: `text-[${textSubtle}]`,
+    scrollbarTrack: background,
+    scrollbarThumb: secondary,
+    scrollbarThumbHover: primary,
+  };
+};
 
 export const themes: Record<string, Theme> = {
   default: {
@@ -17,6 +81,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-indigo-500 focus:border-indigo-500',
     columnBg: 'bg-slate-900/50',
     groupBg: 'bg-slate-800/80',
+    groupBgSecondary: 'bg-slate-700/90',
+    groupBgTertiary: 'bg-indigo-900/40',
     linkBg: 'bg-slate-700/50',
     linkHoverBg: 'hover:bg-slate-700',
     linkText: 'text-slate-200',
@@ -46,6 +112,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-emerald-500 focus:border-emerald-500',
     columnBg: 'bg-gray-900/50',
     groupBg: 'bg-gray-800/80',
+    groupBgSecondary: 'bg-gray-700/90',
+    groupBgTertiary: 'bg-emerald-900/40',
     linkBg: 'bg-gray-700/50',
     linkHoverBg: 'hover:bg-gray-700',
     linkText: 'text-green-200',
@@ -61,32 +129,34 @@ export const themes: Record<string, Theme> = {
   },
   sunset: {
     name: 'Sunset',
-    body: 'bg-stone-900 text-orange-100',
-    header: 'text-orange-100',
-    buttonPrimary: 'bg-amber-600 hover:bg-amber-500 text-white',
-    buttonSecondary: 'bg-stone-600 hover:bg-stone-500 text-white',
-    buttonDanger: 'bg-red-700 hover:bg-red-600 text-white',
-    buttonIconHoverBg: 'hover:bg-stone-700',
+    body: 'bg-gradient-to-br from-stone-900 to-orange-900 text-orange-50',
+    header: 'text-orange-200 font-serif tracking-wide',
+    buttonPrimary: 'bg-orange-600 hover:bg-orange-500 text-white',
+    buttonSecondary: 'bg-stone-700 hover:bg-stone-600 text-orange-100',
+    buttonDanger: 'bg-red-600 hover:bg-red-500 text-white',
+    buttonIconHoverBg: 'hover:bg-orange-900',
     buttonIconHoverText: 'hover:text-white',
-    modalBg: 'bg-stone-800',
-    modalText: 'text-orange-100',
-    modalMutedText: 'text-stone-300',
-    inputBg: 'bg-stone-700 border-stone-600 text-white',
-    inputFocusRing: 'focus:ring-amber-500 focus:border-amber-500',
-    columnBg: 'bg-stone-900/50',
-    groupBg: 'bg-stone-800/80',
-    linkBg: 'bg-stone-700/50',
-    linkHoverBg: 'hover:bg-stone-700',
-    linkText: 'text-orange-200',
-    linkHoverText: 'hover:text-amber-400',
-    iconMuted: 'text-stone-400',
-    ring: 'ring-amber-500',
-    dashedBorder: 'border-stone-700',
+    modalBg: 'bg-stone-900 border border-orange-900',
+    modalText: 'text-orange-50',
+    modalMutedText: 'text-stone-400',
+    inputBg: 'bg-stone-800 border-stone-700 text-white',
+    inputFocusRing: 'focus:ring-orange-500 focus:border-orange-500',
+    columnBg: 'bg-stone-950/30',
+    groupBg: 'bg-stone-900/60 border border-orange-500/20',
+    groupBgSecondary: 'bg-stone-800/80',
+    groupBgTertiary: 'bg-orange-900/30',
+    linkBg: 'bg-stone-800/40',
+    linkHoverBg: 'hover:bg-orange-900/40',
+    linkText: 'text-orange-100',
+    linkHoverText: 'hover:text-orange-300',
+    iconMuted: 'text-stone-500',
+    ring: 'ring-orange-500',
+    dashedBorder: 'border-orange-900/50',
     textMuted: 'text-stone-400',
     textSubtle: 'text-stone-500',
-    scrollbarTrack: '#292524',
-    scrollbarThumb: '#57534e',
-    scrollbarThumbHover: '#78716c',
+    scrollbarTrack: '#1c1917',
+    scrollbarThumb: '#ea580c', // Orange-600
+    scrollbarThumbHover: '#f97316', // Orange-500
   },
   matrix: {
     name: 'Matrix',
@@ -104,6 +174,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-green-500 focus:border-green-500',
     columnBg: 'bg-black/50 border border-green-900',
     groupBg: 'bg-black/80 border border-green-800',
+    groupBgSecondary: 'bg-green-900/20 border border-green-600',
+    groupBgTertiary: 'bg-gray-900/90 border border-green-900',
     linkBg: 'bg-black/50',
     linkHoverBg: 'hover:bg-green-900/50',
     linkText: 'text-green-400',
@@ -133,6 +205,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-yellow-500 focus:border-yellow-500',
     columnBg: 'bg-red-950/50',
     groupBg: 'bg-red-900/80',
+    groupBgSecondary: 'bg-red-950/90',
+    groupBgTertiary: 'bg-orange-900/30',
     linkBg: 'bg-red-800/50',
     linkHoverBg: 'hover:bg-red-800',
     linkText: 'text-yellow-200',
@@ -162,6 +236,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-cyan-500 focus:border-cyan-500',
     columnBg: 'bg-blue-950/50',
     groupBg: 'bg-blue-900/80',
+    groupBgSecondary: 'bg-blue-950/90',
+    groupBgTertiary: 'bg-cyan-900/30',
     linkBg: 'bg-blue-800/50',
     linkHoverBg: 'hover:bg-blue-800',
     linkText: 'text-cyan-200',
@@ -191,6 +267,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-blue-500 focus:border-blue-500',
     columnBg: 'bg-slate-100/50',
     groupBg: 'bg-slate-200/80',
+    groupBgSecondary: 'bg-white/90',
+    groupBgTertiary: 'bg-blue-100/80',
     linkBg: 'bg-white/50',
     linkHoverBg: 'hover:bg-blue-100',
     linkText: 'text-slate-700',
@@ -220,6 +298,8 @@ export const themes: Record<string, Theme> = {
     inputFocusRing: 'focus:ring-cyan-400 focus:border-cyan-400',
     columnBg: 'bg-indigo-950/50',
     groupBg: 'bg-indigo-900/80',
+    groupBgSecondary: 'bg-purple-900/80',
+    groupBgTertiary: 'bg-pink-900/20',
     linkBg: 'bg-purple-900/50',
     linkHoverBg: 'hover:bg-purple-900',
     linkText: 'text-pink-200',
@@ -233,4 +313,97 @@ export const themes: Record<string, Theme> = {
     scrollbarThumb: '#4338ca',
     scrollbarThumbHover: '#4f46e5',
   },
+  coffee: {
+    name: 'Coffee',
+    body: 'bg-stone-900 text-amber-100',
+    header: 'text-amber-100',
+    buttonPrimary: 'bg-amber-700 hover:bg-amber-600 text-white',
+    buttonSecondary: 'bg-stone-600 hover:bg-stone-500 text-stone-100',
+    buttonDanger: 'bg-red-700 hover:bg-red-600 text-white',
+    buttonIconHoverBg: 'hover:bg-stone-700',
+    buttonIconHoverText: 'hover:text-amber-50',
+    modalBg: 'bg-stone-800',
+    modalText: 'text-amber-100',
+    modalMutedText: 'text-stone-400',
+    inputBg: 'bg-stone-700 border-stone-600 text-amber-100',
+    inputFocusRing: 'focus:ring-amber-600 focus:border-amber-600',
+    columnBg: 'bg-stone-900/50',
+    groupBg: 'bg-stone-800/80',
+    groupBgSecondary: 'bg-stone-700/90',
+    groupBgTertiary: 'bg-amber-900/30',
+    linkBg: 'bg-stone-700/50',
+    linkHoverBg: 'hover:bg-stone-700',
+    linkText: 'text-amber-200',
+    linkHoverText: 'hover:text-amber-400',
+    iconMuted: 'text-stone-500',
+    ring: 'ring-amber-600',
+    dashedBorder: 'border-stone-600',
+    textMuted: 'text-stone-400',
+    textSubtle: 'text-stone-500',
+    scrollbarTrack: '#1c1917',
+    scrollbarThumb: '#44403c',
+    scrollbarThumbHover: '#57534e',
+  },
+  vampire: {
+    name: 'Vampire',
+    body: 'bg-black text-slate-200',
+    header: 'text-red-600 font-serif tracking-wider',
+    buttonPrimary: 'bg-red-900 hover:bg-red-800 text-red-50 border border-red-950',
+    buttonSecondary: 'bg-gray-900 hover:bg-gray-800 text-red-200 border border-gray-800',
+    buttonDanger: 'bg-red-950 hover:bg-red-900 text-white border border-red-800',
+    buttonIconHoverBg: 'hover:bg-red-900/50',
+    buttonIconHoverText: 'hover:text-red-200',
+    modalBg: 'bg-neutral-950 border border-red-900',
+    modalText: 'text-slate-200',
+    modalMutedText: 'text-slate-500',
+    inputBg: 'bg-black border-red-900/50 text-red-50 placeholder-red-900/50',
+    inputFocusRing: 'focus:ring-red-800 focus:border-red-800',
+    columnBg: 'bg-black/40 border border-red-900/20',
+    groupBg: 'bg-neutral-950/90 border border-red-900/40 shadow-lg shadow-red-900/5',
+    groupBgSecondary: 'bg-red-950/40 border border-red-900/60',
+    groupBgTertiary: 'bg-gray-900/80 border border-gray-800',
+    linkBg: 'bg-red-950/10',
+    linkHoverBg: 'hover:bg-red-900/40',
+    linkText: 'text-slate-300',
+    linkHoverText: 'hover:text-red-400',
+    iconMuted: 'text-red-900/70',
+    ring: 'ring-red-800',
+    dashedBorder: 'border-red-900/40',
+    textMuted: 'text-slate-500',
+    textSubtle: 'text-slate-600',
+    scrollbarTrack: '#000000',
+    scrollbarThumb: '#7f1d1d',
+    scrollbarThumbHover: '#991b1b',
+  },
+  cyber: {
+    name: 'Cyber',
+    body: 'bg-slate-950 text-lime-400',
+    header: 'text-lime-400',
+    buttonPrimary: 'bg-fuchsia-700 hover:bg-fuchsia-600 text-white',
+    buttonSecondary: 'bg-slate-800 hover:bg-slate-700 text-lime-300',
+    buttonDanger: 'bg-red-600 hover:bg-red-500 text-white',
+    buttonIconHoverBg: 'hover:bg-slate-800',
+    buttonIconHoverText: 'hover:text-lime-300',
+    modalBg: 'bg-slate-900',
+    modalText: 'text-lime-400',
+    modalMutedText: 'text-slate-500',
+    inputBg: 'bg-slate-900 border-fuchsia-800 text-lime-300',
+    inputFocusRing: 'focus:ring-lime-500 focus:border-lime-500',
+    columnBg: 'bg-slate-950/50',
+    groupBg: 'bg-slate-900/90',
+    groupBgSecondary: 'bg-slate-800/90',
+    groupBgTertiary: 'bg-fuchsia-900/20',
+    linkBg: 'bg-slate-800/50',
+    linkHoverBg: 'hover:bg-slate-800',
+    linkText: 'text-lime-400',
+    linkHoverText: 'hover:text-fuchsia-400',
+    iconMuted: 'text-slate-600',
+    ring: 'ring-lime-500',
+    dashedBorder: 'border-fuchsia-900',
+    textMuted: 'text-slate-500',
+    textSubtle: 'text-slate-600',
+    scrollbarTrack: '#020617',
+    scrollbarThumb: '#a3e635',
+    scrollbarThumbHover: '#d946ef',
+  }
 };

@@ -1,8 +1,9 @@
+
 import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import type { Settings, Group, Theme } from '../types';
 import { themes } from '../themes';
-import { ArrowDownTrayIcon, ArrowUpTrayIcon } from './Icons';
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon } from './Icons';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -15,7 +16,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '2.3';
+const APP_VERSION = '2.5';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +40,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     onSettingsChange({ ...settings, [name]: value });
+  };
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    onSettingsChange({ ...settings, [name]: parseInt(value, 10) });
+  };
+
+  const handleCustomColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    onSettingsChange({
+      ...settings,
+      customThemeColors: {
+        ...settings.customThemeColors,
+        [name]: value,
+      }
+    });
   };
 
   const ringColorClass = themeClasses.inputFocusRing.split(' ').find(c => c.startsWith('focus:ring-'))?.replace('focus:', '') || 'ring-indigo-500';
@@ -177,6 +194,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                 </label>
               </div>
+
+              <div className="flex items-center justify-between pt-6 mt-6 border-t border-slate-700">
+                <label htmlFor="showGroupToggles" className="text-sm font-medium">Show Collapse Arrows</label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="showGroupToggles"
+                    name="showGroupToggles"
+                    checked={settings.showGroupToggles ?? true}
+                    onChange={handleToggleChange}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
             </div>
           )}
 
@@ -229,26 +261,194 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                 </label>
               </div>
+
+              <div className="pt-6 border-t border-slate-700 space-y-4">
+                <div className="flex items-center justify-between">
+                    <label htmlFor="showQuotes" className="text-sm font-medium">Daily Quotes</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        id="showQuotes"
+                        name="showQuotes"
+                        checked={settings.showQuotes}
+                        onChange={handleToggleChange}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+                
+                {settings.showQuotes && (
+                    <div className="space-y-3 pl-2 border-l-2 border-slate-700">
+                        <div>
+                            <label htmlFor="quoteCategory" className="block text-sm font-medium">Category</label>
+                            <select
+                                id="quoteCategory"
+                                name="quoteCategory"
+                                value={settings.quoteCategory}
+                                onChange={handleTextChange}
+                                className={`w-full p-2 mt-1 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                            >
+                                <option value="inspirational">Inspirational</option>
+                                <option value="programming">Programming & Tech</option>
+                                <option value="philosophy">Philosophy</option>
+                                <option value="funny">Fun & Witty</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="quoteFrequency" className="block text-sm font-medium">Update Frequency</label>
+                            <select
+                                id="quoteFrequency"
+                                name="quoteFrequency"
+                                value={settings.quoteFrequency}
+                                onChange={handleTextChange}
+                                className={`w-full p-2 mt-1 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                            >
+                                <option value="daily">Daily</option>
+                                <option value="always">Every Page Load</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'theme' && (
-            <div>
-              <label className="block text-sm font-medium">Theme</label>
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {Object.entries(themes).map(([themeKey, themeData]) => (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium">Select Theme</label>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {Object.entries(themes).map(([themeKey, themeData]) => (
+                    <button
+                      key={themeKey}
+                      onClick={() => onSettingsChange({ ...settings, theme: themeKey, backgroundImage: '' })}
+                      className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
+                        settings.theme === themeKey ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full ${themeData.body} border border-slate-500 flex-shrink-0`}></div>
+                      <span className="text-sm font-medium">{themeData.name}</span>
+                    </button>
+                  ))}
+                  
                   <button
-                    key={themeKey}
-                    onClick={() => onSettingsChange({ ...settings, theme: themeKey, backgroundImage: '' })}
-                    className={`text-left p-2 rounded-lg border-2 transition-colors flex items-center gap-3 ${
-                      settings.theme === themeKey ? `ring-2 ${ringColorClass} border-transparent` : 'border-slate-700 hover:border-slate-500'
+                    onClick={() => onSettingsChange({ ...settings, theme: 'custom', backgroundImage: '' })}
+                    className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
+                      settings.theme === 'custom' ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
                     }`}
                   >
-                    <div className={`w-5 h-5 rounded-full ${themeData.body.split(' ')[0]} border border-slate-500 flex-shrink-0`}></div>
-                    <span className="text-sm font-medium">{themeData.name}</span>
+                    <div className={`flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-500 border border-slate-500 flex-shrink-0 text-white`}>
+                        <SwatchIcon className="w-3 h-3" />
+                    </div>
+                    <span className="text-sm font-medium">Custom</span>
                   </button>
-                ))}
+                </div>
               </div>
+
+              {settings.theme === 'custom' && (
+                <div className="p-4 border border-slate-700 rounded-lg bg-slate-800/50 animate-fade-in-up">
+                    <h4 className="text-sm font-bold mb-3 text-indigo-400 uppercase tracking-wider">Custom Theme Editor</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="background" className="block text-xs font-medium mb-1 text-slate-400">Body Background</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="color" 
+                                    name="background"
+                                    id="background"
+                                    value={settings.customThemeColors.background}
+                                    onChange={handleCustomColorChange}
+                                    className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                                />
+                                <input 
+                                    type="text"
+                                    value={settings.customThemeColors.background}
+                                    readOnly
+                                    className={`flex-1 px-2 text-xs rounded ${themeClasses.inputBg} border-none font-mono uppercase`}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="panel" className="block text-xs font-medium mb-1 text-slate-400">Panel Background</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="color" 
+                                    name="panel"
+                                    id="panel"
+                                    value={settings.customThemeColors.panel}
+                                    onChange={handleCustomColorChange}
+                                    className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                                />
+                                <input 
+                                    type="text"
+                                    value={settings.customThemeColors.panel}
+                                    readOnly
+                                    className={`flex-1 px-2 text-xs rounded ${themeClasses.inputBg} border-none font-mono uppercase`}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="primary" className="block text-xs font-medium mb-1 text-slate-400">Primary Color</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="color" 
+                                    name="primary"
+                                    id="primary"
+                                    value={settings.customThemeColors.primary}
+                                    onChange={handleCustomColorChange}
+                                    className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                                />
+                                <input 
+                                    type="text"
+                                    value={settings.customThemeColors.primary}
+                                    readOnly
+                                    className={`flex-1 px-2 text-xs rounded ${themeClasses.inputBg} border-none font-mono uppercase`}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="secondary" className="block text-xs font-medium mb-1 text-slate-400">Secondary Color</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="color" 
+                                    name="secondary"
+                                    id="secondary"
+                                    value={settings.customThemeColors.secondary}
+                                    onChange={handleCustomColorChange}
+                                    className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                                />
+                                <input 
+                                    type="text"
+                                    value={settings.customThemeColors.secondary}
+                                    readOnly
+                                    className={`flex-1 px-2 text-xs rounded ${themeClasses.inputBg} border-none font-mono uppercase`}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="text" className="block text-xs font-medium mb-1 text-slate-400">Text Color</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="color" 
+                                    name="text"
+                                    id="text"
+                                    value={settings.customThemeColors.text}
+                                    onChange={handleCustomColorChange}
+                                    className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                                />
+                                <input 
+                                    type="text"
+                                    value={settings.customThemeColors.text}
+                                    readOnly
+                                    className={`flex-1 px-2 text-xs rounded ${themeClasses.inputBg} border-none font-mono uppercase`}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              )}
+
               <div className="mt-8 pt-6 border-t border-slate-700">
                 <label htmlFor="backgroundImage" className="block text-sm font-medium">Custom Background Image URL</label>
                 <p className="text-xs text-slate-400 mt-1 mb-2">Paste a direct link to an image to use it as a background.</p>
@@ -279,6 +479,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             <div>
                 <h3 className="text-sm font-medium mb-3">Backup & Restore</h3>
                 <p className="text-xs text-slate-400 mb-4">Save all your columns, links, and settings to a file, or restore them from a backup.</p>
+                
+                <div className="mb-6">
+                    <label htmlFor="backupReminderInterval" className="block text-sm font-medium mb-1">Remind me to backup:</label>
+                    <select
+                      id="backupReminderInterval"
+                      name="backupReminderInterval"
+                      value={settings.backupReminderInterval ?? 30}
+                      onChange={handleNumberChange}
+                      className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    >
+                      <option value={0}>Never</option>
+                      <option value={7}>Every 7 days</option>
+                      <option value={14}>Every 14 days</option>
+                      <option value={30}>Every 30 days</option>
+                    </select>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                         onClick={onExport}
@@ -338,34 +555,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         We <strong className="font-bold">strongly recommend</strong> that you regularly use the "Export Data" feature 
                         in the "Backup & Restore" tab to save a backup file of your configuration to a safe place.
                     </p>
-                </div>
-
-                <div className="pt-4 border-t border-slate-700">
-                    <h4 className="font-semibold mb-1">Running Locally & Open Source</h4>
-                    <p>
-                        This startpage is fully open-source. You can download the complete source code from GitHub and run it entirely on your own computer.
-                    </p>
-                    <p className="mt-2">
-                        There are two main ways to run it locally:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-2 mt-2">
-                        <li>
-                            <strong>Run the source code directly with a development server (recommended for development):</strong><br />
-                            This requires Node.js installed on your computer.<br />
-                            After downloading, navigate to the project folder in your terminal and run:<br />
-                            <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
-                                npm install<br />
-                                npm run dev
-                            </code><br />
-                            This starts a local development server (using Vite) that automatically compiles the TypeScript/TSX files and refreshes your browser as you make changes.
-                        </li>
-                        <li>
-                            <strong>Run the compiled static files (suitable for preview or production):</strong><br />
-                            The project can be built into static files (usually in a <code>/docs</code> or <code>/dist</code> folder). You can serve these files with any simple static file server, for example Python’s built-in HTTP server:<br />
-                            <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>python -m http.server</code><br />
-                            Navigate into the folder containing the built files before running the command. This method serves the already compiled JavaScript and assets but doesn’t support live updates or editing.
-                        </li>
-                    </ol>
                 </div>
 
                 <div className="pt-4 border-t border-slate-700">

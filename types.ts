@@ -1,3 +1,4 @@
+
 export interface Link {
   id: string;
   type: 'link';
@@ -21,13 +22,21 @@ export interface CalculatorState {
   isNewEntry: boolean;
 }
 
+export interface WebhookItem {
+  id: string;
+  name: string;
+  url: string;
+  method: 'GET' | 'POST' | 'navigate';
+}
+
 export interface Group {
   id:string;
   name: string;
   items: GroupItemType[];
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency';
+  colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;
@@ -37,6 +46,7 @@ export interface Group {
     showSeconds?: boolean;
     timerDuration?: number; // Duration in seconds
     timerPlaySound?: boolean;
+    timerOvertime?: boolean; // New setting for overtime
     isStopwatch?: boolean;
     rssUrl?: string;
     rssItemCount?: number;
@@ -46,6 +56,10 @@ export interface Group {
     holidayCountry?: string;
     currencyBase?: string;
     currencyTargets?: string[];
+    webhookItems?: WebhookItem[];
+    solarCity?: string;
+    solarUse24HourFormat?: boolean;
+    solarCompactMode?: boolean;
   };
   calculatorState?: CalculatorState;
   links?: Link[]; // For data migration
@@ -64,18 +78,32 @@ export interface ToDoItem {
   completed: boolean;
 }
 
+export interface CustomThemeColors {
+  background: string; // Main background
+  panel: string;      // Column/Modal background
+  primary: string;    // Primary buttons/accents
+  secondary: string;  // Secondary buttons/headers
+  text: string;       // Main text color
+}
+
 export interface Settings {
   columnGap: number;
   groupGap: number;
   columnWidth: number;
   showColumnTitles: boolean;
   theme: string;
+  customThemeColors: CustomThemeColors;
   scale: number;
   openLinksInNewTab: boolean;
   showSearch: boolean;
   searchEngine: string;
   centerContent: boolean;
   backgroundImage: string;
+  showGroupToggles: boolean;
+  backupReminderInterval: number; // Days. 0 = Never.
+  showQuotes: boolean;
+  quoteCategory: string;
+  quoteFrequency: 'daily' | 'always';
 }
 
 // FIX: Define and export the Theme interface
@@ -95,6 +123,8 @@ export interface Theme {
   inputFocusRing: string;
   columnBg: string;
   groupBg: string;
+  groupBgSecondary: string;
+  groupBgTertiary: string;
   linkBg: string;
   linkHoverBg: string;
   linkText: string;
@@ -117,7 +147,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions';
 
 export interface ModalState {
   type: ModalType;

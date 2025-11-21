@@ -17,6 +17,16 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  // 🔧 Emoji fallback icon mapping
+  const getFallbackIcon = (desc: string): string => {
+    const lower = desc.toLowerCase();
+    if (lower.includes("sun") || lower.includes("clear")) return "☀️";
+    if (lower.includes("cloud")) return "☁️";
+    if (lower.includes("rain")) return "🌧️";
+    if (lower.includes("snow")) return "❄️";
+    return "🌦️";
+  };
+
   useEffect(() => {
     if (showTime) {
       const timerId = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -41,7 +51,6 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
       const cachedData = sessionStorage.getItem(cacheKey);
       if (cachedData) {
         const { data, timestamp } = JSON.parse(cachedData);
-        // Cache for 10 minutes
         if (Date.now() - timestamp < 10 * 60 * 1000) {
             setWeatherData(data);
             setIsLoading(false);
@@ -156,9 +165,11 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
               const hourlyData = day.hourly?.[4];
               const forecastIconUrl = hourlyData?.weatherIconUrl?.[0]?.value;
               const forecastDesc = hourlyData?.weatherDesc?.[0]?.value || 'N/A';
+
               return (
                 <div key={day.date} className="flex flex-col items-center">
                     <p className="font-bold text-sm">{getDayName(day.date, index)}</p>
+
                     {forecastIconUrl ? (
                       <img
                         src={secureUrl(forecastIconUrl)}
@@ -166,8 +177,9 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
                         className="w-8 h-8 my-1"
                       />
                     ) : (
-                      <div className="w-8 h-8 my-1"></div>
+                      <div className="text-2xl my-1">{getFallbackIcon(forecastDesc)}</div>
                     )}
+
                     <p className={`capitalize text-xs ${themeClasses.textSubtle}`}>{forecastDesc}</p>
                     <p className={`font-medium text-base ${themeClasses.textMuted}`}>
                       H: {day.maxtempC}° L: {day.mintempC}°

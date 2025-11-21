@@ -1,9 +1,10 @@
+
 import React from 'react';
 import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -15,6 +16,10 @@ import Calculator from './Calculator';
 import Scratchpad from './Scratchpad';
 import Countdown from './Countdown';
 import Currency from './Currency';
+import Webhook from './Webhook';
+import UnitConverter from './UnitConverter';
+import Network from './Network';
+import Solar from './Solar';
 
 type DraggedItem = 
   | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
@@ -37,6 +42,7 @@ interface GroupItemProps {
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
   onCalculatorStateChange: (newState: CalculatorState) => void;
   onScratchpadChange: (groupId: string, newContent: string) => void;
+  showGroupToggles: boolean;
 }
 
 const DEFAULT_CALCULATOR_STATE: CalculatorState = {
@@ -47,7 +53,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange
+  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -96,9 +102,21 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isScratchpadWidget = widgetType === 'scratchpad';
   const isCountdownWidget = widgetType === 'countdown';
   const isCurrencyWidget = widgetType === 'currency';
+  const isWebhookWidget = widgetType === 'webhook';
+  const isUnitConverterWidget = widgetType === 'unit_converter';
+  const isNetworkWidget = widgetType === 'network';
+  const isSolarWidget = widgetType === 'solar';
   const isWidget = groupType === 'widget';
-  const isConfigurableWidget = isWeatherWidget || isClockWidget || isTimerWidget || isRssWidget || isCountdownWidget || isCalendarWidget || isCurrencyWidget;
 
+  // Determine background color class based on colorVariant
+  const bgClass = {
+    'default': themeClasses.groupBg,
+    'secondary': themeClasses.groupBgSecondary,
+    'tertiary': themeClasses.groupBgTertiary,
+    'green': 'bg-[#60B162]',
+    'gray': 'bg-[#F2F2F2]'
+  }[group.colorVariant || 'default'] || themeClasses.groupBg;
+  
   return (
     <div
       draggable={isEditMode}
@@ -109,7 +127,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`rounded-lg p-3 transition-all duration-200 ${themeClasses.groupBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+      className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       <div 
         className={`flex justify-between items-start group/header ${!group.isCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
@@ -117,7 +135,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
       >
         <div className="flex items-start gap-2 min-w-0">
           {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1`} />}
-          {!isEditMode && (
+          {!isEditMode && showGroupToggles && (
             <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'} mt-1`} />
           )}
           
@@ -127,11 +145,19 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isCalculatorWidget && <CalculatorIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isWeatherWidget && <SunIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isClockWidget && <ClockIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
-             {isTimerWidget && <TimerIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isTimerWidget && (
+                 group.widgetSettings?.isStopwatch 
+                 ? <StopwatchIcon className="w-5 h-5 flex-shrink-0 mt-1" />
+                 : <TimerIcon className="w-5 h-5 flex-shrink-0 mt-1" />
+             )}
              {isRssWidget && <RssIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isScratchpadWidget && <DocumentTextIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isCountdownWidget && <PartyPopperIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isCurrencyWidget && <BanknotesIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isWebhookWidget && <BoltIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isUnitConverterWidget && <ScaleIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isNetworkWidget && <WifiIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isSolarWidget && <MoonIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -141,18 +167,16 @@ const GroupItem: React.FC<GroupItemProps> = ({
         <div className="flex items-center flex-shrink-0 ml-2">
           {isEditMode && (
             <div className="flex items-center gap-2 transition-opacity">
-              {isConfigurableWidget && (
-                <button onClick={() => openModal('editWidgetSettings', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
-                  <CogIcon className="w-5 h-5" />
-                </button>
-              )}
               {!isWidget && (
                 <button onClick={() => openModal('addLinkOrSeparator', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
                   <PlusIcon className="w-5 h-5" />
                 </button>
               )}
-              <button onClick={() => openModal('editGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
-                <PencilIcon className="w-4 h-4" />
+              <button 
+                onClick={() => openModal('editWidgetSettings', { group, columnId })} 
+                className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}
+              >
+                <CogIcon className="w-5 h-5" />
               </button>
               <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
                   <TrashIcon className="w-4 h-4" />
@@ -170,7 +194,6 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <Calculator
             themeClasses={themeClasses}
             state={group.calculatorState || DEFAULT_CALCULATOR_STATE}
-            // FIX: The 'onStateChange' prop for the Calculator component was not defined. It should be assigned 'onCalculatorStateChange' from the component's props.
             onStateChange={onCalculatorStateChange}
           />
         ) : isWeatherWidget ? (
@@ -191,6 +214,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <Timer
             initialDuration={group.widgetSettings?.timerDuration ?? 300}
             playSound={group.widgetSettings?.timerPlaySound}
+            allowOvertime={group.widgetSettings?.timerOvertime}
             themeClasses={themeClasses}
             onOpenSettings={() => openModal('editWidgetSettings', { group, columnId })}
             isEditMode={isEditMode}
@@ -220,6 +244,22 @@ const GroupItem: React.FC<GroupItemProps> = ({
             base={group.widgetSettings?.currencyBase || 'USD'}
             targets={group.widgetSettings?.currencyTargets || []}
             themeClasses={themeClasses}
+          />
+        ) : isWebhookWidget ? (
+          <Webhook
+            items={group.widgetSettings?.webhookItems || []}
+            themeClasses={themeClasses}
+          />
+        ) : isUnitConverterWidget ? (
+          <UnitConverter themeClasses={themeClasses} />
+        ) : isNetworkWidget ? (
+          <Network themeClasses={themeClasses} />
+        ) : isSolarWidget ? (
+          <Solar 
+            city={group.widgetSettings?.solarCity || ''} 
+            themeClasses={themeClasses} 
+            use24HourFormat={group.widgetSettings?.solarUse24HourFormat}
+            compactMode={group.widgetSettings?.solarCompactMode}
           />
         ) : ( // Default to 'links' group
           <div className="space-y-2">

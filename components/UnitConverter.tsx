@@ -138,7 +138,7 @@ const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
             <select
               value={unit1}
               onChange={handleUnit1Change}
-              className={`w-32 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
             >
               {UNITS[category].map(u => <option key={u} value={u}>{u}</option>)}
             </select>
@@ -160,7 +160,7 @@ const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
             <select
               value={unit2}
               onChange={handleUnit2Change}
-              className={`w-32 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
             >
               {UNITS[category].map(u => <option key={u} value={u}>{u}</option>)}
             </select>

@@ -4,7 +4,7 @@ import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, Calculat
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -20,6 +20,8 @@ import Webhook from './Webhook';
 import UnitConverter from './UnitConverter';
 import Network from './Network';
 import Solar from './Solar';
+import Homey from './Homey';
+import Radio from './Radio';
 
 type DraggedItem = 
   | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
@@ -106,6 +108,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isUnitConverterWidget = widgetType === 'unit_converter';
   const isNetworkWidget = widgetType === 'network';
   const isSolarWidget = widgetType === 'solar';
+  const isHomeyWidget = widgetType === 'homey';
+  const isRadioWidget = widgetType === 'radio';
   const isWidget = groupType === 'widget';
 
   // Determine background color class based on colorVariant
@@ -158,6 +162,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isUnitConverterWidget && <ScaleIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isNetworkWidget && <WifiIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isSolarWidget && <MoonIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isHomeyWidget && <HomeIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isRadioWidget && <RadioIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -237,7 +243,10 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <Countdown
             title={group.widgetSettings?.countdownTitle || ''}
             targetDate={group.widgetSettings?.countdownDate || ''}
+            behavior={group.widgetSettings?.countdownBehavior || 'discrete'}
+            playSound={group.widgetSettings?.countdownPlaySound}
             themeClasses={themeClasses}
+            onOpenSettings={() => openModal('editWidgetSettings', { group, columnId })}
           />
         ) : isCurrencyWidget ? (
           <Currency
@@ -260,6 +269,18 @@ const GroupItem: React.FC<GroupItemProps> = ({
             themeClasses={themeClasses} 
             use24HourFormat={group.widgetSettings?.solarUse24HourFormat}
             compactMode={group.widgetSettings?.solarCompactMode}
+          />
+        ) : isHomeyWidget ? (
+          <Homey
+            apiToken={group.widgetSettings?.homeySettings?.apiToken || ''}
+            deviceIds={group.widgetSettings?.homeySettings?.deviceIds || []}
+            homeyId={group.widgetSettings?.homeySettings?.homeyId || ''}
+            themeClasses={themeClasses}
+          />
+        ) : isRadioWidget ? (
+          <Radio 
+            customStations={group.widgetSettings?.radioStations || []}
+            themeClasses={themeClasses}
           />
         ) : ( // Default to 'links' group
           <div className="space-y-2">

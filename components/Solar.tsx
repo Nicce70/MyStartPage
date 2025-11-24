@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { themes } from '../themes';
-import { SunIcon } from './Icons';
+import { SunIcon, ArrowPathIcon } from './Icons';
 
 interface SolarProps {
   city: string;
@@ -19,58 +19,120 @@ interface AstronomyData {
 
 const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = false, compactMode = false }) => {
   const [astroData, setAstroData] = useState<AstronomyData | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Update time every minute
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
+  const fetchSolarData = useCallback(async () => {
     if (!city) {
       setIsLoading(false);
       setError("Please set a city.");
+      setAstroData(null);
+      setTimezone(null);
       return;
     }
 
     setIsLoading(true);
     setError(null);
 
-    const cacheKey = `solar-${city.toLowerCase()}`;
+    const cacheKey = `solar-v2-${city.toLowerCase()}`;
+    
+    // Check cache
     try {
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
-            const { data, timestamp } = JSON.parse(cached);
+            const { astro, tz, timestamp } = JSON.parse(cached);
             if (Date.now() - timestamp < 6 * 60 * 60 * 1000) { // Cache for 6 hours
-                setAstroData(data);
+                setAstroData(astro);
+                setTimezone(tz);
                 setIsLoading(false);
                 return;
             }
         }
     } catch (e) {}
 
-    fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`)
-      .then(res => {
-          if(!res.ok) throw new Error("Failed to fetch data");
-          return res.json();
-      })
-      .then(data => {
-          const astro = data.weather?.[0]?.astronomy?.[0];
-          if (astro) {
-              setAstroData(astro);
-              try {
-                  sessionStorage.setItem(cacheKey, JSON.stringify({ data: astro, timestamp: Date.now() }));
-              } catch(e) {}
-          } else {
-              setError("No astronomy data found.");
-          }
-      })
-      .catch(() => setError("Could not load solar data."))
-      .finally(() => setIsLoading(false));
+    try {
+        // 1. Fetch Timezone & Coordinates from Open-Meteo Geocoding
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+        const geoData = await geoRes.json();
 
+        if (!geoData.results || geoData.results.length === 0) {
+            throw new Error("City not found");
+        }
+        
+        const location = geoData.results[0];
+        const detectedTimezone = location.timezone;
+        setTimezone(detectedTimezone);
+
+        // 2. Fetch Astronomy Data from wttr.in
+        const wttrRes = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+        
+        if (!wttrRes.ok) {
+            throw new Error("Failed to fetch astro data");
+        }
+
+        const weatherData = await wttrRes.json();
+        const astro = weatherData.weather?.[0]?.astronomy?.[0];
+        
+        if (astro) {
+            setAstroData(astro);
+            // Save to cache
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify({ 
+                    astro, 
+                    tz: detectedTimezone, 
+                    timestamp: Date.now() 
+                }));
+            } catch(e) {}
+        } else {
+            throw new Error("No astronomy data found");
+        }
+
+    } catch (err) {
+        // Silently handle error to prevent global app crash messages
+        setError("Could not load solar data.");
+    } finally {
+        setIsLoading(false);
+    }
   }, [city]);
+
+  useEffect(() => {
+    fetchSolarData();
+  }, [fetchSolarData]);
+
+  // Generate random stars for night mode (memoized to prevent flickering on re-renders)
+  const stars = useMemo(() => {
+    const starArray = [];
+    // Generate 20 random stars
+    for(let i=0; i<20; i++) {
+        // Spread across full width 0-200, height 0-85
+        const x = Math.random() * 200; 
+        const y = Math.random() * 85;
+        
+        // Check distance from center-bottom (100, 90)
+        // Allow stars slightly outside the strict arc line (radius 80) for a fuller look, but keep them above horizon
+        const dist = Math.sqrt(Math.pow(x - 100, 2) + Math.pow(y - 90, 2));
+
+        if (dist < 95) {
+            starArray.push({
+                id: i,
+                cx: x,
+                cy: y,
+                r: 0.5 + Math.random() * 0.8, // Smaller stars: 0.5 to 1.3
+                delay: Math.random() * 3, // Random animation delay
+                duration: 2 + Math.random() * 3 // Random animation speed
+            });
+        }
+    }
+    return starArray;
+  }, []);
 
   // Helper to convert "06:42 AM" to minutes from midnight
   const parseTime = (timeStr: string): number => {
@@ -129,19 +191,48 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
       }
 
       return (
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={`w-8 h-8 ${themeClasses.iconMuted} group-hover:text-white transition-colors`}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={`w-6 h-6 ${themeClasses.iconMuted} group-hover:text-white transition-colors`}>
               {content}
           </svg>
       );
   };
 
   if (isLoading) return <div className={`text-center py-4 text-sm ${themeClasses.textSubtle}`}>Calculating orbit...</div>;
-  if (error) return <div className="text-center py-4 text-sm text-red-400">{error}</div>;
+  
+  if (error) return (
+      <div className="flex flex-col items-center justify-center py-4">
+          <div className="text-center text-sm text-red-400 mb-2">{error}</div>
+          <button 
+            onClick={fetchSolarData}
+            className={`p-2 rounded-full ${themeClasses.buttonSecondary} transition-colors hover:brightness-110`}
+            title="Retry"
+          >
+            <ArrowPathIcon className="w-4 h-4" />
+          </button>
+      </div>
+  );
+  
   if (!astroData) return null;
 
   const sunriseMins = parseTime(astroData.sunrise);
   const sunsetMins = parseTime(astroData.sunset);
-  const currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+  
+  // Calculate Current Time in Target Timezone
+  let currentMins = 0;
+  if (timezone) {
+      try {
+        // Get time string in target timezone
+        const targetTimeString = currentTime.toLocaleTimeString('en-US', { timeZone: timezone, hour12: false, hour: '2-digit', minute: '2-digit' });
+        const [h, m] = targetTimeString.split(':').map(Number);
+        currentMins = h * 60 + m;
+      } catch (e) {
+        // Fallback to local time if timezone invalid
+        currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+      }
+  } else {
+      // Fallback if no timezone yet
+      currentMins = currentTime.getHours() * 60 + currentTime.getMinutes();
+  }
   
   // Calculate day length
   const dayLengthMins = sunsetMins - sunriseMins;
@@ -177,6 +268,14 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
         {!compactMode && (
             <div className="relative w-48 h-24 mb-2 overflow-hidden">
                 <svg viewBox="0 0 200 100" className="w-full h-full overflow-visible">
+                    <style>{`
+                        @keyframes twinkle {
+                            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+                            50% { opacity: 1; transform: scale(1.2); }
+                        }
+                    `}</style>
+
+                    {/* Sky/Night Background Area (optional subtle hint) */}
                     {/* Track */}
                     <path 
                         d="M 20 90 A 80 80 0 0 1 180 90" 
@@ -185,8 +284,27 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
                         strokeWidth="4" 
                         strokeDasharray="8 4"
                     />
-                    {/* Horizon Line */}
-                    <line x1="10" y1="90" x2="190" y2="90" stroke={themeClasses.textSubtle.replace('text-', '')} strokeWidth="2" />
+                    
+                    {/* Stars (Night Only) */}
+                    {!isDaytime && stars.map(star => (
+                        <circle 
+                            key={star.id} 
+                            cx={star.cx} 
+                            cy={star.cy} 
+                            r={star.r} 
+                            fill="white" 
+                            style={{ 
+                                transformOrigin: `${star.cx}px ${star.cy}px`,
+                                animation: `twinkle ${star.duration}s infinite ease-in-out ${star.delay}s` 
+                            }} 
+                        />
+                    ))}
+
+                    {/* Horizon Line - Two-Tone for visibility */}
+                    {/* Bottom solid darker/muted line */}
+                    <line x1="10" y1="90" x2="190" y2="90" stroke="currentColor" strokeWidth="3" className="opacity-30" />
+                    {/* Top dashed brighter line */}
+                    <line x1="10" y1="90" x2="190" y2="90" stroke="currentColor" strokeWidth="3" strokeDasharray="4 4" className="opacity-80" />
                     
                     {/* Sun Icon */}
                     {isDaytime && (

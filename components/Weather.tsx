@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { themes } from '../themes';
 import type { WeatherData } from '../types';
-import { SunIcon } from './Icons';
+import { SunIcon, ArrowPathIcon } from './Icons';
 
 interface WeatherProps {
   city: string;
@@ -34,7 +34,7 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
     }
   }, [showTime]);
 
-  useEffect(() => {
+  const fetchWeatherData = useCallback(() => {
     if (!city) {
       setIsLoading(false);
       setWeatherData(null);
@@ -83,8 +83,11 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
       .finally(() => {
         setIsLoading(false);
       });
-
   }, [city]);
+
+  useEffect(() => {
+    fetchWeatherData();
+  }, [fetchWeatherData]);
   
   const secureUrl = (url: string) => {
     if (url && url.startsWith('http:')) {
@@ -116,7 +119,18 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
   }
 
   if (error) {
-    return <div className={`text-sm text-center py-4 text-red-400`}>{error}</div>;
+    return (
+      <div className={`flex flex-col items-center justify-center py-4`}>
+        <div className={`text-sm text-center text-red-400 mb-2`}>{error}</div>
+        <button 
+            onClick={fetchWeatherData}
+            className={`p-2 rounded-full ${themeClasses.buttonSecondary} transition-colors hover:brightness-110`}
+            title="Retry"
+        >
+            <ArrowPathIcon className="w-4 h-4" />
+        </button>
+      </div>
+    );
   }
   
   if (!weatherData || !weatherData.current_condition?.[0] || !weatherData.nearest_area?.[0] || !weatherData.weather?.[0]) {

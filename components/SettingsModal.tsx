@@ -3,7 +3,7 @@ import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import type { Settings, Group, Theme } from '../types';
 import { themes } from '../themes';
-import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon } from './Icons';
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon, HeartIcon } from './Icons';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '2.5';
+const APP_VERSION = '2.6';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -322,7 +322,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   {Object.entries(themes).map(([themeKey, themeData]) => (
                     <button
                       key={themeKey}
-                      onClick={() => onSettingsChange({ ...settings, theme: themeKey, backgroundImage: '' })}
+                      onClick={() => onSettingsChange({ ...settings, theme: themeKey, backgroundImage: '', customBackgroundColor: '' })}
                       className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
                         settings.theme === themeKey ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
                       }`}
@@ -333,7 +333,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   ))}
                   
                   <button
-                    onClick={() => onSettingsChange({ ...settings, theme: 'custom', backgroundImage: '' })}
+                    onClick={() => onSettingsChange({ ...settings, theme: 'custom', backgroundImage: '', customBackgroundColor: '' })}
                     className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
                       settings.theme === 'custom' ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
                     }`}
@@ -449,7 +449,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 </div>
               )}
 
-              <div className="mt-8 pt-6 border-t border-slate-700">
+              <div className="mt-6 pt-6 border-t border-slate-700">
+                <label htmlFor="customBackgroundColor" className="block text-sm font-medium">Custom Background Color (Override)</label>
+                <p className="text-xs text-slate-400 mt-1 mb-2">Overrides the theme background color. Clear to reset.</p>
+                <div className="flex items-center gap-2">
+                    <input 
+                        type="color" 
+                        id="customBackgroundColor"
+                        name="customBackgroundColor"
+                        value={settings.customBackgroundColor || '#000000'}
+                        onChange={(e) => onSettingsChange({ ...settings, customBackgroundColor: e.target.value })}
+                        className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
+                    />
+                    <input 
+                        type="text"
+                        value={settings.customBackgroundColor || ''}
+                        readOnly
+                        placeholder="No color set"
+                        className={`w-32 px-2 py-2 text-sm rounded-md ${themeClasses.inputBg} border-none font-mono`}
+                    />
+                    {settings.customBackgroundColor && (
+                        <button
+                            onClick={() => onSettingsChange({ ...settings, customBackgroundColor: '' })}
+                            className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg text-sm`}
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-slate-700">
                 <label htmlFor="backgroundImage" className="block text-sm font-medium">Custom Background Image URL</label>
                 <p className="text-xs text-slate-400 mt-1 mb-2">Paste a direct link to an image to use it as a background.</p>
                 <div className="flex items-center gap-2">
@@ -556,6 +586,60 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                         in the "Backup & Restore" tab to save a backup file of your configuration to a safe place.
                     </p>
                 </div>
+
+                <div className="pt-4 border-t border-slate-700">
+                    <h4 className="font-semibold mb-2 text-red-400 flex items-center gap-2">
+                        <HeartIcon className="w-4 h-4" />
+                        Donate to Cat Shelter
+                    </h4>
+                    <p className="mb-3">
+                        This app is free! If you find it useful, please consider making a small donation to help cats in need.
+                    </p>
+                    <button
+                        onClick={() => window.open('https://www.paypal.com/us/fundraiser/charity/4858974', '_blank')}
+                        className={`flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 rounded-md text-xs font-bold ${themeClasses.buttonPrimary} transition-colors`}
+                    >
+                        <HeartIcon className="w-3 h-3" />
+                        Donate via PayPal
+                    </button>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700">
+                  <h4 className="font-semibold mb-1">Run Locally</h4>
+
+                  <p>You can download the full source code from <a href="https://github.com/Nicce70/MyStartPage" target="_blank" rel="noopener noreferrer" className="underline">GitHub</a> and run it on your own computer.</p>
+
+                  <p className="mt-2">Two simple ways to run it:</p>
+
+                  <ol className="list-decimal list-inside space-y-2 mt-2">
+
+                      <li>
+                          <strong>Development mode (recommended):</strong><br />
+                          a. Download and install <b><a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="underline">Node.js</a></b><br />
+                          b. Download the project from GitHub and open the folder in a terminal.<br />
+                          c. Run these commands:<br />
+                          <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
+                              npm install<br />
+                              npm run dev
+                          </code><br />
+                          A local server starts and the page opens automatically in your browser.
+                      </li>
+
+                      <li>
+                          <strong>Run static build (preview / no editing):</strong><br />
+                          a. Build the project:<br />
+                          <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
+                              npm run build
+                          </code>
+                          b. Go to the created <code>/dist</code> or <code>/docs</code> folder and run:<br />
+                          <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
+                              python -m http.server
+                          </code>
+                          c. Open the address shown in the terminal (e.g. <i>http://localhost:8000</i>).
+                      </li>
+
+                  </ol>
+              </div>
 
                 <div className="pt-4 border-t border-slate-700">
                     <h4 className="font-semibold mb-1">Credits</h4>

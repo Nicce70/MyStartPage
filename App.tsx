@@ -5,9 +5,11 @@ import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
 import CurrencySettingsForm from './components/CurrencySettingsForm';
 import WebhookSettingsForm from './components/WebhookSettingsForm';
+import HomeySettingsForm from './components/HomeySettingsForm';
+import RadioSettingsForm from './components/RadioSettingsForm';
 import DonationPopup from './components/DonationPopup';
 import QuotePopup from './components/QuotePopup';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon } from './components/Icons';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
@@ -106,6 +108,7 @@ const DEFAULT_SETTINGS: Settings = {
     secondary: '#475569',  // slate-600
     text: '#f1f5f9',       // slate-100
   },
+  customBackgroundColor: '',
   scale: 6,
   openLinksInNewTab: true,
   showSearch: false,
@@ -492,29 +495,35 @@ function App() {
       activeTheme = themes[settings.theme] || themes.default;
     }
     setThemeClasses(activeTheme);
+    
+    // Apply theme background via class by default
     document.body.className = activeTheme.body;
-  }, [settings.theme, settings.customThemeColors]);
-
-  useEffect(() => {
+    
+    // Apply overrides (Color or Image)
+    // Order of priority: Image > Color > Theme Class
+    
     if (settings.backgroundImage) {
       document.body.style.backgroundImage = `url('${settings.backgroundImage}')`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundAttachment = 'fixed';
-    } else {
+      // We don't necessarily need to clear backgroundColor here as image covers it, but good practice
+    } else if (settings.customBackgroundColor) {
       document.body.style.backgroundImage = '';
+      document.body.style.backgroundColor = settings.customBackgroundColor;
+    } else {
+      // Clear inline styles so the class applied above takes effect
+      document.body.style.backgroundImage = '';
+      document.body.style.backgroundColor = '';
       document.body.style.backgroundSize = '';
       document.body.style.backgroundPosition = '';
       document.body.style.backgroundAttachment = '';
     }
 
     return () => {
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundSize = '';
-      document.body.style.backgroundPosition = '';
-      document.body.style.backgroundAttachment = '';
+      // Cleanup usually not needed as we overwrite, but good for unmount
     };
-  }, [settings.backgroundImage]);
+  }, [settings.theme, settings.customThemeColors, settings.backgroundImage, settings.customBackgroundColor]);
   
   useEffect(() => {
     if (modal) {
@@ -666,8 +675,11 @@ function App() {
             } else if (group.widgetType === 'countdown') {
                 const countdownTitle = formData.get('countdownTitle') as string;
                 const countdownDate = formData.get('countdownDate') as string;
+                const countdownBehavior = formData.get('countdownBehavior') as string;
                 group.widgetSettings.countdownTitle = countdownTitle;
                 group.widgetSettings.countdownDate = new Date(countdownDate).toISOString();
+                group.widgetSettings.countdownBehavior = countdownBehavior as 'discrete' | 'confetti' | 'fullscreen' | 'intense';
+                group.widgetSettings.countdownPlaySound = formData.has('countdownPlaySound');
             } else if (group.widgetType === 'calendar') {
                 const holidayCountry = formData.get('holidayCountry') as string;
                 group.widgetSettings.holidayCountry = holidayCountry;
@@ -688,6 +700,22 @@ function App() {
                 group.widgetSettings.solarCity = city;
                 group.widgetSettings.solarUse24HourFormat = formData.has('solarUse24HourFormat');
                 group.widgetSettings.solarCompactMode = formData.has('solarCompactMode');
+            } else if (group.widgetType === 'homey') {
+                const apiToken = formData.get('apiToken') as string;
+                const homeyId = formData.get('homeyId') as string;
+                const deviceIds = formData.getAll('deviceIds') as string[];
+                group.widgetSettings.homeySettings = {
+                    apiToken,
+                    homeyId,
+                    deviceIds
+                };
+            } else if (group.widgetType === 'radio') {
+                const stationsJson = formData.get('radioStationsJSON') as string;
+                try {
+                    group.widgetSettings.radioStations = JSON.parse(stationsJson);
+                } catch (e) {
+                    console.error('Failed to parse radio stations', e);
+                }
             }
         }
         setColumns(newColumns);
@@ -737,7 +765,7 @@ function App() {
     closeModal();
   };
 
-  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad' | 'countdown' | 'calendar' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar', columnId: string) => {
+  const handleAddWidget = (widgetType: 'weather' | 'clock' | 'timer' | 'rss' | 'todo' | 'calculator' | 'scratchpad' | 'countdown' | 'calendar' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio', columnId: string) => {
     const newColumns = JSON.parse(JSON.stringify(columns));
     const col = newColumns.find((c: Column) => c.id === columnId);
     if (!col) return;
@@ -840,7 +868,9 @@ function App() {
             widgetType: 'countdown',
             widgetSettings: { 
               countdownTitle: 'My Event',
-              countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+              countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              countdownBehavior: 'discrete',
+              countdownPlaySound: false
             }
         };
     } else if (widgetType === 'calendar') {
@@ -903,8 +933,34 @@ function App() {
             widgetType: 'solar',
             widgetSettings: {
                 solarCity: 'Stockholm',
-                solarUse24HourFormat: false,
+                solarUse24HourFormat: true, 
                 solarCompactMode: false
+            }
+        };
+    } else if (widgetType === 'homey') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Homey Pro",
+            items: [],
+            type: 'widget',
+            widgetType: 'homey',
+            widgetSettings: {
+                homeySettings: {
+                    apiToken: '',
+                    homeyId: '',
+                    deviceIds: []
+                }
+            }
+        };
+    } else if (widgetType === 'radio') {
+        newWidget = {
+            id: uuidv4(),
+            name: "Radio",
+            items: [],
+            type: 'widget',
+            widgetType: 'radio',
+            widgetSettings: {
+                radioStations: []
             }
         };
     } else {
@@ -1212,6 +1268,7 @@ function App() {
         const todoExists = columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
         const calculatorExists = columns.some(col => col.groups.some(g => g.widgetType === 'calculator'));
         const calendarExists = columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
+        const radioExists = columns.some(col => col.groups.some(g => g.widgetType === 'radio'));
 
         const multiInstanceWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1285,6 +1342,14 @@ function App() {
                <MoonIcon className="w-5 h-5 flex-shrink-0" />
                <span className="font-semibold">Sunrise / Sunset</span>
             </button>
+            <button 
+                onClick={() => handleAddWidget('homey', data.columnId)}
+                disabled={true}
+                className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary} opacity-50 cursor-not-allowed`}
+            >
+               <HomeIcon className="w-5 h-5 flex-shrink-0" />
+               <span className="font-semibold">Homey Pro</span>
+            </button>
           </div>
         );
 
@@ -1324,10 +1389,17 @@ function App() {
                   <WifiIcon className="w-5 h-5 flex-shrink-0" />
                   <span className="font-semibold">Network Info</span>
               </button>
+              {!radioExists && (
+                <button 
+                    onClick={() => handleAddWidget('radio', data.columnId)}
+                    className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}
+                >
+                    <RadioIcon className="w-5 h-5 flex-shrink-0" />
+                    <span className="font-semibold">Radio Player</span>
+                </button>
+              )}
           </div>
         );
-
-        const hasSingleInstanceWidgets = !calendarExists || !todoExists || !calculatorExists || true; // Always true now due to Network
 
         return (
             <div>
@@ -1348,15 +1420,11 @@ function App() {
                         {multiInstanceWidgets}
                     </div>
 
-                    {hasSingleInstanceWidgets && (
-                      <>
-                        <hr className={`border-slate-700`}/>
-                        <div>
-                            <h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>
-                            {singleInstanceWidgets}
-                        </div>
-                      </>
-                    )}
+                    <hr className={`border-slate-700`}/>
+                    <div>
+                        <h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>
+                        {singleInstanceWidgets}
+                    </div>
                 </div>
             </div>
         );
@@ -1472,6 +1540,8 @@ function App() {
         const targetDate = new Date(group.widgetSettings?.countdownDate || Date.now());
         const tzoffset = (new Date()).getTimezoneOffset() * 60000;
         const localISOTime = (new Date(targetDate.getTime() - tzoffset)).toISOString().slice(0, 16);
+        const behavior = group.widgetSettings?.countdownBehavior || 'discrete';
+        const playSound = group.widgetSettings?.countdownPlaySound ?? false;
 
         widgetContent = (
               <div className="space-y-4">
@@ -1497,6 +1567,33 @@ function App() {
                         required
                         className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} 
                     />
+                </div>
+                <div>
+                    <label htmlFor="countdownBehavior" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>On Finish Behavior</label>
+                    <select
+                        id="countdownBehavior"
+                        name="countdownBehavior"
+                        defaultValue={behavior}
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    >
+                        <option value="discrete">Discrete (Text Only)</option>
+                        <option value="confetti">Confetti Explosion 🎉</option>
+                        <option value="fullscreen">Fullscreen Alert 📢</option>
+                        <option value="intense">Intense Flashing 🚨</option>
+                    </select>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                    <label htmlFor="countdownPlaySound" className="text-sm font-medium">Play Sound on Finish</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        id="countdownPlaySound"
+                        name="countdownPlaySound"
+                        defaultChecked={playSound}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
                 </div>
               </div>
         );
@@ -1563,6 +1660,10 @@ function App() {
                 </div>
               </div>
           );
+      } else if (group.widgetType === 'homey') {
+          widgetContent = <HomeySettingsForm group={group} themeClasses={themeClasses} />;
+      } else if (group.widgetType === 'radio') {
+          widgetContent = <RadioSettingsForm group={group} themeClasses={themeClasses} />;
       }
 
       return (
@@ -1610,7 +1711,7 @@ function App() {
         <div className="space-y-4">
           <div>
             <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>
-              Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span>
+              Name <span className="text-xs font-normal opacity-70">{isLink ? '(max 40 chars)' : '(max 30 chars)'}</span>
             </label>
             <input
               type="text"
@@ -1618,7 +1719,7 @@ function App() {
               name="name"
               defaultValue={currentName}
               required
-              maxLength={30}
+              maxLength={isLink ? 40 : 30}
               className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
             />
           </div>

@@ -29,6 +29,12 @@ export interface WebhookItem {
   method: 'GET' | 'POST' | 'navigate';
 }
 
+export interface RadioStation {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export interface Group {
   id:string;
   name: string;
@@ -36,7 +42,7 @@ export interface Group {
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
   colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;
@@ -53,6 +59,8 @@ export interface Group {
     scratchpadContent?: string;
     countdownTitle?: string;
     countdownDate?: string;
+    countdownBehavior?: 'discrete' | 'confetti' | 'fullscreen' | 'intense';
+    countdownPlaySound?: boolean;
     holidayCountry?: string;
     currencyBase?: string;
     currencyTargets?: string[];
@@ -60,6 +68,12 @@ export interface Group {
     solarCity?: string;
     solarUse24HourFormat?: boolean;
     solarCompactMode?: boolean;
+    homeySettings?: {
+        apiToken?: string;
+        homeyId?: string;
+        deviceIds?: string[];
+    };
+    radioStations?: RadioStation[];
   };
   calculatorState?: CalculatorState;
   links?: Link[]; // For data migration
@@ -93,6 +107,7 @@ export interface Settings {
   showColumnTitles: boolean;
   theme: string;
   customThemeColors: CustomThemeColors;
+  customBackgroundColor?: string; // Override theme background
   scale: number;
   openLinksInNewTab: boolean;
   showSearch: boolean;

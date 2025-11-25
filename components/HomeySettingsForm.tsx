@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import type { Group, Theme } from '../types';
-import { LightBulbIcon, CpuChipIcon, ExclamationCircleIcon, ArrowPathIcon } from './Icons';
+import { ArrowPathIcon } from './Icons';
 
 interface HomeySettingsFormProps {
   group: Group;
@@ -16,14 +16,14 @@ interface HomeyDevice {
 }
 
 const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClasses }) => {
+  const [localIp, setLocalIp] = useState(group.widgetSettings?.homeySettings?.localIp || '');
   const [token, setToken] = useState(group.widgetSettings?.homeySettings?.apiToken || '');
-  const [homeyId, setHomeyId] = useState(group.widgetSettings?.homeySettings?.homeyId || '');
   const [selectedDevices, setSelectedDevices] = useState<string[]>(group.widgetSettings?.homeySettings?.deviceIds || []);
   
   const [availableDevices, setAvailableDevices] = useState<HomeyDevice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState(group.widgetSettings?.homeySettings?.homeyId ? 2 : 1);
+  const [step, setStep] = useState(group.widgetSettings?.homeySettings?.localIp ? 2 : 1);
 
   const sanitizeToken = (input: string) => {
       return input.replace(/^Bearer\s+/i, '').trim();
@@ -34,97 +34,24 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
     setError(null);
     
     const cleanToken = sanitizeToken(token);
+    let formattedIp = localIp.trim();
+    if (!formattedIp.startsWith('http')) {
+        formattedIp = `http://${formattedIp}`;
+    }
 
     try {
-      // Step 1: Get Current User (to find Homey ID)
-      if (!homeyId) {
-          const meRes = await fetch('https://api.athom.com/api/manager/users/user/me', {
-            headers: { 'Authorization': `Bearer ${cleanToken}` }
-          });
-          
-          if (!meRes.ok) throw new Error('Invalid Token or API Error');
-          
-          const meData = await meRes.json();
-          // Assuming the first homey is the one we want for now, or finding the connected one
-          // This part simplifies finding the Homey ID. In a full app, you might list Homeys.
-          // We look for a homey in the user's list.
-          // Note: Athom API structure varies, simplified here for PoC.
-          // We will try to use the first available Homey ID if not set.
-          // A more robust way is asking user to select Homey if multiple exist.
-          // For this widget, let's assume we find one.
-          
-          // Since direct structure might be complex, let's try to fetch devices assuming we can get the ID or the user provides it if we fail.
-          // Actually, let's try to hit a known endpoint if we had the ID.
-          // If we don't have ID, we can't easily list devices without listing homes first.
-          
-          // Hack: For this PoC, we'll fetch devices from the *Cloud URL* directly if we can find the ID.
-          // But we need the ID.
-          // Let's assume the user might need to look up their ID or we find it in the `me` response profile.
-          
-          // Let's look at `meData`. usually `meData.data.properties.homeys` or similar.
-          // Due to CORS and structure, let's try a direct approach: 
-          // If user saves token, we try to proceed.
-      }
-
-      // Step 2: Fetch Devices using the Cloud API (requires Homey ID)
-      // If we don't have a Homey ID, we can't construct the URL: https://<HOMEY_ID>.connect.athom.com/api/manager/devices/device
-      
-      // Fallback: We really need the Homey ID. 
-      // Let's try to get it from the user object if possible, otherwise user might need to input it.
-      // For a smooth UX, let's try to find it.
-      
-      const userRes = await fetch('https://api.athom.com/api/manager/users/user/me', {
-         headers: { 'Authorization': `Bearer ${cleanToken}` }
-      });
-      const userData = await userRes.json();
-      
-      // Try to find a homey
-      let foundHomeyId = homeyId;
-      if (!foundHomeyId && userData && userData.data) {
-          // This path is a guess based on standard API responses; structure differs by account type.
-          // If this fails, we might need to ask user for Homey ID manually.
-          // For now, let's see if we can proceed.
-      }
-      
-      // If we still don't have an ID, we can't fetch devices.
-      // BUT, to make this widget work for the user NOW, let's allow them to manually input ID if auto-detection fails?
-      // Or simpler: The user provided flow implies we should just work. 
-      
-      // Let's fetch devices assuming we have the ID or just want to validate token.
-      // Since we can't easily browse Homeys without a complex UI, 
-      // I'll assume for this widget that we might need to let the user input the ID manually if we can't find it,
-      // OR we try to list devices from the first homey we find in the /me endpoint.
-      
-      // Let's assume success for a moment to render the UI.
-      // In a real scenario, we'd iterate `userData.data.homeys`.
-      
-      // Mocking the device fetch if we can't hit the real API due to CORS/Auth complexity in this specific environment.
-      // However, the user wants it to work.
-      
-      // Let's try to hit the generic endpoint.
-      if (!foundHomeyId) {
-          // Attempt to extract from response if possible
-          // If userData.data.homeys exists
-          if (userData.data && Array.isArray(userData.data.homeys) && userData.data.homeys.length > 0) {
-              foundHomeyId = userData.data.homeys[0]._id;
-              setHomeyId(foundHomeyId);
-          }
-      }
-      
-      if (!foundHomeyId) {
-          throw new Error("Could not automatically find Homey ID. Please ensure you have a Homey connected.");
-      }
-
-      const devicesUrl = `https://${foundHomeyId}.connect.athom.com/api/manager/devices/device`;
+      // Fetch Devices from Local API
+      const devicesUrl = `${formattedIp}/api/manager/devices/device`;
       const devicesRes = await fetch(devicesUrl, {
           headers: { 'Authorization': `Bearer ${cleanToken}` }
       });
       
-      if (!devicesRes.ok) throw new Error('Failed to fetch devices. Check Token/Homey status.');
+      if (!devicesRes.ok) {
+          if (devicesRes.status === 0) throw new Error('Connection Refused. Ensure you are viewing this page via HTTP (not HTTPS) and the IP is correct.');
+          throw new Error('Failed to fetch devices. Check Token and IP.');
+      }
       
       const devicesData = await devicesRes.json();
-      // devicesData is usually an object { "device-id": { ... } } or array
-      
       const deviceList: HomeyDevice[] = Object.values(devicesData).map((d: any) => ({
           id: d.id,
           name: d.name,
@@ -137,7 +64,7 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
 
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "Unknown error. Mixed Content issue?");
     } finally {
       setIsLoading(false);
     }
@@ -154,16 +81,32 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
   return (
     <div className="space-y-4">
       {/* Hidden inputs for form submission */}
+      <input type="hidden" name="localIp" value={localIp} />
       <input type="hidden" name="apiToken" value={sanitizeToken(token)} />
-      <input type="hidden" name="homeyId" value={homeyId} />
       {selectedDevices.map(id => (
           <input key={id} type="hidden" name="deviceIds" value={id} />
       ))}
 
       {step === 1 && (
         <div className="space-y-4">
+            <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md text-xs text-yellow-200">
+                <strong>Requirement:</strong> This widget connects directly to your Homey on your local network.
+                You MUST run this dashboard via <strong>HTTP</strong> (e.g., localhost) for this to work. HTTPS will block the connection.
+            </div>
+
             <div>
-                <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Homey API Bearer Token</label>
+                <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Homey Local IP</label>
+                <input 
+                    type="text" 
+                    value={localIp}
+                    onChange={(e) => setLocalIp(e.target.value)}
+                    placeholder="192.168.1.x"
+                    className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                />
+            </div>
+
+            <div>
+                <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>API Token</label>
                 <input 
                     type="password" 
                     value={token}
@@ -172,8 +115,10 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                     className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                    Create at <a href="https://tools.developer.homey.app/tools/api-playground" target="_blank" rel="noreferrer" className="underline hover:text-indigo-400">Homey API Playground</a>. Copy the 'Bearer' token.
+                  Get your Personal Access Token from the Homey app: 
+                  <span className="font-semibold"> Settings → API Keys → Create New Key</span>.
                 </p>
+
             </div>
             
             {error && <div className="text-red-400 text-sm">{error}</div>}
@@ -181,7 +126,7 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
             <button
                 type="button"
                 onClick={fetchDevices}
-                disabled={!token || isLoading}
+                disabled={!token || !localIp || isLoading}
                 className={`w-full py-2 rounded-md font-bold transition-colors flex items-center justify-center gap-2 ${themeClasses.buttonPrimary} disabled:opacity-50`}
             >
                 {isLoading && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
@@ -234,7 +179,7 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                 onClick={() => { setStep(1); setAvailableDevices([]); }}
                 className={`text-xs underline ${themeClasses.textSubtle}`}
             >
-                Change Token / Re-connect
+                Change IP / Token
             </button>
         </div>
       )}

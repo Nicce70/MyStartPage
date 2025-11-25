@@ -16,7 +16,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.8';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -620,6 +620,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                           c. Run these commands:<br />
                           <code className={`${themeClasses.inputBg} px-1 py-0.5 rounded-md text-xs block mt-1`}>
                               npm install<br />
+                              npm install socket.io-client - Only for Homey Widget<br />
                               npm run dev
                           </code><br />
                           A local server starts and the page opens automatically in your browser.

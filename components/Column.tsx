@@ -15,6 +15,7 @@ type DraggedItem =
 
 interface ColumnProps {
   column: Column;
+  allColumns: Column[]; // Added to pass down global state
   isEditMode: boolean;
   onDragStart: (item: DraggedItem) => void;
   onDrop: (target: { columnId: string; groupId?: string; linkId?: string }) => void;
@@ -35,7 +36,7 @@ interface ColumnProps {
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
+  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -110,6 +111,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
           <GroupItem
             key={group.id}
             group={group}
+            allColumns={allColumns} // Pass down global columns
             columnId={column.id}
             isEditMode={isEditMode}
             onDragStart={onDragStart}

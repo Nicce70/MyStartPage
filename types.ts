@@ -5,6 +5,7 @@ export interface Link {
   name: string;
   url: string;
   comment?: string;
+  isFavorite?: boolean;
 }
 
 export interface Separator {
@@ -41,8 +42,8 @@ export interface Group {
   items: GroupItemType[];
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
-  colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio';
+  colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;
@@ -69,8 +70,8 @@ export interface Group {
     solarUse24HourFormat?: boolean;
     solarCompactMode?: boolean;
     homeySettings?: {
+        localIp?: string;
         apiToken?: string;
-        homeyId?: string;
         deviceIds?: string[];
     };
     radioStations?: RadioStation[];

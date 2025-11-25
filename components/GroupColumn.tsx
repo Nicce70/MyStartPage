@@ -4,7 +4,7 @@ import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, Calculat
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -22,6 +22,7 @@ import Network from './Network';
 import Solar from './Solar';
 import Homey from './Homey';
 import Radio from './Radio';
+import Favorites from './Favorites';
 
 type DraggedItem = 
   | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
@@ -31,6 +32,7 @@ type DraggedItem =
 
 interface GroupItemProps {
   group: Group;
+  allColumns: Column[]; // Need access to full tree for Favorites
   columnId: string;
   isEditMode: boolean;
   onDragStart: (item: DraggedItem) => void;
@@ -55,7 +57,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
+  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -110,6 +112,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isSolarWidget = widgetType === 'solar';
   const isHomeyWidget = widgetType === 'homey';
   const isRadioWidget = widgetType === 'radio';
+  const isFavoritesWidget = widgetType === 'favorites';
   const isWidget = groupType === 'widget';
 
   // Determine background color class based on colorVariant
@@ -118,7 +121,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
     'secondary': themeClasses.groupBgSecondary,
     'tertiary': themeClasses.groupBgTertiary,
     'green': 'bg-[#60B162]',
-    'gray': 'bg-[#F2F2F2]'
+    'gray': 'bg-[#F2F2F2]',
+    'black': 'bg-[#0a0a0a] text-slate-200',
+    'dark_blue': 'bg-[#172554] text-blue-100'
   }[group.colorVariant || 'default'] || themeClasses.groupBg;
   
   return (
@@ -164,6 +169,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isSolarWidget && <MoonIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isHomeyWidget && <HomeIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isRadioWidget && <RadioIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isFavoritesWidget && <HeartIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -272,15 +278,21 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isHomeyWidget ? (
           <Homey
+            localIp={group.widgetSettings?.homeySettings?.localIp || ''}
             apiToken={group.widgetSettings?.homeySettings?.apiToken || ''}
             deviceIds={group.widgetSettings?.homeySettings?.deviceIds || []}
-            homeyId={group.widgetSettings?.homeySettings?.homeyId || ''}
             themeClasses={themeClasses}
           />
         ) : isRadioWidget ? (
           <Radio 
             customStations={group.widgetSettings?.radioStations || []}
             themeClasses={themeClasses}
+          />
+        ) : isFavoritesWidget ? (
+          <Favorites
+            allColumns={allColumns}
+            themeClasses={themeClasses}
+            openLinksInNewTab={openLinksInNewTab}
           />
         ) : ( // Default to 'links' group
           <div className="space-y-2">

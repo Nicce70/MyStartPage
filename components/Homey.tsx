@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
-import { LightBulbIcon, CpuChipIcon, ExclamationCircleIcon, ArrowPathIcon } from './Icons';
+import { LightBulbIcon, CpuChipIcon, ArrowPathIcon } from './Icons';
+// @ts-ignore
+import { io } from "socket.io-client";
 
 interface HomeyProps {
+  localIp: string;
   apiToken: string;
-  homeyId: string;
   deviceIds: string[];
   themeClasses: typeof themes.default;
 }
@@ -14,140 +16,199 @@ interface DeviceStatus {
   id: string;
   name: string;
   class: string;
-  capabilitiesObj?: Record<string, any>;
   onoff?: boolean;
   measure?: Record<string, number | string>;
   alarm?: Record<string, boolean>;
   available: boolean;
 }
 
-const Homey: React.FC<HomeyProps> = ({ apiToken, homeyId, deviceIds, themeClasses }) => {
+const Homey: React.FC<HomeyProps> = ({ localIp, apiToken, deviceIds, themeClasses }) => {
   const [devices, setDevices] = useState<DeviceStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const pollInterval = useRef<number | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  
+  const socketRef = useRef<any>(null);
 
-  const sanitizeToken = (input: string) => {
-      return input.replace(/^Bearer\s+/i, '').trim();
+  const sanitizeToken = (input: string) => input.replace(/^Bearer\s+/i, '').trim();
+
+  const formatUrl = (ip: string) => {
+      let formatted = ip.trim();
+      if (!formatted.startsWith('http')) formatted = `http://${formatted}`;
+      return formatted;
   };
 
-  const fetchData = async () => {
-    if (!apiToken || !homeyId || deviceIds.length === 0) {
-        setIsLoading(false);
-        return;
-    }
+  const getDeviceUrl = (ip: string) => `${formatUrl(ip)}/api/manager/devices/device`;
 
-    const cleanToken = sanitizeToken(apiToken);
+  const parseDeviceData = (d: any): DeviceStatus | null => {
+      if (!d) return null;
+      
+      const measures: Record<string, any> = {};
+      const alarms: Record<string, boolean> = {};
+      let onoff = undefined;
+
+      // Check capabilities safely
+      if (d.capabilitiesObj) {
+          for (const cap in d.capabilitiesObj) {
+              const val = d.capabilitiesObj[cap]?.value;
+              if (cap === 'onoff') onoff = val;
+              else if (cap.startsWith('measure_')) measures[cap.replace('measure_', '')] = val;
+              else if (cap.startsWith('alarm_')) alarms[cap.replace('alarm_', '')] = val;
+          }
+      }
+
+      return {
+          id: d.id,
+          name: d.name,
+          class: d.class,
+          onoff,
+          measure: measures,
+          alarm: alarms,
+          available: d.ready
+      };
+  };
+
+  const updateDevicesFromRawData = (allDevicesData: any) => {
+      const updatedDevices: DeviceStatus[] = [];
+      const allDevices = Array.isArray(allDevicesData) 
+        ? allDevicesData 
+        : Object.values(allDevicesData) as any[];
+
+      for (const id of deviceIds) {
+          const d = allDevices.find((dev: any) => dev.id === id);
+          if (d) {
+              const parsed = parseDeviceData(d);
+              if (parsed) updatedDevices.push(parsed);
+          }
+      }
+      
+      if (updatedDevices.length > 0) {
+          setDevices(updatedDevices);
+      }
+  };
+
+  // Fetch Data via REST (Polling)
+  const fetchRESTData = async () => {
+    if (!localIp || !apiToken || deviceIds.length === 0) return;
 
     try {
-        // We'll fetch specific devices. 
-        // Ideally we'd fetch only selected ones, but the API typically gives all or one.
-        // Fetching all is easier for a bulk update.
-        const url = `https://${homeyId}.connect.athom.com/api/manager/devices/device`;
-        const res = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${cleanToken}` }
+        const res = await fetch(getDeviceUrl(localIp), {
+            headers: { 'Authorization': `Bearer ${sanitizeToken(apiToken)}` }
         });
 
-        if (!res.ok) {
-            if (res.status === 401) throw new Error("Unauthorized. Check Token.");
-            throw new Error("Failed to fetch status.");
-        }
+        if (!res.ok) throw new Error("REST fetch failed");
 
         const data = await res.json();
-        
-        // Filter and map data
-        const updatedDevices: DeviceStatus[] = [];
-        const allDevices = Object.values(data) as any[];
-
-        for (const id of deviceIds) {
-            const d = allDevices.find((dev: any) => dev.id === id);
-            if (d) {
-                // Extract capabilities
-                const measures: Record<string, any> = {};
-                const alarms: Record<string, boolean> = {};
-                let onoff = undefined;
-
-                for (const cap in d.capabilitiesObj) {
-                    const val = d.capabilitiesObj[cap]?.value;
-                    if (cap === 'onoff') onoff = val;
-                    else if (cap.startsWith('measure_')) measures[cap.replace('measure_', '')] = val;
-                    else if (cap.startsWith('alarm_')) alarms[cap.replace('alarm_', '')] = val;
-                }
-
-                updatedDevices.push({
-                    id: d.id,
-                    name: d.name,
-                    class: d.class,
-                    capabilitiesObj: d.capabilitiesObj,
-                    onoff,
-                    measure: measures,
-                    alarm: alarms,
-                    available: d.ready
-                });
-            }
-        }
-        setDevices(updatedDevices);
+        updateDevicesFromRawData(data);
         setError(null);
     } catch (err) {
-        // console.error(err); // Suppress console noise
-        setError("Connection lost");
+        console.warn("Homey Polling failed:", err);
+        // Don't show error UI on poll fail if we already have data
     } finally {
         setIsLoading(false);
     }
   };
 
+  // Main Effect
   useEffect(() => {
-    fetchData();
-    pollInterval.current = window.setInterval(fetchData, 10000); // Poll every 10s
+    if (!localIp || !apiToken) {
+        setIsLoading(false);
+        return;
+    }
+
+    // 1. Initial Load & Polling
+    fetchRESTData();
+    const pollInterval = setInterval(fetchRESTData, 10000); // Poll every 10s
+
+    // 2. WebSocket Setup (Only for connection status & commands, avoiding CORS polling issues)
+    const url = formatUrl(localIp);
+    const token = sanitizeToken(apiToken);
+
+    console.log("Initializing Homey Socket connection to:", url);
+
+    const socket = io(url, {
+      transports: ["websocket"], // Force WebSocket to avoid CORS 400 on Polling
+      upgrade: false,
+      query: { token: token },
+      auth: { token: token },
+      reconnectionDelay: 5000,
+    });
+
+    socket.on("connect", () => {
+        console.log("Homey Socket Connected!");
+        setIsConnected(true);
+    });
+
+    socket.on("disconnect", () => setIsConnected(false));
+
+    socketRef.current = socket;
 
     return () => {
-        if (pollInterval.current) clearInterval(pollInterval.current);
+        clearInterval(pollInterval);
+        if (socketRef.current) socketRef.current.disconnect();
     };
-  }, [apiToken, homeyId, deviceIds]); // Re-run if settings change
+  }, [localIp, apiToken, deviceIds]);
+
 
   const handleToggle = async (deviceId: string, currentState: boolean) => {
-      const cleanToken = sanitizeToken(apiToken);
-      
       // Optimistic update
       setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, onoff: !currentState } : d));
 
       try {
-          const url = `https://${homeyId}.connect.athom.com/api/manager/devices/device/${deviceId}/capability/onoff`;
-          await fetch(url, {
+          // Try REST first as it's simple for commands
+          const url = `${getDeviceUrl(localIp)}/${deviceId}/capability/onoff`;
+          const res = await fetch(url, {
               method: 'PUT',
               headers: { 
-                  'Authorization': `Bearer ${cleanToken}`,
+                  'Authorization': `Bearer ${sanitizeToken(apiToken)}`,
                   'Content-Type': 'application/json'
               },
               body: JSON.stringify({ value: !currentState })
           });
-          // No need to refetch immediately if optimistic worked, polling will catch up
+          
+          if (!res.ok) {
+              throw new Error("REST failed");
+          }
       } catch (e) {
-          console.error("Toggle failed", e);
-          // Revert on fail
-          setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, onoff: currentState } : d));
+          // Fallback to Socket
+          if (socketRef.current && isConnected) {
+              socketRef.current.emit('manager.devices.device.capability.set', {
+                  deviceId: deviceId,
+                  capabilityId: 'onoff',
+                  value: !currentState
+              }, (err: any) => {
+                  if (err) {
+                      console.error("Socket toggle failed:", err);
+                      // Revert
+                      setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, onoff: currentState } : d));
+                  }
+              });
+          } else {
+              // Revert if both fail
+              setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, onoff: currentState } : d));
+          }
       }
   };
 
-  if (!apiToken || !homeyId) {
-      return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Configure Homey in settings.</div>;
-  }
+  if (!localIp || !apiToken) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Configure Homey (Local)<br />Read more in Settings &gt; About.</div>;
 
-  if (isLoading && devices.length === 0) {
-      return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Connecting to Homey...</div>;
-  }
+  if (isLoading && devices.length === 0) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Connecting...</div>;
 
   if (error && devices.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-4 text-red-400">
             <p className="text-sm mb-2">{error}</p>
-            <button onClick={fetchData} className={`p-2 rounded ${themeClasses.buttonSecondary}`}><ArrowPathIcon className="w-4 h-4" /></button>
+            <button onClick={fetchRESTData} className={`p-2 rounded ${themeClasses.buttonSecondary}`}><ArrowPathIcon className="w-4 h-4" /></button>
         </div>
       );
   }
 
   return (
     <div className="space-y-2">
+        <div className="flex justify-end mb-1">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} title={isConnected ? "Socket Connected" : "Disconnected"} />
+        </div>
+
         {devices.map(device => {
             const hasSwitch = device.onoff !== undefined;
             const hasMeasures = Object.keys(device.measure || {}).length > 0;
@@ -161,14 +222,11 @@ const Homey: React.FC<HomeyProps> = ({ apiToken, homeyId, deviceIds, themeClasse
                         </div>
                         <div className="min-w-0">
                             <div className={`font-semibold text-sm truncate ${themeClasses.modalText}`}>{device.name}</div>
-                            {/* Status Line */}
                             <div className="text-xs text-slate-400 flex gap-2 flex-wrap">
                                 {!device.available && <span className="text-red-400">Offline</span>}
-                                
                                 {hasMeasures && Object.entries(device.measure || {}).map(([key, val]) => (
                                     <span key={key}>{typeof val === 'number' ? Math.round(val * 10) / 10 : val} {key === 'temperature' ? '°C' : key === 'power' ? 'W' : ''}</span>
                                 ))}
-                                
                                 {hasAlarms && Object.entries(device.alarm || {}).map(([key, val]) => val && (
                                     <span key={key} className="text-red-400 font-bold uppercase">{key}</span>
                                 ))}
@@ -183,19 +241,12 @@ const Homey: React.FC<HomeyProps> = ({ apiToken, homeyId, deviceIds, themeClasse
                                 device.onoff ? 'bg-green-500' : 'bg-slate-600'
                             }`}
                         >
-                            <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                    device.onoff ? 'translate-x-6' : 'translate-x-1'
-                                }`}
-                            />
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${device.onoff ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                     )}
                 </div>
             );
         })}
-        {devices.length === 0 && !isLoading && (
-            <div className={`text-sm text-center py-2 ${themeClasses.textSubtle}`}>No devices selected.</div>
-        )}
     </div>
   );
 };

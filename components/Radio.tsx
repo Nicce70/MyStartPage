@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import type { RadioStation } from '../types';
-import { PlayIcon, PauseIcon, SpeakerWaveIcon } from './Icons';
+import { PlayIcon, PauseIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from './Icons';
 
 interface RadioProps {
   customStations: RadioStation[];
@@ -24,6 +24,7 @@ const DEFAULT_STATIONS: RadioStation[] = [
 const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
+  const [isMuted, setIsMuted] = useState(false);
   const [currentStationId, setCurrentStationId] = useState(DEFAULT_STATIONS[2].id); // Default to P3
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -59,12 +60,12 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
     };
   }, []);
 
-  // Effect 1: Handle Volume Changes independently
+  // Effect 1: Handle Volume/Mute Changes
   useEffect(() => {
       if (audioRef.current) {
-          audioRef.current.volume = volume;
+          audioRef.current.volume = isMuted ? 0 : volume;
       }
-  }, [volume]);
+  }, [volume, isMuted]);
 
   // Effect 2: Handle Station Changes
   useEffect(() => {
@@ -78,7 +79,7 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
             safePlay(audio);
         }
     }
-  }, [currentStation.url, isPlaying]); // Use URL to check for changes, avoiding object ref issues
+  }, [currentStation.url, isPlaying]);
 
   // Effect 3: Handle Play/Pause Toggle
   useEffect(() => {
@@ -98,6 +99,10 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
 
   const togglePlay = () => {
       setIsPlaying(!isPlaying);
+  };
+
+  const toggleMute = () => {
+      setIsMuted(!isMuted);
   };
 
   return (
@@ -134,14 +139,27 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
         </button>
 
         <div className="flex-1 flex items-center gap-2 bg-black/20 p-2 rounded-lg">
-            <SpeakerWaveIcon className={`w-4 h-4 ${themeClasses.iconMuted}`} />
+            <button 
+                onClick={toggleMute}
+                className={`p-1 rounded-md hover:bg-white/10 transition-colors focus:outline-none`}
+                title={isMuted ? "Unmute" : "Mute"}
+            >
+                {isMuted ? (
+                    <SpeakerXMarkIcon className={`w-4 h-4 ${themeClasses.iconMuted}`} />
+                ) : (
+                    <SpeakerWaveIcon className={`w-4 h-4 ${themeClasses.iconMuted}`} />
+                )}
+            </button>
             <input
                 type="range"
                 min="0"
                 max="1"
                 step="0.01"
                 value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                onChange={(e) => {
+                    setVolume(parseFloat(e.target.value));
+                    if (isMuted) setIsMuted(false);
+                }}
                 className="w-full h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
             />
         </div>

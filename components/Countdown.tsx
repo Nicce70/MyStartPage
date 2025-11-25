@@ -176,6 +176,10 @@ const Countdown: React.FC<CountdownProps> = ({ title, targetDate, themeClasses, 
   const { years, months, days, hours, minutes, seconds, totalDifference } = timeLeft;
   const isFinished = totalDifference <= 0;
 
+  // Format Tooltip Date
+  const formattedTargetDate = new Date(targetDate).toLocaleString();
+  const tooltipText = `${title}\nTarget: ${formattedTargetDate}`;
+
   // --- Effects Rendering ---
 
   // 1. Intense Mode: Flashing Background Style
@@ -211,7 +215,7 @@ const Countdown: React.FC<CountdownProps> = ({ title, targetDate, themeClasses, 
           </div>
       )}
 
-      <h3 className={`relative z-10 text-lg font-bold ${themeClasses.header} break-all`} title={title}>{title}</h3>
+      <h3 className={`relative z-10 text-lg font-bold ${themeClasses.header} break-all`} title={tooltipText}>{title}</h3>
       
       {isFinished ? (
           <div className="relative z-10 mt-2">

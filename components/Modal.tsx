@@ -1,3 +1,4 @@
+
 import React, { ReactNode, useEffect } from 'react';
 import type { themes } from '../themes';
 
@@ -28,11 +29,9 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeCl
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"
-      onClick={onClose}
     >
       <div 
         className={`${themeClasses.modalBg} rounded-lg shadow-xl w-full max-w-xl p-6`}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className={`text-xl font-bold ${themeClasses.modalText}`}>{title}</h2>

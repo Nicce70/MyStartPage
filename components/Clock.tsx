@@ -5,9 +5,10 @@ interface ClockProps {
   timezone: string;
   themeClasses: typeof themes.default;
   showSeconds?: boolean;
+  showDate?: boolean;
 }
 
-const Clock: React.FC<ClockProps> = ({ timezone, themeClasses, showSeconds = true }) => {
+const Clock: React.FC<ClockProps> = ({ timezone, themeClasses, showSeconds = true, showDate = true }) => {
   const [time, setTime] = useState<Date>(new Date());
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +63,9 @@ const Clock: React.FC<ClockProps> = ({ timezone, themeClasses, showSeconds = tru
   return (
     <div className="flex flex-col items-center justify-center p-2 text-center">
       <div className={`text-3xl font-bold ${themeClasses.header}`}>{formatTime()}</div>
-      <div className={`text-sm ${themeClasses.textMuted}`}>{formatDate()}</div>
+      {showDate && (
+        <div className={`text-sm ${themeClasses.textMuted}`}>{formatDate()}</div>
+      )}
     </div>
   );
 };

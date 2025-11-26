@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
@@ -316,9 +318,12 @@ const WeatherSettingsForm: React.FC<{
           name="city"
           defaultValue={currentCity}
           required
-          placeholder="e.g., London, GB"
+          placeholder="e.g. Paris, FR"
           className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
         />
+        <p className="text-xs text-slate-500 mt-1">
+          Use City, Country Code (e.g. Lund, SE) if there are multiple cities with the same name.
+        </p>
       </div>
       <div className="flex items-center justify-between pt-2">
         <label htmlFor="weatherShowForecast" className="text-sm font-medium">Show 2-day forecast</label>
@@ -530,6 +535,37 @@ function App() {
     }
   }, [modal]);
 
+  // When entering edit mode, expand all groups. When exiting, restore collapsed state.
+  useEffect(() => {
+      if (isEditMode) {
+          // Store collapsed IDs
+          const collapsedIds = new Set<string>();
+          columns.forEach(col => {
+              col.groups.forEach(g => {
+                  if (g.isCollapsed) collapsedIds.add(g.id);
+              });
+          });
+          collapsedGroupsBeforeEdit.current = collapsedIds;
+
+          // Expand all if any are collapsed
+          if (collapsedIds.size > 0) {
+              setColumns(cols => cols.map(c => ({
+                  ...c,
+                  groups: c.groups.map(g => g.isCollapsed ? { ...g, isCollapsed: false } : g)
+              })));
+          }
+      } else {
+          // Restore collapsed state
+          if (collapsedGroupsBeforeEdit.current.size > 0) {
+              setColumns(cols => cols.map(c => ({
+                  ...c,
+                  groups: c.groups.map(g => collapsedGroupsBeforeEdit.current.has(g.id) ? { ...g, isCollapsed: true } : g)
+              })));
+              collapsedGroupsBeforeEdit.current.clear();
+          }
+      }
+  }, [isEditMode]);
+
   const openModal = (type: ModalState['type'], data?: any) => setModal({ type, data });
   const closeModal = () => {
     setModal(null);
@@ -636,6 +672,7 @@ function App() {
             } else if (group.widgetType === 'clock') {
                 group.widgetSettings.timezone = formData.get('timezone') as string;
                 group.widgetSettings.showSeconds = formData.has('showSeconds');
+                group.widgetSettings.showDate = formData.has('showDate');
             } else if (group.widgetType === 'timer') {
                 const isStopwatch = formData.has('isStopwatch');
                 group.widgetSettings.isStopwatch = isStopwatch;
@@ -654,6 +691,7 @@ function App() {
             } else if (group.widgetType === 'rss') {
                 group.widgetSettings.rssUrl = formData.get('rssUrl') as string;
                 group.widgetSettings.rssItemCount = parseInt(formData.get('rssItemCount') as string, 10) || 5;
+                group.widgetSettings.rssUpdateInterval = parseInt(formData.get('rssUpdateInterval') as string, 10) || 0;
             } else if (group.widgetType === 'countdown') {
                 group.widgetSettings.countdownTitle = formData.get('countdownTitle') as string;
                 group.widgetSettings.countdownDate = new Date(formData.get('countdownDate') as string).toISOString();
@@ -735,11 +773,11 @@ function App() {
     if (widgetType === 'weather') {
         newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone } };
     } else if (widgetType === 'clock') {
-      newWidget = { id: uuidv4(), name: "Clock", items: [], type: 'widget', widgetType: 'clock', widgetSettings: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, showSeconds: true } };
+      newWidget = { id: uuidv4(), name: "Clock", items: [], type: 'widget', widgetType: 'clock', widgetSettings: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, showSeconds: true, showDate: true } };
     } else if (widgetType === 'timer') {
         newWidget = { id: uuidv4(), name: "Timer / Stopwatch", items: [], type: 'widget', widgetType: 'timer', widgetSettings: { timerDuration: 300, timerPlaySound: true, isStopwatch: false, timerOvertime: false } };
     } else if (widgetType === 'rss') {
-        newWidget = { id: uuidv4(), name: "RSS Feed", items: [], type: 'widget', widgetType: 'rss', widgetSettings: { rssUrl: '', rssItemCount: 5 } };
+        newWidget = { id: uuidv4(), name: "RSS Feed", items: [], type: 'widget', widgetType: 'rss', widgetSettings: { rssUrl: '', rssItemCount: 5, rssUpdateInterval: 60 } };
     } else if (widgetType === 'todo') {
         newWidget = { id: TODO_WIDGET_ID, name: 'To-Do List', items: [], isCollapsed: false, type: 'widget', widgetType: 'todo' };
     } else if (widgetType === 'calculator') {
@@ -1138,6 +1176,7 @@ function App() {
         } else if (group.widgetType === 'clock') {
             const currentTimezone = group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
             const currentShowSeconds = group.widgetSettings?.showSeconds ?? true;
+            const currentShowDate = group.widgetSettings?.showDate ?? true;
             widgetContent = (
                     <div className="space-y-4">
                         <div>
@@ -1153,6 +1192,13 @@ function App() {
                             <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                             </label>
                         </div>
+                        <div className="flex items-center justify-between pt-2">
+                            <label htmlFor="showDate" className="text-sm font-medium">Show Date</label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="showDate" name="showDate" defaultChecked={currentShowDate} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
                     </div>
             );
         } else if (group.widgetType === 'timer') {
@@ -1160,10 +1206,16 @@ function App() {
         } else if (group.widgetType === 'rss') {
             const currentUrl = group.widgetSettings?.rssUrl || '';
             const currentItemCount = group.widgetSettings?.rssItemCount || 5;
+            const currentInterval = group.widgetSettings?.rssUpdateInterval ?? 60;
             widgetContent = (
                 <div className="space-y-4">
                     <div><label htmlFor="rssUrl" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>RSS Feed URL</label><input type="url" id="rssUrl" name="rssUrl" defaultValue={currentUrl} required placeholder="https://example.com/feed.xml" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
                     <div><label htmlFor="rssItemCount" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Number of Items to Show</label><input type="number" id="rssItemCount" name="rssItemCount" defaultValue={currentItemCount} min="1" max="20" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
+                    <div>
+                        <label htmlFor="rssUpdateInterval" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Update Interval (minutes)</label>
+                        <input type="number" id="rssUpdateInterval" name="rssUpdateInterval" defaultValue={currentInterval} min="0" max="999" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                        <p className="text-xs text-slate-500 mt-1">Set to 0 to disable auto-updates.</p>
+                    </div>
                 </div>
             );
         } else if (group.widgetType === 'countdown') {
@@ -1350,8 +1402,8 @@ function App() {
           </div>
         </header>
 
-        <div className="flex-grow overflow-x-auto pb-4">
-          <div className={`flex items-start h-full ${settings.centerContent ? 'w-fit mx-auto' : ''}`} style={{ gap: `${settings.columnGap * 0.25}rem` }}>
+        <div className={`flex-grow overflow-x-auto pb-4 ${settings.centerContent ? 'text-center' : ''}`}>
+           <div className={`inline-flex items-start h-full text-left ${settings.centerContent ? 'mx-auto' : ''}`} style={{ gap: `${settings.columnGap * 0.25}rem` }}>
             {columns.map(col => (
               <ColumnComponent
                 key={col.id}

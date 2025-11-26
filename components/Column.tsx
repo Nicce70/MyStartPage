@@ -130,7 +130,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
         ))}
          {column.groups.length === 0 && (
            <div className={`text-center py-8 text-sm border-2 border-dashed rounded-lg ${themeClasses.textSubtle} ${themeClasses.dashedBorder}`}>
-             {isEditMode ? "Drop a group here or click '+' to add one." : "No groups in this column."}
+             {isEditMode ? "Drop a group here or click '+' to add one." : "This column is empty."}
            </div>
         )}
       </div>

@@ -1,4 +1,6 @@
 
+
+
 import React from 'react';
 import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
@@ -220,6 +222,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <Clock
             timezone={group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
             showSeconds={group.widgetSettings?.showSeconds}
+            showDate={group.widgetSettings?.showDate}
             themeClasses={themeClasses}
           />
         ) : isTimerWidget ? (
@@ -235,6 +238,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <RSS
             rssUrl={group.widgetSettings?.rssUrl || ''}
             itemCount={group.widgetSettings?.rssItemCount || 5}
+            updateInterval={group.widgetSettings?.rssUpdateInterval ?? 60}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}
           />

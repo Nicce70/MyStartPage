@@ -1,4 +1,5 @@
 
+
 export interface Link {
   id: string;
   type: 'link';
@@ -51,12 +52,14 @@ export interface Group {
     weatherTimezone?: string;
     timezone?: string;
     showSeconds?: boolean;
+    showDate?: boolean; // New setting for Clock widget
     timerDuration?: number; // Duration in seconds
     timerPlaySound?: boolean;
     timerOvertime?: boolean; // New setting for overtime
     isStopwatch?: boolean;
     rssUrl?: string;
     rssItemCount?: number;
+    rssUpdateInterval?: number; // Interval in minutes. 0 = never (manual/load only)
     scratchpadContent?: string;
     countdownTitle?: string;
     countdownDate?: string;
@@ -179,24 +182,21 @@ export interface GCalEvent {
   htmlLink: string;
 }
 
+// Open-Meteo based structure
 export interface WeatherData {
-  current_condition: {
-    temp_C: string;
-    weatherDesc: { value: string }[];
-    weatherIconUrl: { value: string }[];
-  }[];
-  nearest_area: {
-    areaName: { value: string }[];
-  }[];
-  weather: {
-    date: string;
-    maxtempC: string;
-    mintempC: string;
-    hourly: {
-        weatherIconUrl: { value: string }[];
-        // FIX: Add missing 'weatherDesc' property to match API response and fix type error in Weather.tsx.
-        weatherDesc: { value: string }[];
-    }[];
+  locationName: string;
+  current: {
+    temp: number;
+    weatherCode: number;
+    description: string;
+    isDay: boolean;
+  };
+  daily: {
+    date: string; // ISO date string
+    maxTemp: number;
+    minTemp: number;
+    weatherCode: number;
+    description: string;
   }[];
 }
 

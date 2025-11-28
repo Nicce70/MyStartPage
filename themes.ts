@@ -1,5 +1,5 @@
 
-import type { Theme, CustomThemeColors } from '../types';
+import type { Theme, CustomThemeColors } from './types';
 
 // Helper function to darken/lighten a hex color
 const adjustColor = (color: string, amount: number) => {
@@ -192,7 +192,7 @@ export const themes: Record<string, Theme> = {
   inferno: {
     name: 'Inferno',
     body: 'bg-red-950 text-yellow-200',
-    header: 'text-yellow-200',
+    header: 'text-amber-100',
     buttonPrimary: 'bg-yellow-500 hover:bg-yellow-400 text-red-900',
     buttonSecondary: 'bg-red-800 hover:bg-red-700 text-yellow-100',
     buttonDanger: 'bg-orange-600 hover:bg-orange-500 text-white',

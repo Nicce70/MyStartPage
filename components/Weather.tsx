@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import type { themes } from '../themes';
 import type { WeatherData } from '../types';
@@ -10,6 +11,7 @@ interface WeatherProps {
   showForecast?: boolean;
   showTime?: boolean;
   timezone?: string;
+  updateInterval?: number;
 }
 
 // WMO Weather Codes mapping
@@ -81,7 +83,7 @@ const getWeatherIcon = (code: number, isDay: boolean = true): string => {
   }
 };
 
-const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, showTime, timezone }) => {
+const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, showTime, timezone, updateInterval = 60 }) => {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,9 +170,22 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
     }
   }, [city]);
 
+  // Initial fetch
   useEffect(() => {
     fetchWeatherData();
   }, [fetchWeatherData]);
+
+  // Interval fetch
+  useEffect(() => {
+    if (updateInterval && updateInterval > 0) {
+      const intervalMs = updateInterval * 60 * 1000;
+      const intervalId = setInterval(() => {
+        fetchWeatherData();
+      }, intervalMs);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [updateInterval, fetchWeatherData]);
 
   const formatTime = () => {
     if (!timezone) return '--:--';

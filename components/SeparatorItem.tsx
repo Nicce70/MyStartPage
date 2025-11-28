@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Column, Group, GroupItemType, Separator } from '../types';
 import { TrashIcon, DragHandleIcon } from './Icons';
@@ -19,9 +20,10 @@ interface SeparatorItemProps {
   onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   isDragging: boolean;
   themeClasses: typeof themes.default;
+  compact: boolean;
 }
 
-const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, columnId, isEditMode, onDelete, onDragStart, onDrop, isDragging, themeClasses }) => {
+const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, columnId, isEditMode, onDelete, onDragStart, onDrop, isDragging, themeClasses, compact }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
   React.useEffect(() => {
@@ -49,7 +51,7 @@ const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, colum
   };
 
   if (!isEditMode) {
-    return <hr className={`${themeClasses.dashedBorder} my-2`} />;
+    return <hr className={`${themeClasses.dashedBorder} ${compact ? 'my-1' : 'my-2'}`} />;
   }
 
   return (

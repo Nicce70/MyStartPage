@@ -16,7 +16,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '2.9';
+const APP_VERSION = '3.0';
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);

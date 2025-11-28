@@ -16,9 +16,10 @@ const DEFAULT_STATIONS: RadioStation[] = [
   { id: 'sr-p4-sthlm', name: 'SR P4 Stockholm', url: 'https://sverigesradio.se/topsy/direkt/srapi/701.mp3' },
   { id: 'mix-megapol', name: 'Mix Megapol', url: 'https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3' },
   { id: 'rockklassiker', name: 'Rockklassiker', url: 'https://live-bauerse-fm.sharp-stream.com/rockklassiker_instream_se_mp3' },
-  { id: 'rix-fm', name: 'Rix FM', url: 'https://fm01-ice.stream.viaplay.se/RixFM_se_mp3' },
-  { id: 'lugna-favoriter', name: 'Lugna Favoriter', url: 'https://fm04-ice.stream.viaplay.se/LugnaFavoriter_se_mp3' },
-  { id: 'star-fm', name: 'Star FM', url: 'https://fm03-ice.stream.viaplay.se/StarFM_se_mp3' },
+  { id: 'bandit-metal', name: 'Bandit Metal', url: 'https://wr03-ice.stream.khz.se/wr03_mp3' },
+  { id: 'rix-fm', name: 'Rix FM', url: 'https://fm01-ice.stream.khz.se/fm01_mp3' },
+  { id: 'lugna-favoriter', name: 'Lugna Favoriter', url: 'https://fm03-ice.stream.khz.se/fm03_mp3' },
+  { id: 'star-fm', name: 'Star FM', url: 'https://fm05-ice.stream.khz.se/fm05_mp3' },
 ];
 
 const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { themes } from '../themes';
 
 interface TimerProps {
+  id: string; // Unique ID for local storage
   initialDuration: number; // in seconds
   themeClasses: typeof themes.default;
   playSound?: boolean;
@@ -11,22 +12,83 @@ interface TimerProps {
   isEditMode: boolean;
 }
 
-const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound = true, allowOvertime = false, onOpenSettings, isEditMode }) => {
-  const [timeLeft, setTimeLeft] = useState(initialDuration);
-  const [isActive, setIsActive] = useState(false);
-  const [isRinging, setIsRinging] = useState(false);
+const Timer: React.FC<TimerProps> = ({ id, initialDuration, themeClasses, playSound = true, allowOvertime = false, onOpenSettings, isEditMode }) => {
   const isStopwatch = initialDuration === 0;
+  const storageKey = `timer-state-${id}`;
+  const prevDurationRef = useRef(initialDuration);
+  
+  // Initialize state from LocalStorage if available
+  const [timeLeft, setTimeLeft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const { timeLeft, isActive, lastTick, wasStopwatch } = JSON.parse(saved);
+        
+        // If the mode changed (Timer <-> Stopwatch), discard save
+        if (wasStopwatch !== isStopwatch) return initialDuration;
+
+        if (isActive) {
+           // Calculate time passed since last save
+           const now = Date.now();
+           const deltaSeconds = Math.floor((now - lastTick) / 1000);
+           
+           if (isStopwatch) {
+               return timeLeft + deltaSeconds;
+           } else {
+               const newTime = timeLeft - deltaSeconds;
+               // If overtime is not allowed and we passed 0, clamp to 0 (or handle in effect)
+               // We'll let the effect handle the ringing logic
+               return newTime;
+           }
+        }
+        return timeLeft;
+      }
+    } catch(e) {}
+    return initialDuration;
+  });
+
+  const [isActive, setIsActive] = useState(() => {
+      try {
+          const saved = localStorage.getItem(storageKey);
+          if (saved) {
+             const { isActive, wasStopwatch } = JSON.parse(saved);
+             if (wasStopwatch !== isStopwatch) return false;
+             return isActive;
+          }
+      } catch(e) {}
+      return false;
+  });
+
+  const [isRinging, setIsRinging] = useState(false);
   
   const intervalRef = useRef<number | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
   
-  // When the configured duration changes, reset the timer
+  // Handle external settings change (Duration prop change)
   useEffect(() => {
-    setIsRinging(false);
-    setIsActive(false);
-    setTimeLeft(initialDuration);
-  }, [initialDuration]);
+    if (prevDurationRef.current !== initialDuration) {
+        // User changed settings, reset everything
+        setIsRinging(false);
+        setIsActive(false);
+        setTimeLeft(initialDuration);
+        
+        // Clear storage
+        localStorage.removeItem(storageKey);
+        prevDurationRef.current = initialDuration;
+    }
+  }, [initialDuration, storageKey]);
+
+  // Persist State to LocalStorage
+  useEffect(() => {
+      const state = {
+          timeLeft,
+          isActive,
+          lastTick: Date.now(),
+          wasStopwatch: isStopwatch
+      };
+      localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [timeLeft, isActive, isStopwatch, storageKey]);
 
   const playAlarm = useCallback(() => {
     try {
@@ -113,6 +175,11 @@ const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound 
                  return 0;
                }
             }
+            // Check if we started negative (e.g. from reload) and overtime is disabled
+            if (nextTime < 0 && !allowOvertime) {
+                setIsActive(false);
+                return 0;
+            }
             
             // If we are here, it's either > 0 or < 0 (overtime)
             return nextTime;
@@ -154,6 +221,7 @@ const Timer: React.FC<TimerProps> = ({ initialDuration, themeClasses, playSound 
     setIsRinging(false);
     setIsActive(false);
     setTimeLeft(initialDuration);
+    localStorage.removeItem(storageKey);
   };
 
   const formatTime = (totalSeconds: number) => {

@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
@@ -9,9 +7,11 @@ import CurrencySettingsForm from './components/CurrencySettingsForm';
 import WebhookSettingsForm from './components/WebhookSettingsForm';
 import HomeySettingsForm from './components/HomeySettingsForm';
 import RadioSettingsForm from './components/RadioSettingsForm';
+import PictureSettingsForm from './components/PictureSettingsForm';
+import IframeSettingsForm from './components/IframeSettingsForm';
 import DonationPopup from './components/DonationPopup';
 import QuotePopup from './components/QuotePopup';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid } from './components/Icons';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
@@ -339,6 +339,20 @@ const WeatherSettingsForm: React.FC<{
         </label>
       </div>
 
+      <div className="pt-4 mt-4 border-t border-slate-700">
+        <label htmlFor="weatherUpdateInterval" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Update Interval (minutes)</label>
+        <input
+          type="number"
+          id="weatherUpdateInterval"
+          name="weatherUpdateInterval"
+          defaultValue={group.widgetSettings?.weatherUpdateInterval ?? 60}
+          min="0"
+          max="999"
+          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+        />
+        <p className="text-xs text-slate-500 mt-1">Set to 0 to disable auto-updates. Data is cached for 30 mins to prevent excessive requests.</p>
+      </div>
+
       <div className="pt-4 mt-4 border-t border-slate-700 space-y-4">
         <div className="flex items-center justify-between">
           <label htmlFor="weatherShowTime" className="text-sm font-medium">Show local time</label>
@@ -654,7 +668,6 @@ function App() {
       }
       case 'editWidgetSettings': {
         // ... (existing widget settings logic) ...
-        // Simplified for brevity as no changes needed inside here for this feature
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) {
@@ -662,13 +675,16 @@ function App() {
             if (formData.has('colorVariant')) group.colorVariant = formData.get('colorVariant');
             if (!group.widgetSettings) group.widgetSettings = {};
             
-            // ... copy paste all existing widget type checks ...
+            if (group.type !== 'widget') {
+              group.widgetSettings.compactMode = formData.has('compactMode');
+            }
+
             if (group.widgetType === 'weather') {
-                // ... existing weather logic ...
                 group.widgetSettings.city = formData.get('city') as string;
                 group.widgetSettings.weatherShowForecast = formData.has('weatherShowForecast');
                 group.widgetSettings.weatherShowTime = formData.has('weatherShowTime');
                 if (formData.has('weatherShowTime')) group.widgetSettings.weatherTimezone = formData.get('weatherTimezone') as string;
+                group.widgetSettings.weatherUpdateInterval = parseInt(formData.get('weatherUpdateInterval') as string, 10);
             } else if (group.widgetType === 'clock') {
                 group.widgetSettings.timezone = formData.get('timezone') as string;
                 group.widgetSettings.showSeconds = formData.has('showSeconds');
@@ -712,6 +728,18 @@ function App() {
                 group.widgetSettings.homeySettings = { localIp: formData.get('localIp') as string, apiToken: formData.get('apiToken') as string, deviceIds: formData.getAll('deviceIds') as string[] };
             } else if (group.widgetType === 'radio') {
                 try { group.widgetSettings.radioStations = JSON.parse(formData.get('radioStationsJSON') as string); } catch (e) {}
+            } else if (group.widgetType === 'picture') {
+                group.widgetSettings.pictureSourceType = formData.get('pictureSourceType') as any;
+                group.widgetSettings.pictureUrl = formData.get('pictureUrl') as string;
+                group.widgetSettings.pictureBase64 = formData.get('pictureBase64') as string;
+                group.widgetSettings.pictureHeight = parseInt(formData.get('pictureHeight') as string, 10) || 200;
+                group.widgetSettings.pictureFit = formData.get('pictureFit') as any;
+                group.widgetSettings.pictureBorderRadius = formData.has('pictureBorderRadius');
+            } else if (group.widgetType === 'iframe') {
+                group.widgetSettings.iframeUrl = formData.get('iframeUrl') as string;
+                group.widgetSettings.iframeHeight = parseInt(formData.get('iframeHeight') as string, 10) || 400;
+                group.widgetSettings.iframeViewMode = formData.get('iframeViewMode') as any;
+                group.widgetSettings.iframeUpdateInterval = parseInt(formData.get('iframeUpdateInterval') as string, 10) || 0;
             }
         }
         setColumns(newColumns);
@@ -771,7 +799,7 @@ function App() {
 
     // ... (existing widget types) ...
     if (widgetType === 'weather') {
-        newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone } };
+        newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone, weatherUpdateInterval: 60 } };
     } else if (widgetType === 'clock') {
       newWidget = { id: uuidv4(), name: "Clock", items: [], type: 'widget', widgetType: 'clock', widgetSettings: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, showSeconds: true, showDate: true } };
     } else if (widgetType === 'timer') {
@@ -783,7 +811,7 @@ function App() {
     } else if (widgetType === 'calculator') {
         newWidget = { id: CALCULATOR_WIDGET_ID, name: 'Calculator', items: [], isCollapsed: false, type: 'widget', widgetType: 'calculator', calculatorState: { currentValue: '0', previousValue: null, operator: null, isNewEntry: true } };
     } else if (widgetType === 'scratchpad') {
-        newWidget = { id: uuidv4(), name: "Scratchpad", items: [], type: 'widget', widgetType: 'scratchpad', widgetSettings: { scratchpadContent: '' } };
+        newWidget = { id: uuidv4(), name: "Notepad", items: [], type: 'widget', widgetType: 'scratchpad', widgetSettings: { scratchpadContent: '' } };
     } else if (widgetType === 'countdown') {
         newWidget = { id: uuidv4(), name: "Countdown", items: [], type: 'widget', widgetType: 'countdown', widgetSettings: { countdownTitle: 'My Event', countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), countdownBehavior: 'discrete', countdownPlaySound: false } };
     } else if (widgetType === 'calendar') {
@@ -804,6 +832,10 @@ function App() {
         newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: [] } };
     } else if (widgetType === 'favorites') {
         newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites' };
+    } else if (widgetType === 'picture') {
+        newWidget = { id: uuidv4(), name: "Image", items: [], type: 'widget', widgetType: 'picture', widgetSettings: { pictureSourceType: 'url', pictureHeight: 200, pictureFit: 'cover', pictureBorderRadius: true } };
+    } else if (widgetType === 'iframe') {
+        newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
     } else {
         return;
     }
@@ -1082,6 +1114,7 @@ function App() {
         const calendarExists = columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
         const radioExists = columns.some(col => col.groups.some(g => g.widgetType === 'radio'));
         const favoritesExists = columns.some(col => col.groups.some(g => g.widgetType === 'favorites'));
+        const networkExists = columns.some(col => col.groups.some(g => g.widgetType === 'network'));
 
         const multiInstanceWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1091,11 +1124,11 @@ function App() {
             <button onClick={() => handleAddWidget('rss', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><RssIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">RSS Feed</span></button>
             <button onClick={() => handleAddWidget('currency', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><BanknotesIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Currency</span></button>
             <button onClick={() => handleAddWidget('webhook', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><BoltIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Webhook</span></button>
-            <button onClick={() => handleAddWidget('scratchpad', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><DocumentTextIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Scratchpad</span></button>
+            <button onClick={() => handleAddWidget('scratchpad', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><DocumentTextIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Notepad</span></button>
             <button onClick={() => handleAddWidget('countdown', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><PartyPopperIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Countdown</span></button>
             <button onClick={() => handleAddWidget('unit_converter', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ScaleIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Unit Converter</span></button>
             <button onClick={() => handleAddWidget('solar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><MoonIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Sunrise / Sunset</span></button>
-            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro (Local)</span></button>
+            <button onClick={() => handleAddWidget('picture', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><PhotoIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Image</span></button>
           </div>
         );
 
@@ -1104,21 +1137,30 @@ function App() {
             {!calendarExists && <button onClick={() => handleAddWidget('calendar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalendarDaysIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calendar</span></button>}
             {!todoExists && <button onClick={() => handleAddWidget('todo', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ClipboardDocumentCheckIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">To-Do List</span></button>}
             {!calculatorExists && <button onClick={() => handleAddWidget('calculator', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalculatorIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calculator</span></button>}
-            <button onClick={() => handleAddWidget('network', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WifiIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Network Info</span></button>
+            {!networkExists && <button onClick={() => handleAddWidget('network', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WifiIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Network Info</span></button>}
             {!radioExists && <button onClick={() => handleAddWidget('radio', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><RadioIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Radio Player</span></button>}
             {!favoritesExists && <button onClick={() => handleAddWidget('favorites', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HeartIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Favorites</span></button>}
+          </div>
+        );
+
+        const advancedWidgets = (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Web)</span></button>
+            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro (Local) <span className="text-xs bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded ml-1">Beta</span></span></button>
           </div>
         );
 
         return (
             <div>
                 <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to this column:</p>
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     <button onClick={() => setModal({ type: 'addGroup', data })} className={`w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}><LinkIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Link Group</span></button>
                     <hr className={`border-slate-700`}/>
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Multi-Instance Widgets</h3>{multiInstanceWidgets}</div>
+                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Standard Widgets</h3>{multiInstanceWidgets}</div>
                     <hr className={`border-slate-700`}/>
                     <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>{singleInstanceWidgets}</div>
+                    <hr className={`border-slate-700`}/>
+                    <div><h3 className={`text-xs uppercase tracking-wider font-bold text-yellow-500/80 mb-2`}>Advanced / Experimental</h3>{advancedWidgets}</div>
                 </div>
             </div>
         );
@@ -1252,12 +1294,33 @@ function App() {
             widgetContent = <HomeySettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'radio') {
             widgetContent = <RadioSettingsForm group={group} themeClasses={themeClasses} />;
+        } else if (group.widgetType === 'picture') {
+            widgetContent = <PictureSettingsForm group={group} themeClasses={themeClasses} />;
+        } else if (group.widgetType === 'iframe') {
+            widgetContent = <IframeSettingsForm group={group} themeClasses={themeClasses} />;
         }
 
         return (
             <form onSubmit={handleFormSubmit} ref={formRef}>
                 <div className="mb-4"><label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span></label><input type="text" id="name" name="name" defaultValue={group.name} required maxLength={30} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
                 <ColorSelector currentColor={group.colorVariant || 'default'} themeClasses={themeClasses} />
+                
+                {group.type !== 'widget' && (
+                  <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700">
+                    <label htmlFor="compactMode" className="text-sm font-medium">Compact Mode</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        id="compactMode" 
+                        name="compactMode" 
+                        defaultChecked={group.widgetSettings?.compactMode} 
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                  </div>
+                )}
+
                 {widgetContent}
                 <div className="flex justify-end gap-3 pt-6"><button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button><button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button></div>
             </form>

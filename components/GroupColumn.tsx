@@ -1,12 +1,10 @@
 
-
-
 import React from 'react';
 import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -25,6 +23,8 @@ import Solar from './Solar';
 import Homey from './Homey';
 import Radio from './Radio';
 import Favorites from './Favorites';
+import PictureWidget from './PictureWidget';
+import IframeWidget from './IframeWidget';
 
 type DraggedItem = 
   | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
@@ -97,6 +97,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
   
   const groupType = group.type || 'links';
   const widgetType = group.widgetType;
+  const isWidget = groupType === 'widget';
+  const compact = !!group.widgetSettings?.compactMode && !isEditMode;
 
   const isCalendarWidget = widgetType === 'calendar';
   const isTodoWidget = widgetType === 'todo';
@@ -115,7 +117,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isHomeyWidget = widgetType === 'homey';
   const isRadioWidget = widgetType === 'radio';
   const isFavoritesWidget = widgetType === 'favorites';
-  const isWidget = groupType === 'widget';
+  const isPictureWidget = widgetType === 'picture';
+  const isIframeWidget = widgetType === 'iframe';
 
   // Determine background color class based on colorVariant
   const bgClass = {
@@ -172,6 +175,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isHomeyWidget && <HomeIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isRadioWidget && <RadioIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isFavoritesWidget && <HeartIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isPictureWidget && <PhotoIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isIframeWidget && <WindowIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -216,6 +221,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             showForecast={group.widgetSettings?.weatherShowForecast}
             showTime={group.widgetSettings?.weatherShowTime}
             timezone={group.widgetSettings?.weatherTimezone}
+            updateInterval={group.widgetSettings?.weatherUpdateInterval}
             themeClasses={themeClasses}
           />
         ) : isClockWidget ? (
@@ -227,6 +233,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isTimerWidget ? (
           <Timer
+            id={group.id}
             initialDuration={group.widgetSettings?.timerDuration ?? 300}
             playSound={group.widgetSettings?.timerPlaySound}
             allowOvertime={group.widgetSettings?.timerOvertime}
@@ -298,8 +305,26 @@ const GroupItem: React.FC<GroupItemProps> = ({
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}
           />
+        ) : isPictureWidget ? (
+          <PictureWidget
+            url={group.widgetSettings?.pictureUrl}
+            base64={group.widgetSettings?.pictureBase64}
+            sourceType={group.widgetSettings?.pictureSourceType}
+            height={group.widgetSettings?.pictureHeight}
+            fit={group.widgetSettings?.pictureFit}
+            borderRadius={group.widgetSettings?.pictureBorderRadius}
+            themeClasses={themeClasses}
+          />
+        ) : isIframeWidget ? (
+          <IframeWidget
+            url={group.widgetSettings?.iframeUrl || ''}
+            viewMode={group.widgetSettings?.iframeViewMode}
+            height={group.widgetSettings?.iframeHeight}
+            updateInterval={group.widgetSettings?.iframeUpdateInterval}
+            themeClasses={themeClasses}
+          />
         ) : ( // Default to 'links' group
-          <div className="space-y-2">
+          <div className={compact ? "space-y-1" : "space-y-2"}>
             {group.items.map(item =>
                 item.type === 'link' ? (
                     <LinkItem
@@ -315,6 +340,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         onDrop={onDrop}
                         themeClasses={themeClasses}
                         openLinksInNewTab={openLinksInNewTab}
+                        compact={compact}
                     />
                 ) : (
                     <SeparatorItem
@@ -328,6 +354,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         onDragStart={onDragStart}
                         onDrop={onDrop}
                         themeClasses={themeClasses}
+                        compact={compact}
                     />
                 )
             )}

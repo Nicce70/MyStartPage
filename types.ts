@@ -44,12 +44,13 @@ export interface Group {
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
   colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;
     weatherShowTime?: boolean;
     weatherTimezone?: string;
+    weatherUpdateInterval?: number; // Interval in minutes
     timezone?: string;
     showSeconds?: boolean;
     showDate?: boolean; // New setting for Clock widget
@@ -78,6 +79,17 @@ export interface Group {
         deviceIds?: string[];
     };
     radioStations?: RadioStation[];
+    pictureUrl?: string;
+    pictureBase64?: string;
+    pictureSourceType?: 'url' | 'upload';
+    pictureHeight?: number; // in pixels
+    pictureFit?: 'cover' | 'contain' | 'fill';
+    pictureBorderRadius?: boolean;
+    iframeUrl?: string;
+    iframeHeight?: number;
+    iframeViewMode?: 'desktop' | 'mobile';
+    iframeUpdateInterval?: number; // in minutes
+    compactMode?: boolean; // For link groups
   };
   calculatorState?: CalculatorState;
   links?: Link[]; // For data migration

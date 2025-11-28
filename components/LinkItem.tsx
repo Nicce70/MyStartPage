@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { Column, Group, GroupItemType, Link } from '../types';
 import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
@@ -21,9 +22,10 @@ interface LinkItemProps {
   isDragging: boolean;
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
+  compact: boolean;
 }
 
-const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses, openLinksInNewTab }) => {
+const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses, openLinksInNewTab, compact }) => {
   const [imgError, setImgError] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -86,22 +88,24 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`group/link flex items-start justify-between p-2 rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'opacity-30' : `${themeClasses.linkBg} ${themeClasses.linkHoverBg}`} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
+      className={`group/link flex items-start justify-between rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''} ${compact ? 'py-1' : `p-2 ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}`}
     >
-      <div className="flex items-start gap-3 min-w-0">
+      <div className={`flex items-start min-w-0 ${compact ? 'gap-2' : 'gap-3'}`}>
         {isEditMode && <DragHandleIcon className={`w-5 h-5 mt-1 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0 cursor-grab`} />}
-        {imgError || !faviconUrl ? (
-          <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />
-        ) : (
-          <img
-            src={faviconUrl}
-            alt={`${link.name} favicon`}
-            className="w-6 h-6 object-contain flex-shrink-0"
-            onError={() => setImgError(true)}
-          />
+        {!compact && (
+            imgError || !faviconUrl ? (
+            <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />
+            ) : (
+            <img
+                src={faviconUrl}
+                alt={`${link.name} favicon`}
+                className="w-6 h-6 object-contain flex-shrink-0"
+                onError={() => setImgError(true)}
+            />
+            )
         )}
         <span
-          className={`break-all ${themeClasses.linkText} ${!isEditMode ? themeClasses.linkHoverText.replace('hover:', 'group-hover/link:') : 'cursor-default'}`}
+          className={`break-all ${compact ? `hover:underline ${themeClasses.linkText}` : `${themeClasses.linkText} ${!isEditMode ? themeClasses.linkHoverText.replace('hover:', 'group-hover/link:') : 'cursor-default'}`}`}
         >
           {link.name}
         </span>

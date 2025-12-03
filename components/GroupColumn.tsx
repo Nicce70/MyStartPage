@@ -1,6 +1,5 @@
-
 import React from 'react';
-import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState } from '../types';
+import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState, Settings } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
@@ -49,6 +48,7 @@ interface GroupItemProps {
   onCalculatorStateChange: (newState: CalculatorState) => void;
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
+  homeyGlobalSettings?: Settings['homey'];
 }
 
 const DEFAULT_CALCULATOR_STATE: CalculatorState = {
@@ -59,7 +59,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
+  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -131,6 +131,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
     'dark_blue': 'bg-[#172554] text-blue-100'
   }[group.colorVariant || 'default'] || themeClasses.groupBg;
   
+  const accentBorderColor = themeClasses.ring.replace('ring-', 'border-');
+
   return (
     <div
       draggable={isEditMode}
@@ -141,7 +143,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+      className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''} ${isFavoritesWidget ? `border ${accentBorderColor}` : ''}`}
     >
       <div 
         className={`flex justify-between items-start group/header ${!group.isCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
@@ -289,9 +291,13 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isHomeyWidget ? (
           <Homey
-            localIp={group.widgetSettings?.homeySettings?.localIp || ''}
-            apiToken={group.widgetSettings?.homeySettings?.apiToken || ''}
-            deviceIds={group.widgetSettings?.homeySettings?.deviceIds || []}
+            localIp={homeyGlobalSettings?.localIp || ''}
+            apiToken={homeyGlobalSettings?.apiToken || ''}
+            pollingInterval={homeyGlobalSettings?.pollingInterval || 10}
+            selectedCapabilities={group.widgetSettings?.homeySettings?.selectedCapabilities || []}
+            selectedFlows={group.widgetSettings?.homeySettings?.selectedFlows || []}
+            enableScroll={group.widgetSettings?.homeySettings?.enableScroll}
+            showOneRow={group.widgetSettings?.homeySettings?.showOneRow}
             themeClasses={themeClasses}
           />
         ) : isRadioWidget ? (
@@ -301,6 +307,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isFavoritesWidget ? (
           <Favorites
+            group={group}
             allColumns={allColumns}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}

@@ -26,8 +26,13 @@ interface LinkItemProps {
 }
 
 const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses, openLinksInNewTab, compact }) => {
-  const [imgError, setImgError] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  useEffect(() => {
+    // When link.url changes, reset the error counter to re-attempt loading.
+    setErrorCount(0);
+  }, [link.url]);
 
   useEffect(() => {
     // When a drag operation ends, reset the visual indicator.
@@ -36,17 +41,10 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
     }
   }, [isDragging]);
 
-  const getFaviconUrl = (url: string) => {
-    try {
-      const urlObject = new URL(url);
-      return `https://icon.horse/icon/${urlObject.hostname}`;
-    } catch (e) {
-      return '';
-    }
+  const handleFaviconError = () => {
+    setErrorCount(prev => prev + 1);
   };
   
-  const faviconUrl = getFaviconUrl(link.url);
-
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -75,6 +73,32 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
     }
   };
 
+  const renderFavicon = () => {
+    let hostname;
+    try {
+      hostname = new URL(link.url).hostname;
+    } catch (e) {
+      return <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />;
+    }
+
+    if (errorCount >= 2) {
+      return <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />;
+    }
+
+    const src = errorCount === 0
+      ? `https://icon.horse/icon/${hostname}`
+      : `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+    
+    return (
+      <img
+        src={src}
+        alt="" // alt is empty for decorative images
+        className="w-6 h-6 object-contain flex-shrink-0"
+        onError={handleFaviconError}
+      />
+    );
+  };
+
   return (
     <div
       id={`link-${link.id}`}
@@ -92,18 +116,7 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
     >
       <div className={`flex items-start min-w-0 ${compact ? 'gap-2' : 'gap-3'}`}>
         {isEditMode && <DragHandleIcon className={`w-5 h-5 mt-1 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0 cursor-grab`} />}
-        {!compact && (
-            imgError || !faviconUrl ? (
-            <GlobeIcon className={`w-6 h-6 ${themeClasses.iconMuted} flex-shrink-0`} />
-            ) : (
-            <img
-                src={faviconUrl}
-                alt={`${link.name} favicon`}
-                className="w-6 h-6 object-contain flex-shrink-0"
-                onError={() => setImgError(true)}
-            />
-            )
-        )}
+        {!compact && renderFavicon()}
         <span
           className={`break-all ${compact ? `hover:underline ${themeClasses.linkText}` : `${themeClasses.linkText} ${!isEditMode ? themeClasses.linkHoverText.replace('hover:', 'group-hover/link:') : 'cursor-default'}`}`}
         >

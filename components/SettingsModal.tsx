@@ -1,9 +1,8 @@
-
 import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import type { Settings, Group, Theme } from '../types';
 import { themes } from '../themes';
-import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon, HeartIcon } from './Icons';
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon, HeartIcon, ArrowPathIcon, CheckIcon, ExclamationCircleIcon } from './Icons';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,7 +15,127 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1';
+
+const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSettings: Settings) => void, themeClasses: Theme }> = ({ settings, onSettingsChange, themeClasses }) => {
+    const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+    const [testError, setTestError] = useState('');
+
+    const handleHomeyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        onSettingsChange({
+            ...settings,
+            homey: {
+                ...settings.homey,
+                [name]: name === 'pollingInterval' ? parseInt(value, 10) : value,
+            }
+        });
+    };
+
+    const handleTestConnection = async () => {
+        setTestState('testing');
+        setTestError('');
+
+        const ip = settings.homey?.localIp;
+        const token = settings.homey?.apiToken;
+
+        if (!ip || !token) {
+            setTestError('IP Address and Token are required.');
+            setTestState('error');
+            return;
+        }
+
+        const formattedIp = ip.trim().startsWith('http') ? ip.trim() : `http://${ip.trim()}`;
+        const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
+
+        try {
+            const res = await fetch(`${formattedIp}/api/manager/zones/zone`, { 
+                headers: { 'Authorization': `Bearer ${cleanToken}` }
+            });
+            if (!res.ok) {
+                 if (res.status === 0) throw new Error('Connection Refused. Check IP and ensure you are on HTTP.');
+                 if (res.status === 401) throw new Error('Unauthorized. Check your API Token.');
+                 throw new Error(`API returned status ${res.status}.`);
+            }
+            setTestState('success');
+        } catch (err) {
+            setTestError(err instanceof Error ? err.message : 'An unknown error occurred.');
+            setTestState('error');
+        } finally {
+            setTimeout(() => setTestState('idle'), 3000);
+        }
+    };
+    
+    return (
+        <div className="space-y-6">
+            <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md text-xs text-yellow-200">
+                <strong>Requirement:</strong> To connect to Homey on your local network, this dashboard page must be accessed via <strong>HTTP</strong>, not HTTPS. Read more under <strong>About</strong>.
+            </div>
+            <div>
+                <label htmlFor="localIp" className="block text-sm font-medium">Homey Local IP Address</label>
+                <input
+                    type="text"
+                    id="localIp"
+                    name="localIp"
+                    value={settings.homey?.localIp || ''}
+                    onChange={handleHomeyChange}
+                    placeholder="192.168.1.x"
+                    className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                />
+            </div>
+            <div>
+                <label htmlFor="apiToken" className="block text-sm font-medium">Personal Access Token</label>
+                <input
+                    type="password"
+                    id="apiToken"
+                    name="apiToken"
+                    value={settings.homey?.apiToken || ''}
+                    onChange={handleHomeyChange}
+                    placeholder="Enter your token"
+                    className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Get your Personal Access Token from the Homey app: 
+                  <span className="font-semibold"> Settings → API Keys → Create New Key</span>.
+                </p>
+            </div>
+             <div>
+                <label htmlFor="pollingInterval" className="block text-sm font-medium">Polling Interval (seconds)</label>
+                <select
+                  id="pollingInterval"
+                  name="pollingInterval"
+                  value={settings.homey?.pollingInterval ?? 10}
+                  onChange={handleHomeyChange}
+                  className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                >
+                  <option value={5}>5 seconds</option>
+                  <option value={10}>10 seconds (Default)</option>
+                  <option value={20}>20 seconds</option>
+                  <option value={30}>30 seconds</option>
+                  <option value={60}>60 seconds</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  When websocket is unavailable (live update), polling is used instead (delayed update).                   
+                </p>
+            </div>
+
+            <div>
+                <button
+                    onClick={handleTestConnection}
+                    className={`w-full flex items-center justify-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${themeClasses.buttonSecondary} disabled:opacity-50`}
+                    disabled={testState === 'testing'}
+                >
+                    {testState === 'testing' && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
+                    {testState === 'success' && <CheckIcon className="w-4 h-4" />}
+                    {testState === 'error' && <ExclamationCircleIcon className="w-4 h-4" />}
+                    {testState === 'idle' ? 'Test Connection' : testState === 'testing' ? 'Testing...' : testState === 'success' ? 'Success!' : 'Failed'}
+                </button>
+                {testState === 'error' && <p className="text-xs text-red-400 mt-2 text-center">{testError}</p>}
+            </div>
+        </div>
+    );
+};
+
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +183,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
     { id: 'layout', name: 'Layout & Appearance' },
     { id: 'features', name: 'Features' },
     { id: 'theme', name: 'Theme' },
+    { id: 'homey', name: 'Homey' },
     { id: 'backup', name: 'Backup & Restore' },
     { id: 'about', name: 'About' },
   ];
@@ -503,6 +623,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 </div>
               </div>
             </div>
+          )}
+          
+          {activeTab === 'homey' && (
+            <HomeySettingsTab settings={settings} onSettingsChange={onSettingsChange} themeClasses={themeClasses} />
           )}
 
           {activeTab === 'backup' && (

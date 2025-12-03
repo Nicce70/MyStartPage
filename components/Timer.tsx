@@ -14,213 +14,187 @@ interface TimerProps {
 
 const Timer: React.FC<TimerProps> = ({ id, initialDuration, themeClasses, playSound = true, allowOvertime = false, onOpenSettings, isEditMode }) => {
   const isStopwatch = initialDuration === 0;
-  const storageKey = `timer-state-${id}`;
+  const storageKey = `timer-state-v2-${id}`; // v2 for new logic
   const prevDurationRef = useRef(initialDuration);
   
-  // Initialize state from LocalStorage if available
-  const [timeLeft, setTimeLeft] = useState(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const { timeLeft, isActive, lastTick, wasStopwatch } = JSON.parse(saved);
-        
-        // If the mode changed (Timer <-> Stopwatch), discard save
-        if (wasStopwatch !== isStopwatch) return initialDuration;
-
-        if (isActive) {
-           // Calculate time passed since last save
-           const now = Date.now();
-           const deltaSeconds = Math.floor((now - lastTick) / 1000);
-           
-           if (isStopwatch) {
-               return timeLeft + deltaSeconds;
-           } else {
-               const newTime = timeLeft - deltaSeconds;
-               // If overtime is not allowed and we passed 0, clamp to 0 (or handle in effect)
-               // We'll let the effect handle the ringing logic
-               return newTime;
-           }
-        }
-        return timeLeft;
-      }
-    } catch(e) {}
-    return initialDuration;
-  });
-
-  const [isActive, setIsActive] = useState(() => {
-      try {
-          const saved = localStorage.getItem(storageKey);
-          if (saved) {
-             const { isActive, wasStopwatch } = JSON.parse(saved);
-             if (wasStopwatch !== isStopwatch) return false;
-             return isActive;
-          }
-      } catch(e) {}
-      return false;
-  });
-
+  // State initialization from localStorage
+  const [targetTime, setTargetTime] = useState<number | null>(null); // For countdown
+  const [startTime, setStartTime] = useState<number | null>(null);   // For stopwatch
+  const [pausedDuration, setPausedDuration] = useState(initialDuration); // For countdown
+  const [pausedElapsed, setPausedElapsed] = useState(0); // For stopwatch
+  const [isActive, setIsActive] = useState(false);
+  const [displayTime, setDisplayTime] = useState(initialDuration);
   const [isRinging, setIsRinging] = useState(false);
   
   const intervalRef = useRef<number | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
   const alarmTimeoutRef = useRef<number | null>(null);
+
+  // Load state from local storage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.wasStopwatch !== isStopwatch) {
+            // Mode changed, reset to default for the new mode
+            handleReset();
+            return;
+        }
+        
+        setIsActive(data.isActive);
+        if (isStopwatch) {
+            setPausedElapsed(data.pausedElapsed || 0);
+            if (data.isActive && data.startTime) {
+                setStartTime(data.startTime);
+            } else {
+                setDisplayTime(data.pausedElapsed || 0);
+            }
+        } else { // Countdown
+            setPausedDuration(data.pausedDuration ?? initialDuration);
+            if (data.isActive && data.targetTime) {
+                setTargetTime(data.targetTime);
+            } else {
+                setDisplayTime(data.pausedDuration ?? initialDuration);
+            }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load timer state:", e);
+    }
+  }, [id, isStopwatch]); // Run only on mount and mode change
+
+  // Save state to local storage whenever it changes
+  useEffect(() => {
+    if (isEditMode) return;
+    try {
+        const state = {
+            isActive,
+            targetTime,
+            startTime,
+            pausedDuration,
+            pausedElapsed,
+            wasStopwatch: isStopwatch,
+        };
+        localStorage.setItem(storageKey, JSON.stringify(state));
+    } catch (e) {
+        console.error("Failed to save timer state:", e);
+    }
+  }, [isActive, targetTime, startTime, pausedDuration, pausedElapsed, isStopwatch, storageKey, isEditMode]);
   
   // Handle external settings change (Duration prop change)
   useEffect(() => {
     if (prevDurationRef.current !== initialDuration) {
-        // User changed settings, reset everything
-        setIsRinging(false);
-        setIsActive(false);
-        setTimeLeft(initialDuration);
-        
-        // Clear storage
-        localStorage.removeItem(storageKey);
+        handleReset();
         prevDurationRef.current = initialDuration;
     }
-  }, [initialDuration, storageKey]);
-
-  // Persist State to LocalStorage
-  useEffect(() => {
-      const state = {
-          timeLeft,
-          isActive,
-          lastTick: Date.now(),
-          wasStopwatch: isStopwatch
-      };
-      localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [timeLeft, isActive, isStopwatch, storageKey]);
+  }, [initialDuration]);
 
   const playAlarm = useCallback(() => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
-      
       const ctx = new AudioContext();
       const t = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
-      // Classic digital alarm sound (Square wave)
       osc.type = 'square';
-      osc.frequency.value = 880; // A5 note
-      
-      // Pattern: Beep (0.1s) - Pause (0.1s) - Beep (0.1s)
+      osc.frequency.value = 880;
       gain.gain.setValueAtTime(0.05, t);
       gain.gain.setValueAtTime(0, t + 0.1);
       gain.gain.setValueAtTime(0.05, t + 0.2);
       gain.gain.setValueAtTime(0, t + 0.3);
-      
       osc.start(t);
       osc.stop(t + 0.4);
-      
-      // Cleanup context after sound finishes
-      setTimeout(() => {
-        if (ctx.state !== 'closed') ctx.close();
-      }, 1000);
-      
-    } catch (e) {
-      console.error("Error playing alarm sound:", e);
-    }
+      setTimeout(() => { if (ctx.state !== 'closed') ctx.close(); }, 1000);
+    } catch (e) { console.error("Error playing alarm sound:", e); }
   }, []);
 
-  // Effect 1: Handle Alarm Loop
-  // This is separated from the countdown timer so stopping the countdown (isActive=false) doesn't kill the alarm.
+  // Effect: Handle Alarm Loop
   useEffect(() => {
     if (isRinging) {
-      playAlarm(); // Play immediately
-      
-      // Loop alarm every second
+      playAlarm();
       alarmIntervalRef.current = window.setInterval(playAlarm, 1000);
-      
-      // Auto stop after 20 seconds
-      alarmTimeoutRef.current = window.setTimeout(() => {
-        setIsRinging(false);
-      }, 20000);
+      alarmTimeoutRef.current = window.setTimeout(() => setIsRinging(false), 20000);
     }
-
     return () => {
-      if (alarmIntervalRef.current) {
-        clearInterval(alarmIntervalRef.current);
-        alarmIntervalRef.current = null;
-      }
-      if (alarmTimeoutRef.current) {
-        clearTimeout(alarmTimeoutRef.current);
-        alarmTimeoutRef.current = null;
-      }
+      if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+      if (alarmTimeoutRef.current) clearTimeout(alarmTimeoutRef.current);
     };
   }, [isRinging, playAlarm]);
 
-  // Effect 2: Handle Countdown/Countup Tick
+  // Effect: Main timer/stopwatch tick logic
   useEffect(() => {
     if (isActive && !isEditMode) {
       intervalRef.current = window.setInterval(() => {
+        const now = Date.now();
         if (isStopwatch) {
-          setTimeLeft(t => t + 1);
-        } else {
-          setTimeLeft(t => {
-            // Calculate next time
-            const nextTime = t - 1;
-            
-            // Check if we just reached zero (transition from 1 to 0) or are already negative
-            if (nextTime === 0) {
-               // Trigger alarm if configured
-               if (playSound) setIsRinging(true);
-               
-               // If overtime is NOT allowed, stop here.
-               if (!allowOvertime) {
-                 setIsActive(false);
-                 return 0;
-               }
-            }
-            // Check if we started negative (e.g. from reload) and overtime is disabled
-            if (nextTime < 0 && !allowOvertime) {
-                setIsActive(false);
-                return 0;
-            }
-            
-            // If we are here, it's either > 0 or < 0 (overtime)
-            return nextTime;
-          });
-        }
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isActive, isStopwatch, isEditMode, playSound, allowOvertime]);
+          if (startTime) {
+            const elapsed = (now - startTime) / 1000;
+            setDisplayTime(pausedElapsed + elapsed);
+          }
+        } else { // Countdown
+          if (targetTime) {
+            const remaining = (targetTime - now) / 1000;
+            const remainingSeconds = Math.max(0, remaining);
+            setDisplayTime(remaining);
 
+            if (remaining > 0 && remaining <= 1 && !isRinging) {
+              // about to finish
+            } else if (remaining <= 0 && displayTime > 0) { // Just crossed zero
+              if (playSound) setIsRinging(true);
+              if (!allowOvertime) {
+                setIsActive(false);
+                setTargetTime(null);
+                setPausedDuration(0);
+                setDisplayTime(0);
+              }
+            }
+          }
+        }
+      }, 250); // Update 4 times a second for smoother display
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isActive, isEditMode, isStopwatch, startTime, targetTime, pausedElapsed, displayTime, allowOvertime, playSound, isRinging]);
 
   const handleStartPause = () => {
-    // If alarm is ringing, this button acts as "Stop Alarm"
-    if (isRinging) {
-        setIsRinging(false);
-        return;
-    }
-    
-    // If it's a finished timer (and alarm stopped), do nothing on start unless reset.
-    // Exception: If overtime is allowed, we can technically pause/resume negative counting.
-    if (!isStopwatch && timeLeft <= 0 && !isActive && !allowOvertime) {
-      return;
-    }
-    
+    if (isRinging) { setIsRinging(false); return; }
+    if (isFinished && !isActive && !allowOvertime) return;
+
     setIsActive(!isActive);
+    const now = Date.now();
+
+    if (!isActive) { // Starting
+        if (isStopwatch) {
+            setStartTime(now);
+        } else {
+            setTargetTime(now + pausedDuration * 1000);
+        }
+    } else { // Pausing
+        if (isStopwatch) {
+            if (startTime) {
+                setPausedElapsed(p => p + (now - startTime) / 1000);
+            }
+            setStartTime(null);
+        } else {
+            if (targetTime) {
+                setPausedDuration(Math.max(0, (targetTime - now) / 1000));
+            }
+            setTargetTime(null);
+        }
+    }
   };
 
   const handleReset = () => {
     setIsRinging(false);
     setIsActive(false);
-    setTimeLeft(initialDuration);
+    setTargetTime(null);
+    setStartTime(null);
+    setPausedDuration(initialDuration);
+    setPausedElapsed(0);
+    setDisplayTime(initialDuration);
     localStorage.removeItem(storageKey);
   };
 
@@ -229,19 +203,18 @@ const Timer: React.FC<TimerProps> = ({ id, initialDuration, themeClasses, playSo
     const absSeconds = Math.abs(totalSeconds);
     const hours = Math.floor(absSeconds / 3600);
     const minutes = Math.floor((absSeconds % 3600) / 60);
-    const seconds = absSeconds % 60;
+    const seconds = Math.floor(absSeconds % 60);
     const sign = isNegative ? '-' : '';
     return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  // Determine visual state
-  const isFinished = !isStopwatch && timeLeft <= 0;
+  const isFinished = !isStopwatch && displayTime <= 0;
   const finishedColorClass = themeClasses.ring.replace('ring-', 'text-');
 
   return (
     <div className="flex flex-col items-center justify-center p-2 text-center">
-      <div className={`text-4xl font-bold font-mono tracking-wider ${isFinished ? `animate-[pulse_1s_cubic-bezier(0.4,0,0.6,1)_infinite] ${finishedColorClass}` : themeClasses.header}`}>
-        {formatTime(timeLeft)}
+      <div className={`text-4xl font-bold font-mono tracking-wider ${isFinished && !isRinging ? `animate-[pulse_1s_cubic-bezier(0.4,0,0.6,1)_infinite] ${finishedColorClass}` : themeClasses.header}`}>
+        {formatTime(displayTime)}
       </div>
       <div className="grid grid-cols-3 gap-2 mt-4 w-full">
         <button

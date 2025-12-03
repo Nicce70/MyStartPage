@@ -1,24 +1,53 @@
-
-import React, { useMemo } from 'react';
-import type { Column, Link, Theme, GroupItemType } from '../types';
+import React, { useMemo, useState, useEffect } from 'react';
+import type { Column, Link, Theme, Group, GroupItemType } from '../types';
 import { GlobeIcon } from './Icons';
 
 interface FavoritesProps {
+  group: Group;
   allColumns: Column[];
   themeClasses: Theme;
   openLinksInNewTab: boolean;
 }
 
-const Favorites: React.FC<FavoritesProps> = ({ allColumns, themeClasses, openLinksInNewTab }) => {
+// A self-contained component for handling favicon loading with fallbacks.
+const FaviconWithFallback: React.FC<{ url: string; className: string }> = ({ url, className }) => {
+    const [errorCount, setErrorCount] = useState(0);
+
+    // Reset errors when the URL changes
+    useEffect(() => {
+        setErrorCount(0);
+    }, [url]);
+
+    const handleError = () => {
+        setErrorCount(prev => prev + 1);
+    };
+
+    let hostname: string;
+    try {
+        hostname = new URL(url).hostname;
+    } catch (e) {
+        return <GlobeIcon className={className} />;
+    }
+
+    if (errorCount >= 2) {
+        return <GlobeIcon className={className} />;
+    }
+
+    const src = errorCount === 0
+        ? `https://icon.horse/icon/${hostname}`
+        : `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+
+    return <img src={src} alt="" className={className} onError={handleError} />;
+};
+
+const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, openLinksInNewTab }) => {
   
-  // Flatten all items from all groups in all columns to find favorites
   const favoriteLinks = useMemo(() => {
     const favs: Link[] = [];
     allColumns.forEach(col => {
-      col.groups.forEach(group => {
-        // Only look in link groups, or generally check all items if they are links
-        if (group.items) {
-            group.items.forEach((item: GroupItemType) => {
+      col.groups.forEach(g => {
+        if (g.items) {
+            g.items.forEach((item: GroupItemType) => {
                 if (item.type === 'link' && item.isFavorite) {
                     favs.push(item);
                 }
@@ -26,18 +55,23 @@ const Favorites: React.FC<FavoritesProps> = ({ allColumns, themeClasses, openLin
         }
       });
     });
-    return favs;
-  }, [allColumns]);
-
-  const getFaviconUrl = (url: string) => {
-    try {
-      const urlObject = new URL(url);
-      return `https://icons.duckduckgo.com/ip3/${urlObject.hostname}.ico`;
-    } catch (e) {
-      return '';
+    
+    const order = group.widgetSettings?.favoritesOrder;
+    if (order) {
+        const orderMap = new Map(order.map((id, index) => [id, index]));
+        favs.sort((a, b) => {
+            const indexA = orderMap.get(a.id);
+            const indexB = orderMap.get(b.id);
+            if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
+            if (indexA !== undefined) return -1; // a is ordered, b is not
+            if (indexB !== undefined) return 1;  // b is ordered, a is not
+            return 0; // neither are ordered, maintain original relative order
+        });
     }
-  };
 
+    return favs;
+  }, [allColumns, group.widgetSettings?.favoritesOrder]);
+  
   if (favoriteLinks.length === 0) {
     return (
         <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>
@@ -47,34 +81,26 @@ const Favorites: React.FC<FavoritesProps> = ({ allColumns, themeClasses, openLin
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1">
-      {favoriteLinks.map(link => {
-        const faviconUrl = getFaviconUrl(link.url);
-        return (
+    <div className={`grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1`}>
+      {favoriteLinks.map(link => (
             <a
                 key={link.id}
                 href={link.url}
                 target={openLinksInNewTab ? "_blank" : "_self"}
                 rel="noopener noreferrer"
-                className={`flex items-center gap-3 p-2 rounded-md transition-colors ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors border ${themeClasses.dashedBorder} ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}
                 title={link.comment}
             >
-                {faviconUrl ? (
-                    <img
-                        src={faviconUrl}
-                        alt=""
-                        className="w-5 h-5 object-contain flex-shrink-0"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                ) : (
-                    <GlobeIcon className={`w-5 h-5 ${themeClasses.iconMuted} flex-shrink-0`} />
-                )}
+                <FaviconWithFallback 
+                    url={link.url} 
+                    className={`w-6 h-6 object-contain flex-shrink-0 ${themeClasses.iconMuted}`} 
+                />
                 <span className={`truncate font-medium ${themeClasses.linkText} ${themeClasses.linkHoverText}`}>
                     {link.name}
                 </span>
             </a>
-        );
-      })}
+        )
+      )}
     </div>
   );
 };

@@ -1,6 +1,5 @@
-
 import React from 'react';
-import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState, GroupItemType } from '../types';
+import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState, GroupItemType, Settings } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
@@ -33,10 +32,11 @@ interface ColumnProps {
   onCalculatorStateChange: (newState: CalculatorState) => void;
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
+  homeyGlobalSettings?: Settings['homey'];
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles
+  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -126,6 +126,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onCalculatorStateChange={onCalculatorStateChange}
             onScratchpadChange={onScratchpadChange}
             showGroupToggles={showGroupToggles}
+            homeyGlobalSettings={homeyGlobalSettings}
           />
         ))}
          {column.groups.length === 0 && (

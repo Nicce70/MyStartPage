@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
+import ColorSelector from './components/ColorSelector';
 import CurrencySettingsForm from './components/CurrencySettingsForm';
 import WebhookSettingsForm from './components/WebhookSettingsForm';
 import HomeySettingsForm from './components/HomeySettingsForm';
 import RadioSettingsForm from './components/RadioSettingsForm';
+import FavoritesSettingsForm from './components/FavoritesSettingsForm';
 import PictureSettingsForm from './components/PictureSettingsForm';
 import IframeSettingsForm from './components/IframeSettingsForm';
 import DonationPopup from './components/DonationPopup';
@@ -122,6 +123,11 @@ const DEFAULT_SETTINGS: Settings = {
   showQuotes: false,
   quoteCategory: 'inspirational',
   quoteFrequency: 'daily',
+  homey: {
+    localIp: '',
+    apiToken: '',
+    pollingInterval: 10,
+  },
 };
 
 const sanitizeSettings = (data: any): Settings => {
@@ -388,52 +394,6 @@ const WeatherSettingsForm: React.FC<{
   );
 };
 
-const ColorSelector: React.FC<{
-  currentColor: string;
-  themeClasses: Theme;
-}> = ({ currentColor, themeClasses }) => {
-  const [selected, setSelected] = useState(currentColor || 'default');
-  const ringColorClass = themeClasses.ring.replace('ring-', 'ring-offset-');
-
-  const colors = [
-    { id: 'default', name: 'Default', bgClass: themeClasses.groupBg },
-    { id: 'secondary', name: 'Secondary', bgClass: themeClasses.groupBgSecondary },
-    { id: 'tertiary', name: 'Tertiary', bgClass: themeClasses.groupBgTertiary },
-    { id: 'green', name: 'Green', bgClass: 'bg-[#60B162]' },
-    { id: 'gray', name: 'Light Gray', bgClass: 'bg-[#F2F2F2]' },
-    { id: 'black', name: 'Almost Black', bgClass: 'bg-[#0a0a0a]' },
-    { id: 'dark_blue', name: 'Midnight Blue', bgClass: 'bg-[#172554]' },
-  ];
-
-  return (
-    <div className="mb-4">
-      <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-2`}>Background Color</label>
-      <div className="flex gap-3 flex-wrap">
-        {colors.map((color) => (
-          <label key={color.id} className="relative cursor-pointer group">
-            <input
-              type="radio"
-              name="colorVariant"
-              value={color.id}
-              checked={selected === color.id}
-              onChange={() => setSelected(color.id)}
-              className="sr-only"
-            />
-            <div
-              className={`w-10 h-10 rounded-lg ${color.bgClass} border-2 border-black transition-all ${
-                selected === color.id 
-                  ? `ring-2 ring-white ${ringColorClass}` 
-                  : 'hover:scale-105 opacity-80 hover:opacity-100'
-              }`}
-              title={color.name}
-            ></div>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 function App() {
   const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
   const [rawSettings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
@@ -671,14 +631,17 @@ function App() {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) {
+            // Generic settings that can apply to many widgets/groups
             if (name) group.name = name;
             if (formData.has('colorVariant')) group.colorVariant = formData.get('colorVariant');
             if (!group.widgetSettings) group.widgetSettings = {};
             
+            // Link Group specific setting
             if (group.type !== 'widget') {
               group.widgetSettings.compactMode = formData.has('compactMode');
             }
 
+            // Widget-specific settings
             if (group.widgetType === 'weather') {
                 group.widgetSettings.city = formData.get('city') as string;
                 group.widgetSettings.weatherShowForecast = formData.has('weatherShowForecast');
@@ -725,9 +688,28 @@ function App() {
                 group.widgetSettings.solarUse24HourFormat = formData.has('solarUse24HourFormat');
                 group.widgetSettings.solarCompactMode = formData.has('solarCompactMode');
             } else if (group.widgetType === 'homey') {
-                group.widgetSettings.homeySettings = { localIp: formData.get('localIp') as string, apiToken: formData.get('apiToken') as string, deviceIds: formData.getAll('deviceIds') as string[] };
+                 if (!group.widgetSettings.homeySettings) group.widgetSettings.homeySettings = {};
+                 group.widgetSettings.homeySettings.enableScroll = formData.has('enableScroll');
+                 group.widgetSettings.homeySettings.showOneRow = formData.has('showOneRow');
+                 try {
+                    group.widgetSettings.homeySettings.selectedCapabilities = JSON.parse(formData.get('selectedCapabilitiesJSON') as string);
+                } catch (e) {
+                    console.error("Failed to parse Homey capabilities", e);
+                }
+                try {
+                    group.widgetSettings.homeySettings.selectedFlows = JSON.parse(formData.get('selectedFlowsJSON') as string);
+                } catch (e) {
+                    console.error("Failed to parse Homey flows", e);
+                }
             } else if (group.widgetType === 'radio') {
                 try { group.widgetSettings.radioStations = JSON.parse(formData.get('radioStationsJSON') as string); } catch (e) {}
+            } else if (group.widgetType === 'favorites') {
+                try { 
+                    const order = JSON.parse(formData.get('favoritesOrderJSON') as string);
+                    if (Array.isArray(order)) {
+                        group.widgetSettings.favoritesOrder = order;
+                    }
+                } catch (e) { console.error("Failed to parse favorites order", e); }
             } else if (group.widgetType === 'picture') {
                 group.widgetSettings.pictureSourceType = formData.get('pictureSourceType') as any;
                 group.widgetSettings.pictureUrl = formData.get('pictureUrl') as string;
@@ -827,11 +809,11 @@ function App() {
     } else if (widgetType === 'solar') {
         newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false } };
     } else if (widgetType === 'homey') {
-        newWidget = { id: uuidv4(), name: "Homey Pro", items: [], type: 'widget', widgetType: 'homey', widgetSettings: { homeySettings: { localIp: '', apiToken: '', deviceIds: [] } } };
+        newWidget = { id: uuidv4(), name: "Homey Pro", items: [], type: 'widget', widgetType: 'homey', widgetSettings: { homeySettings: { selectedCapabilities: [], selectedFlows: [], enableScroll: true, showOneRow: false } } };
     } else if (widgetType === 'radio') {
         newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: [] } };
     } else if (widgetType === 'favorites') {
-        newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites' };
+        newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites', widgetSettings: { favoritesOrder: [] } };
     } else if (widgetType === 'picture') {
         newWidget = { id: uuidv4(), name: "Image", items: [], type: 'widget', widgetType: 'picture', widgetSettings: { pictureSourceType: 'url', pictureHeight: 200, pictureFit: 'cover', pictureBorderRadius: true } };
     } else if (widgetType === 'iframe') {
@@ -1213,7 +1195,9 @@ function App() {
         const { group } = data;
         let widgetContent = null;
         
-        if (group.widgetType === 'weather') {
+        if (group.widgetType === 'homey') {
+            widgetContent = <HomeySettingsForm group={group} themeClasses={themeClasses} globalIp={settings.homey?.localIp} globalToken={settings.homey?.apiToken} />;
+        } else if (group.widgetType === 'weather') {
             widgetContent = <WeatherSettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'clock') {
             const currentTimezone = group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1290,10 +1274,10 @@ function App() {
                     <div className="flex items-center justify-between"><label htmlFor="solarCompactMode" className="text-sm font-medium">Compact Mode</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarCompactMode" name="solarCompactMode" defaultChecked={group.widgetSettings?.solarCompactMode} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
                 </div>
             );
-        } else if (group.widgetType === 'homey') {
-            widgetContent = <HomeySettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'radio') {
             widgetContent = <RadioSettingsForm group={group} themeClasses={themeClasses} />;
+        } else if (group.widgetType === 'favorites') {
+            widgetContent = <FavoritesSettingsForm group={group} allColumns={columns} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'picture') {
             widgetContent = <PictureSettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'iframe') {
@@ -1302,8 +1286,16 @@ function App() {
 
         return (
             <form onSubmit={handleFormSubmit} ref={formRef}>
-                <div className="mb-4"><label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span></label><input type="text" id="name" name="name" defaultValue={group.name} required maxLength={30} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                <ColorSelector currentColor={group.colorVariant || 'default'} themeClasses={themeClasses} />
+                {/* For Homey, the form is self-contained. For others, show generic fields. */}
+                {group.widgetType !== 'homey' && (
+                    <>
+                        <div className="mb-4">
+                            <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span></label>
+                            <input type="text" id="name" name="name" defaultValue={group.name} required maxLength={30} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                        </div>
+                        <ColorSelector currentColor={group.colorVariant || 'default'} themeClasses={themeClasses} />
+                    </>
+                )}
                 
                 {group.type !== 'widget' && (
                   <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700">
@@ -1489,6 +1481,7 @@ function App() {
                 onCalculatorStateChange={handleCalculatorStateChange}
                 onScratchpadChange={handleScratchpadChange}
                 showGroupToggles={settings.showGroupToggles}
+                homeyGlobalSettings={settings.homey}
               />
             ))}
 

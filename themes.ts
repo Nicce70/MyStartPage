@@ -206,7 +206,7 @@ export const themes: Record<string, Theme> = {
     columnBg: 'bg-red-950/50',
     groupBg: 'bg-red-900/80',
     groupBgSecondary: 'bg-red-950/90',
-    groupBgTertiary: 'bg-orange-900/30',
+    groupBgTertiary: 'bg-red-700/30',
     linkBg: 'bg-red-800/50',
     linkHoverBg: 'hover:bg-red-800',
     linkText: 'text-yellow-200',

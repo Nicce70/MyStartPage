@@ -74,11 +74,13 @@ export interface Group {
     solarUse24HourFormat?: boolean;
     solarCompactMode?: boolean;
     homeySettings?: {
-        localIp?: string;
-        apiToken?: string;
-        deviceIds?: string[];
+        selectedCapabilities?: { deviceId: string; capabilityId: string; }[];
+        selectedFlows?: { flowId: string; }[];
+        enableScroll?: boolean;
+        showOneRow?: boolean;
     };
     radioStations?: RadioStation[];
+    favoritesOrder?: string[]; // For custom sorting of favorites
     pictureUrl?: string;
     pictureBase64?: string;
     pictureSourceType?: 'url' | 'upload';
@@ -135,6 +137,11 @@ export interface Settings {
   showQuotes: boolean;
   quoteCategory: string;
   quoteFrequency: 'daily' | 'always';
+  homey?: {
+    localIp?: string;
+    apiToken?: string;
+    pollingInterval?: number; // in seconds
+  };
 }
 
 // FIX: Define and export the Theme interface

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Group, Theme, RadioStation } from '../types';
 import { PlusIcon, TrashIcon } from './Icons';
 
@@ -127,5 +127,4 @@ const RadioSettingsForm: React.FC<RadioSettingsFormProps> = ({ group, themeClass
   );
 };
 
-import { useEffect } from 'react';
 export default RadioSettingsForm;

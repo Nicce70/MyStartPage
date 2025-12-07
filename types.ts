@@ -16,6 +16,31 @@ export interface Separator {
 
 export type GroupItemType = Link | Separator;
 
+// Types for the new Homey Custom Widget
+export interface HomeyCapabilityItem {
+  id: string;
+  type: 'homey_capability';
+  deviceId: string;
+  capabilityId: string;
+}
+
+export interface HomeyFlowItem {
+  id: string;
+  type: 'homey_flow';
+  flowId: string;
+}
+
+export interface TextItem {
+  id: string;
+  type: 'text';
+  content: string;
+}
+
+export type HomeyCustomItemType = HomeyCapabilityItem | HomeyFlowItem | TextItem | Separator;
+
+// A master type for any item that can exist in a group's `items` array
+export type AnyItemType = GroupItemType | HomeyCustomItemType;
+
 
 export interface CalculatorState {
   currentValue: string;
@@ -40,11 +65,11 @@ export interface RadioStation {
 export interface Group {
   id:string;
   name: string;
-  items: GroupItemType[];
+  items: AnyItemType[];
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
   colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe' | 'homey_custom';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;
@@ -79,6 +104,9 @@ export interface Group {
         enableScroll?: boolean;
         showOneRow?: boolean;
     };
+    homeyCustomSettings?: {
+        showOneRow?: boolean;
+    };
     radioStations?: RadioStation[];
     favoritesOrder?: string[]; // For custom sorting of favorites
     pictureUrl?: string;
@@ -103,6 +131,13 @@ export interface Column {
   groups: Group[];
   width?: number;
 }
+
+// Single, unified DraggedItem type
+export type DraggedItem =
+  | { type: 'groupItem'; item: AnyItemType; sourceGroupId: string; sourceColumnId: string }
+  | { type: 'group'; group: Group; sourceColumnId: string }
+  | { type: 'column'; column: Column }
+  | null;
 
 export interface ToDoItem {
   id: string;
@@ -185,7 +220,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem';
 
 export interface ModalState {
   type: ModalType;

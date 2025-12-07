@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Group, Theme, Link, Column, GroupItemType } from '../types';
 
@@ -34,7 +35,8 @@ const FavoritesSettingsForm: React.FC<FavoritesSettingsFormProps> = ({ group, al
     ordered.sort((a, b) => {
       const indexA = orderMap.get(a.id);
       const indexB = orderMap.get(b.id);
-      if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
+      // FIX: Explicitly cast to Number to resolve a potential TypeScript type inference issue.
+      if (indexA !== undefined && indexB !== undefined) return Number(indexA) - Number(indexB);
       if (indexA !== undefined) return -1;
       if (indexB !== undefined) return 1;
       // Keep original relative order for new/unsorted items

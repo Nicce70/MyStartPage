@@ -96,7 +96,26 @@ const Homey: React.FC<HomeyProps> = ({
               if (err || !success) console.warn('Homey WebSocket auth failed. Relying on polling.');
           });
       });
-      socket.on('capability', (payload: any) => { /* ... existing capability update logic ... */ });
+      socket.on('capability', (payload: any) => {
+        const { deviceId, capabilityId, value } = payload;
+        setDevices(prev => {
+            if (prev[deviceId] && prev[deviceId].capabilitiesObj[capabilityId]) {
+                const newDevices = { ...prev };
+                newDevices[deviceId] = {
+                    ...newDevices[deviceId],
+                    capabilitiesObj: {
+                        ...newDevices[deviceId].capabilitiesObj,
+                        [capabilityId]: {
+                            ...newDevices[deviceId].capabilitiesObj[capabilityId],
+                            value: value
+                        }
+                    }
+                };
+                return newDevices;
+            }
+            return prev;
+        });
+      });
       socket.on('connect_error', (err: any) => console.warn(`Homey WebSocket connection error: ${err.message}. Polling will continue.`));
       socketRef.current = socket;
     } catch(e) { console.warn("Could not init WebSocket. Relying on polling only."); }
@@ -138,7 +157,7 @@ const Homey: React.FC<HomeyProps> = ({
     }
   };
 
-  const groupedCapabilities = useMemo(() => { /* ... existing memo logic ... */ 
+  const groupedCapabilities = useMemo(() => {
     const groups: Record<string, any[]> = {};
     if (Object.keys(devices).length === 0 || Object.keys(zones).length === 0) return {};
 
@@ -178,7 +197,7 @@ const Homey: React.FC<HomeyProps> = ({
   if (error) return <div className="flex flex-col items-center justify-center py-4 text-red-400"><p className="text-sm mb-2 text-center">{error}</p><button onClick={() => fetchData(true)} className={`p-2 rounded ${themeClasses.buttonSecondary}`}><ArrowPathIcon className="w-4 h-4" /></button></div>;
   if (selectedCapabilities.length === 0 && selectedFlows.length === 0) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>No items selected. Add them in settings.</div>;
 
-  const formatValue = (value: any, units?: string) => { /* ... existing format logic ... */ 
+  const formatValue = (value: any, units?: string) => {
       if (typeof value === 'number') {
         const rounded = Math.round(value * 10) / 10;
         return `${rounded}${units || ''}`;
@@ -199,13 +218,13 @@ const Homey: React.FC<HomeyProps> = ({
                         <div key={`${cap.deviceId}-${cap.capabilityId}`} className={`flex items-center justify-between p-2 rounded-lg ${themeClasses.inputBg} border border-slate-700/50`}>
                             <div className="flex-1 min-w-0">
                                 {showOneRow ? (
-                                    <div className="truncate text-base font-semibold">
+                                    <div className="break-all text-base font-semibold">
                                         {cap.capabilityId === 'onoff' ? cap.deviceName : (cap.capabilityId === 'onoff' ? 'Toggle' : cap.title)}
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="truncate text-xs text-slate-400">{cap.deviceName}</div>
-                                        <div className={`truncate font-semibold text-sm ${themeClasses.modalText}`}>{cap.capabilityId === 'onoff' ? 'Toggle' : cap.title}</div>
+                                        <div className="break-all text-xs text-slate-400">{cap.deviceName}</div>
+                                        <div className={`break-all font-semibold text-sm ${themeClasses.modalText}`}>{cap.capabilityId === 'onoff' ? 'Toggle' : cap.title}</div>
                                     </>
                                 )}
                             </div>

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Column, Link, Theme, Group, GroupItemType } from '../types';
 import { GlobeIcon } from './Icons';
@@ -62,7 +63,8 @@ const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, 
         favs.sort((a, b) => {
             const indexA = orderMap.get(a.id);
             const indexB = orderMap.get(b.id);
-            if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
+            // FIX: Explicitly cast to Number to resolve a potential TypeScript type inference issue.
+            if (indexA !== undefined && indexB !== undefined) return Number(indexA) - Number(indexB);
             if (indexA !== undefined) return -1; // a is ordered, b is not
             if (indexB !== undefined) return 1;  // b is ordered, a is not
             return 0; // neither are ordered, maintain original relative order

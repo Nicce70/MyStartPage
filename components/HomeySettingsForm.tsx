@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Group, Theme } from '../types';
 import { ArrowPathIcon } from './Icons';
@@ -35,15 +36,22 @@ type FilterType = 'all' | 'toggle' | 'sensor' | 'flow';
 type TabType = 'items' | 'display';
 
 const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClasses, globalIp, globalToken }) => {
+  // State for "Items" tab
   const [selectedCapabilities, setSelectedCapabilities] = useState<SelectedCapability[]>(group.widgetSettings?.homeySettings?.selectedCapabilities || []);
   const [selectedFlows, setSelectedFlows] = useState<SelectedFlow[]>(group.widgetSettings?.homeySettings?.selectedFlows || []);
   
+  // State for fetching data
   const [availableDevices, setAvailableDevices] = useState<Record<string, HomeyDevice>>({});
   const [availableZones, setAvailableZones] = useState<Record<string, HomeyZone>>({});
   const [availableFlows, setAvailableFlows] = useState<Record<string, HomeyFlow>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
+  
+  // State for "Display" tab
+  const [enableScroll, setEnableScroll] = useState(group.widgetSettings?.homeySettings?.enableScroll ?? true);
+  const [showOneRow, setShowOneRow] = useState(group.widgetSettings?.homeySettings?.showOneRow ?? false);
+  
   const [activeTab, setActiveTab] = useState<TabType>('items');
 
   const fetchData = async () => {
@@ -63,7 +71,6 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
     try {
       const headers = { 'Authorization': `Bearer ${cleanToken}` };
       
-      // Fetch devices, zones, and flows in parallel.
       const [devicesRes, zonesRes, flowsRes] = await Promise.all([
           fetch(`${formattedIp}/api/manager/devices/device`, { headers }),
           fetch(`${formattedIp}/api/manager/zones/zone`, { headers }),
@@ -80,7 +87,6 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
       setAvailableDevices(devicesData);
       setAvailableZones(zonesData);
 
-      // Filter flows to only include those that are triggerable
       const triggerableFlows: Record<string, HomeyFlow> = {};
       for (const flowId in flowsData) {
           if (flowsData[flowId].triggerable) {
@@ -126,8 +132,9 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
     }
   };
   
-  const sortedZones = useMemo(() => Object.values(availableZones).sort((a,b) => a.name.localeCompare(b.name)), [availableZones]);
-  const sortedFlows = useMemo(() => Object.values(availableFlows).sort((a,b) => a.name.localeCompare(b.name)), [availableFlows]);
+  // FIX: Add explicit types to sort callback parameters to resolve type inference errors.
+  const sortedZones = useMemo(() => Object.values(availableZones).sort((a: HomeyZone, b: HomeyZone) => a.name.localeCompare(b.name)), [availableZones]);
+  const sortedFlows = useMemo(() => Object.values(availableFlows).sort((a: HomeyFlow, b: HomeyFlow) => a.name.localeCompare(b.name)), [availableFlows]);
 
   const TabButton: React.FC<{ name: string, type: TabType }> = ({ name, type }) => (
     <button
@@ -151,9 +158,13 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
 
   return (
     <div className="space-y-4">
-      {/* Hidden inputs are still needed for form submission */}
+      {/* Hidden inputs to pass ALL data back to the form handler */}
       <input type="hidden" name="selectedCapabilitiesJSON" value={JSON.stringify(selectedCapabilities)} />
       <input type="hidden" name="selectedFlowsJSON" value={JSON.stringify(selectedFlows)} />
+      {/* Conditionally render hidden inputs for checkboxes to work with formData.has() */}
+      {enableScroll && <input type="hidden" name="enableScroll" value="on" />}
+      {showOneRow && <input type="hidden" name="showOneRow" value="on" />}
+
 
       <div className="flex bg-slate-700 p-1 rounded-lg gap-1">
         <TabButton name="Items" type="items" />
@@ -196,11 +207,12 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                             <>
                                 {/* Devices Section */}
                                 {(filter === 'all' || filter === 'toggle' || filter === 'sensor') && sortedZones.map(zone => {
-                                    const devicesInZone = Object.values(availableDevices).filter(d => {
-                                        if (d.zone !== zone.id) return false;
+                                    // FIX: Add explicit type to filter callback parameter to resolve type inference errors.
+                                    const devicesInZone = Object.values(availableDevices).filter((device: HomeyDevice) => {
+                                        if (device.zone !== zone.id) return false;
                                         
-                                        const hasToggle = d.capabilities.includes('onoff');
-                                        const hasSensor = d.capabilities.some(c => c !== 'onoff');
+                                        const hasToggle = device.capabilities.includes('onoff');
+                                        const hasSensor = device.capabilities.some(c => c !== 'onoff');
 
                                         if (filter === 'toggle') return hasToggle;
                                         if (filter === 'sensor') return hasSensor;
@@ -212,11 +224,13 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                                     return (
                                         <div key={zone.id}>
                                             <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2 mt-3 px-1">{zone.name}</h4>
-                                            {devicesInZone.map(device => (
+                                            {/* FIX: Add explicit type for 'device' to resolve type inference errors. */}
+                                            {devicesInZone.map((device: HomeyDevice) => (
                                                 <div key={device.id} className="p-2 rounded-md bg-black/20 mb-2">
                                                     <div className="font-medium text-sm mb-2">{device.name}</div>
                                                     <div className="grid grid-cols-2 gap-2">
-                                                        {Object.entries(device.capabilitiesObj).map(([capId, capDetails]) => (
+                                                        {/* FIX: Add explicit type for 'capDetails' to resolve type inference errors. */}
+                                                        {Object.entries(device.capabilitiesObj).map(([capId, capDetails]: [string, { title: string }]) => (
                                                             <label key={capId} className="flex items-center space-x-2 cursor-pointer hover:bg-white/10 rounded p-1 text-xs">
                                                                 <input 
                                                                     type="checkbox" 
@@ -280,11 +294,12 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                 <label htmlFor="enableScroll" className="text-sm font-medium">Enable Vertical Scroll</label>
                 <label className="relative inline-flex items-center cursor-pointer">
                     <input 
-                    type="checkbox" 
-                    id="enableScroll" 
-                    name="enableScroll" 
-                    defaultChecked={group.widgetSettings?.homeySettings?.enableScroll ?? true} 
-                    className="sr-only peer" 
+                        type="checkbox" 
+                        id="enableScroll" 
+                        name="enableScroll" // Name is still needed here for form submission when this tab is active
+                        checked={enableScroll} 
+                        onChange={(e) => setEnableScroll(e.target.checked)}
+                        className="sr-only peer" 
                     />
                     <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                 </label>
@@ -296,11 +311,12 @@ const HomeySettingsForm: React.FC<HomeySettingsFormProps> = ({ group, themeClass
                     <label htmlFor="showOneRow" className="text-sm font-medium">Show One Row</label>
                     <label className="relative inline-flex items-center cursor-pointer">
                         <input 
-                        type="checkbox" 
-                        id="showOneRow" 
-                        name="showOneRow" 
-                        defaultChecked={group.widgetSettings?.homeySettings?.showOneRow ?? false} 
-                        className="sr-only peer" 
+                            type="checkbox" 
+                            id="showOneRow" 
+                            name="showOneRow" // Name is still needed here
+                            checked={showOneRow}
+                            onChange={(e) => setShowOneRow(e.target.checked)}
+                            className="sr-only peer" 
                         />
                         <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                     </label>

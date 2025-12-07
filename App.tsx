@@ -12,11 +12,13 @@ import PictureSettingsForm from './components/PictureSettingsForm';
 import IframeSettingsForm from './components/IframeSettingsForm';
 import DonationPopup from './components/DonationPopup';
 import QuotePopup from './components/QuotePopup';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon } from './components/Icons';
+import HomeyItemSelector from './components/HomeyItemSelector';
+import HomeyCustomSettingsForm from './components/HomeyCustomSettingsForm';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType } from './types';
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 
 // Simple UUID generator
@@ -586,6 +588,27 @@ function App() {
     setSettings(newSettings);
   };
 
+  const handleHomeySelect = (data: { deviceId: string; capabilityId: string } | { flowId: string }) => {
+      if (!modal || !modal.data) return;
+      const { groupId, columnId } = modal.data;
+      
+      const newColumns = JSON.parse(JSON.stringify(columns));
+      const col = newColumns.find((c: Column) => c.id === columnId);
+      const group = col?.groups.find((g: Group) => g.id === groupId);
+      
+      if (group) {
+          let newItem: AnyItemType;
+          if ('deviceId' in data) {
+              newItem = { id: uuidv4(), type: 'homey_capability', deviceId: data.deviceId, capabilityId: data.capabilityId };
+          } else {
+              newItem = { id: uuidv4(), type: 'homey_flow', flowId: data.flowId };
+          }
+          group.items.push(newItem);
+          setColumns(newColumns);
+      }
+      closeModal();
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!modal) return;
@@ -722,6 +745,9 @@ function App() {
                 group.widgetSettings.iframeHeight = parseInt(formData.get('iframeHeight') as string, 10) || 400;
                 group.widgetSettings.iframeViewMode = formData.get('iframeViewMode') as any;
                 group.widgetSettings.iframeUpdateInterval = parseInt(formData.get('iframeUpdateInterval') as string, 10) || 0;
+            } else if (group.widgetType === 'homey_custom') {
+                if (!group.widgetSettings.homeyCustomSettings) group.widgetSettings.homeyCustomSettings = {};
+                group.widgetSettings.homeyCustomSettings.showOneRow = formData.has('homeyCustomShowOneRow');
             }
         }
         setColumns(newColumns);
@@ -746,6 +772,23 @@ function App() {
         }
         setColumns(newColumns);
         break;
+      }
+      case 'addOrEditTextItem': {
+          const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+          const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
+          if (group) {
+              const textContent = formData.get('textContent') as string;
+              if (modal.data.item) {
+                  // Edit existing
+                  const item = group.items.find((i: any) => i.id === modal.data.item.id);
+                  if (item && item.type === 'text') item.content = textContent;
+              } else {
+                  // Add new
+                  group.items.push({ id: uuidv4(), type: 'text', content: textContent });
+              }
+              setColumns(newColumns);
+          }
+          break;
       }
     }
     closeModal();
@@ -818,6 +861,8 @@ function App() {
         newWidget = { id: uuidv4(), name: "Image", items: [], type: 'widget', widgetType: 'picture', widgetSettings: { pictureSourceType: 'url', pictureHeight: 200, pictureFit: 'cover', pictureBorderRadius: true } };
     } else if (widgetType === 'iframe') {
         newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
+    } else if (widgetType === 'homey_custom') {
+        newWidget = { id: uuidv4(), name: "Homey Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
     } else {
         return;
     }
@@ -1090,6 +1135,83 @@ function App() {
       );
     }
 
+    if (type === 'addHomeyCustomItem') {
+        return (
+            <div>
+                <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item type to add:</p>
+                <div className="space-y-3">
+                    <button 
+                        onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'capability' })}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                    >
+                       <LightBulbIcon className="w-5 h-5" />
+                       <span className="font-semibold">Homey Capability (Sensor/Toggle)</span>
+                    </button>
+                    <button 
+                        onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'flow' })}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                    >
+                       <PlayIcon className="w-5 h-5" />
+                       <span className="font-semibold">Flow</span>
+                    </button>
+                    <button 
+                        onClick={() => openModal('addOrEditTextItem', { ...data })}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                    >
+                       <DocumentTextIcon className="w-5 h-5" />
+                       <span className="font-semibold">Text / Header</span>
+                    </button>
+                    <button 
+                        onClick={() => handleAddSeparator(data.groupId, data.columnId)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                    >
+                       <MinusIcon className="w-5 h-5" />
+                       <span className="font-semibold">Separator</span>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (type === 'selectHomeyItem') {
+        return (
+            <HomeyItemSelector 
+                themeClasses={themeClasses}
+                globalIp={settings.homey?.localIp}
+                globalToken={settings.homey?.apiToken}
+                itemType={data.itemType}
+                onSelect={handleHomeySelect}
+            />
+        );
+    }
+
+    if (type === 'addOrEditTextItem') {
+        const currentText = data.item ? data.item.content : '';
+        return (
+            <form onSubmit={handleFormSubmit}>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="textContent" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Text Content</label>
+                        <input
+                            type="text"
+                            id="textContent"
+                            name="textContent"
+                            defaultValue={currentText}
+                            required
+                            maxLength={50}
+                            placeholder="Enter header or text..."
+                            className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-6">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+                </div>
+            </form>
+        );
+    }
+
     if (type === 'addWidget') {
         const todoExists = columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
         const calculatorExists = columns.some(col => col.groups.some(g => g.widgetType === 'calculator'));
@@ -1128,7 +1250,8 @@ function App() {
         const advancedWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Web)</span></button>
-            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro (Local) <span className="text-xs bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded ml-1">Beta</span></span></button>
+            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro (Local)</span></button>
+            <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><SquaresPlusIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Custom</span></button>
           </div>
         );
 
@@ -1178,7 +1301,7 @@ function App() {
         let itemName = '';
         if (type === 'deleteColumn') itemName = data.name;
         if (type === 'deleteGroup') itemName = data.group.name;
-        if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this separator';
+        if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this item';
         
         return (
           <div>
@@ -1282,6 +1405,8 @@ function App() {
             widgetContent = <PictureSettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'iframe') {
             widgetContent = <IframeSettingsForm group={group} themeClasses={themeClasses} />;
+        } else if (group.widgetType === 'homey_custom') {
+            widgetContent = <HomeyCustomSettingsForm group={group} themeClasses={themeClasses} />;
         }
 
         return (
@@ -1408,6 +1533,9 @@ function App() {
       case 'addLinkOrSeparator': return 'Add to Group';
       case 'editWidgetSettings': return modal.data.group?.type === 'widget' ? 'Widget Settings' : 'Group Settings';
       case 'exportOptions': return 'Export Backup';
+      case 'addHomeyCustomItem': return 'Add Item to Widget';
+      case 'selectHomeyItem': return 'Select Item';
+      case 'addOrEditTextItem': return modal.data.item ? 'Edit Text' : 'Add Text';
       default: return '';
     }
   };

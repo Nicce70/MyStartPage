@@ -1,14 +1,9 @@
 
+
 import React, { useState, useEffect } from 'react';
-import type { Column, Group, GroupItemType, Link } from '../types';
+import type { DraggedItem, Link } from '../types';
 import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
 import type { themes } from '../themes';
-
-type DraggedItem = 
-  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
-  | { type: 'group'; group: Group; sourceColumnId: string }
-  | { type: 'column'; column: Column }
-  | null;
 
 interface LinkItemProps {
   link: Link;

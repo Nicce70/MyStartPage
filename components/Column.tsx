@@ -1,23 +1,15 @@
 import React from 'react';
-import type { Column, Group, Link, ModalState, ToDoItem, CalculatorState, GroupItemType, Settings } from '../types';
+import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, GroupItemType, AnyItemType } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
-
-// FIX: Aligned DraggedItem type with the rest of the application to resolve type mismatch errors.
-// It now uses a generic 'groupItem' type to handle both links and separators.
-type DraggedItem =
-  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
-  | { type: 'group'; group: Group; sourceColumnId: string }
-  | { type: 'column'; column: Column }
-  | null;
 
 interface ColumnProps {
   column: Column;
   allColumns: Column[]; // Added to pass down global state
   isEditMode: boolean;
   onDragStart: (item: DraggedItem) => void;
-  onDrop: (target: { columnId: string; groupId?: string; linkId?: string }) => void;
+  onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   draggedItem: DraggedItem;
   openModal: (type: ModalState['type'], data?: any) => void;
   groupGap: number;

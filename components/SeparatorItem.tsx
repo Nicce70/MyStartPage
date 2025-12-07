@@ -1,14 +1,9 @@
 
+
 import React from 'react';
-import type { Column, Group, GroupItemType, Separator } from '../types';
+import type { DraggedItem, Separator } from '../types';
 import { TrashIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
-
-type DraggedItem = 
-  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
-  | { type: 'group'; group: Group; sourceColumnId: string }
-  | { type: 'column'; column: Column }
-  | null;
 
 interface SeparatorItemProps {
   separator: Separator;

@@ -3,7 +3,7 @@ import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, Calculat
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon, SquaresPlusIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -24,6 +24,7 @@ import Radio from './Radio';
 import Favorites from './Favorites';
 import PictureWidget from './PictureWidget';
 import IframeWidget from './IframeWidget';
+import HomeyCustomWidget from './HomeyCustomWidget';
 
 type DraggedItem = 
   | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
@@ -119,6 +120,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isFavoritesWidget = widgetType === 'favorites';
   const isPictureWidget = widgetType === 'picture';
   const isIframeWidget = widgetType === 'iframe';
+  const isHomeyCustomWidget = widgetType === 'homey_custom';
 
   // Determine background color class based on colorVariant
   const bgClass = {
@@ -179,6 +181,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isFavoritesWidget && <HeartIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isPictureWidget && <PhotoIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isIframeWidget && <WindowIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isHomeyCustomWidget && <SquaresPlusIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -329,6 +332,18 @@ const GroupItem: React.FC<GroupItemProps> = ({
             height={group.widgetSettings?.iframeHeight}
             updateInterval={group.widgetSettings?.iframeUpdateInterval}
             themeClasses={themeClasses}
+          />
+        ) : isHomeyCustomWidget ? (
+          <HomeyCustomWidget
+            group={group}
+            columnId={columnId}
+            themeClasses={themeClasses}
+            homeyGlobalSettings={homeyGlobalSettings}
+            isEditMode={isEditMode}
+            openModal={openModal}
+            onDragStart={onDragStart}
+            onDrop={onDrop}
+            draggedItem={draggedItem}
           />
         ) : ( // Default to 'links' group
           <div className={compact ? "space-y-1" : "space-y-2"}>

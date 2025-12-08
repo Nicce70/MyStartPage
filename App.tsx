@@ -18,7 +18,8 @@ import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon,
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType } from './types';
+// FIX: Import DraggedItem from types.ts and remove the local definition.
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 
 // Simple UUID generator
@@ -168,11 +169,7 @@ const searchEngines: { [key: string]: { name: string; url: string } } = {
   brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=' },
 };
 
-type DraggedItem = 
-  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
-  | { type: 'group'; group: Group; sourceColumnId: string }
-  | { type: 'column'; column: Column }
-  | null;
+// FIX: Removed local DraggedItem definition to use the one from types.ts
 
 // FIX: Property 'supportedValuesOf' does not exist on type 'typeof Intl' in some TypeScript configurations.
 // Use optional chaining with a type assertion and provide a fallback to the user's current timezone.
@@ -626,6 +623,7 @@ function App() {
     const comment = formData.get('comment') as string;
     const width = parseInt(formData.get('width') as string, 10);
     const isFavorite = formData.has('isFavorite');
+    const customName = formData.get('customName') as string;
 
     const newColumns = JSON.parse(JSON.stringify(columns));
 
@@ -763,7 +761,7 @@ function App() {
       case 'editLink': {
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
-        const link = group?.items.find((l: GroupItemType) => l.id === modal.data.link.id);
+        const link = group?.items.find((l: AnyItemType) => l.id === modal.data.link.id);
         if (link && link.type === 'link') {
           link.name = name;
           link.url = url;
@@ -789,6 +787,20 @@ function App() {
               setColumns(newColumns);
           }
           break;
+      }
+      case 'editHomeyCustomItemName': {
+        const { columnId, groupId, item: modalItem } = modal.data;
+        const col = newColumns.find((c: Column) => c.id === columnId);
+        const group = col?.groups.find((g: Group) => g.id === groupId);
+        if (group) {
+            const item = group.items.find((i: any) => i.id === modalItem.id);
+            if (item && (item.type === 'homey_capability' || item.type === 'homey_flow')) {
+                // Set to undefined if empty to remove the property
+                item.customName = customName.trim() ? customName.trim() : undefined; 
+            }
+        }
+        setColumns(newColumns);
+        break;
       }
     }
     closeModal();
@@ -852,7 +864,7 @@ function App() {
     } else if (widgetType === 'solar') {
         newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false } };
     } else if (widgetType === 'homey') {
-        newWidget = { id: uuidv4(), name: "Homey Pro", items: [], type: 'widget', widgetType: 'homey', widgetSettings: { homeySettings: { selectedCapabilities: [], selectedFlows: [], enableScroll: true, showOneRow: false } } };
+        newWidget = { id: uuidv4(), name: "Homey Pro Auto Zones", items: [], type: 'widget', widgetType: 'homey', widgetSettings: { homeySettings: { selectedCapabilities: [], selectedFlows: [], enableScroll: true, showOneRow: false } } };
     } else if (widgetType === 'radio') {
         newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: [] } };
     } else if (widgetType === 'favorites') {
@@ -862,7 +874,7 @@ function App() {
     } else if (widgetType === 'iframe') {
         newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
     } else if (widgetType === 'homey_custom') {
-        newWidget = { id: uuidv4(), name: "Homey Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
+        newWidget = { id: uuidv4(), name: "Homey Pro Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
     } else {
         return;
     }
@@ -895,7 +907,7 @@ function App() {
       const col = newColumns.find((c: Column) => c.id === data.columnId);
       const group = col?.groups.find((g: Group) => g.id === data.groupId);
       if (group) {
-        group.items = group.items.filter((i: GroupItemType) => i.id !== data.item.id);
+        group.items = group.items.filter((i: AnyItemType) => i.id !== data.item.id);
         setColumns(newColumns);
       }
     }
@@ -954,17 +966,35 @@ function App() {
         const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
         
         const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
-        // Determine target group. If groupId is missing but we dropped on a column, we can't really place an item easily unless we allow dropping items into empty columns (which creates a group?). 
-        // For now, assume target.groupId is populated by the drop zones in Groups.
         const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
 
         if (sourceGroup && targetGroup) {
-            const sourceItemIndex = sourceGroup.items.findIndex((i: GroupItemType) => i.id === draggedItem.item.id);
+            // New compatibility check
+            const itemType = draggedItem.item.type;
+            const isTargetLinkGroup = !targetGroup.widgetType || targetGroup.type === 'links';
+            const isTargetHomeyCustom = targetGroup.widgetType === 'homey_custom';
+
+            let isCompatible = false;
+            if (itemType === 'separator') {
+                isCompatible = true; // Separators are universal
+            } else if (isTargetLinkGroup) {
+                isCompatible = ['link'].includes(itemType);
+            } else if (isTargetHomeyCustom) {
+                isCompatible = ['homey_capability', 'homey_flow', 'text'].includes(itemType);
+            }
+
+            // If moving to a different group and it's not compatible, cancel.
+            if (sourceGroup.id !== targetGroup.id && !isCompatible) {
+                setDraggedItem(null);
+                return;
+            }
+
+            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === draggedItem.item.id);
             if (sourceItemIndex !== -1) {
                 const [movedItem] = sourceGroup.items.splice(sourceItemIndex, 1);
                 
                 if (target.itemId) {
-                    const targetItemIndex = targetGroup.items.findIndex((i: GroupItemType) => i.id === target.itemId);
+                    const targetItemIndex = targetGroup.items.findIndex((i: AnyItemType) => i.id === target.itemId);
                     if (targetItemIndex !== -1) {
                         targetGroup.items.splice(targetItemIndex, 0, movedItem);
                     } else {
@@ -1211,6 +1241,46 @@ function App() {
             </form>
         );
     }
+    
+    if (type === 'editHomeyCustomItemName') {
+        const { item, staticData } = data;
+        const currentName = (item as any).customName || '';
+
+        let originalName = '...';
+        if (staticData) {
+            originalName = staticData.name;
+            if (item.type === 'homey_capability' && staticData.capabilityTitle) {
+                originalName += ` - ${staticData.capabilityTitle}`;
+            }
+        }
+        
+        return (
+            <form onSubmit={handleFormSubmit} ref={formRef}>
+                <div className="space-y-4">
+                    <div>
+                        <label className={`block text-xs font-medium ${themeClasses.modalMutedText} mb-1`}>Original Name</label>
+                        <p className={`p-2 rounded-md ${themeClasses.inputBg} border border-slate-700 text-sm text-slate-400`}>{originalName}</p>
+                    </div>
+                    <div>
+                        <label htmlFor="customName" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Custom Display Name (optional)</label>
+                        <input
+                            type="text"
+                            id="customName"
+                            name="customName"
+                            defaultValue={currentName}
+                            maxLength={50}
+                            placeholder="Leave blank to use default"
+                            className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                        />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-6">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+                </div>
+            </form>
+        );
+    }
 
     if (type === 'addWidget') {
         const todoExists = columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
@@ -1250,8 +1320,8 @@ function App() {
         const advancedWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Web)</span></button>
-            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro (Local)</span></button>
-            <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><SquaresPlusIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Custom</span></button>
+            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Auto Zones</span></button>
+            <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Custom</span></button>
           </div>
         );
 
@@ -1536,6 +1606,7 @@ function App() {
       case 'addHomeyCustomItem': return 'Add Item to Widget';
       case 'selectHomeyItem': return 'Select Item';
       case 'addOrEditTextItem': return modal.data.item ? 'Edit Text' : 'Add Text';
+      case 'editHomeyCustomItemName': return 'Edit Display Name';
       default: return '';
     }
   };

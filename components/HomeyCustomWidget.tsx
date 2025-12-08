@@ -122,10 +122,11 @@ const HomeyCustomWidget: React.FC<HomeyCustomWidgetProps> = ({
 
     return (
         <div className="space-y-2">
-            {(group.items as HomeyCustomItemType[]).map(item => (
+            {(group.items as HomeyCustomItemType[]).map((item, index) => (
                 <HomeyCustomItem
                     key={item.id}
                     item={item}
+                    isFirstItem={index === 0}
                     liveData={liveData[`${(item as any).deviceId}-${(item as any).capabilityId}`]}
                     themeClasses={themeClasses}
                     isEditMode={isEditMode}

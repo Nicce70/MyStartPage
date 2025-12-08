@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState, Settings } from '../types';
+// FIX: Import DraggedItem from types.ts and remove the local definition.
+import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
@@ -26,12 +27,7 @@ import PictureWidget from './PictureWidget';
 import IframeWidget from './IframeWidget';
 import HomeyCustomWidget from './HomeyCustomWidget';
 
-type DraggedItem = 
-  | { type: 'groupItem'; item: GroupItemType; sourceGroupId: string; sourceColumnId: string }
-  | { type: 'group'; group: Group; sourceColumnId: string }
-  | { type: 'column'; column: Column }
-  | null;
-
+// FIX: Removed local DraggedItem definition to use the one from types.ts
 interface GroupItemProps {
   group: Group;
   allColumns: Column[]; // Need access to full tree for Favorites
@@ -181,7 +177,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isFavoritesWidget && <HeartIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isPictureWidget && <PhotoIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isIframeWidget && <WindowIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
-             {isHomeyCustomWidget && <SquaresPlusIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isHomeyCustomWidget && <HomeIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -347,6 +343,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : ( // Default to 'links' group
           <div className={compact ? "space-y-1" : "space-y-2"}>
+            {/* FIX: Explicitly check for item.type === 'separator' */}
             {group.items.map(item =>
                 item.type === 'link' ? (
                     <LinkItem
@@ -364,7 +361,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         openLinksInNewTab={openLinksInNewTab}
                         compact={compact}
                     />
-                ) : (
+                ) : item.type === 'separator' ? (
                     <SeparatorItem
                         key={item.id}
                         separator={item}
@@ -378,7 +375,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         themeClasses={themeClasses}
                         compact={compact}
                     />
-                )
+                ) : null
             )}
             {group.items.length === 0 && (
                <div className="text-center py-4 text-slate-500 text-sm">

@@ -17,11 +17,13 @@ interface HomeyCustomItemProps {
     homeyGlobalSettings?: Settings['homey'];
     showOneRow?: boolean;
     onOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
+    isFirstItem: boolean;
 }
 
 const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     item, liveData, themeClasses, isEditMode, groupId, columnId,
-    draggedItem, onDragStart, onDrop, openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate
+    draggedItem, onDragStart, onDrop, openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
+    isFirstItem
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
     const [isTriggered, setIsTriggered] = useState(false);
@@ -105,18 +107,26 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                 return <hr className={themeClasses.dashedBorder} />;
             case 'homey_capability':
                 const value = liveData?.value;
+                const customName = (item as any).customName;
                 return (
                     <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                            {showOneRow ? (
                                <div className="break-all text-base font-semibold">
-                                   {item.capabilityId === 'onoff' ? staticData.name : (staticData.capabilityTitle || '...')}
+                                   {customName ? customName : (item.capabilityId === 'onoff' ? staticData.name : (staticData.capabilityTitle || '...'))}
                                </div>
                            ) : (
-                               <>
-                                   <div className="break-all text-sm text-slate-400">{staticData.name}</div>
-                                   <div className={`break-all font-semibold text-base ${themeClasses.modalText}`}>{staticData.capabilityTitle}</div>
-                               </>
+                               customName ? (
+                                   <>
+                                       <div className="break-all font-semibold text-base">{customName}</div>
+                                       <div className={`break-all text-xs text-slate-400`}>{staticData.name} - {staticData.capabilityTitle}</div>
+                                   </>
+                               ) : (
+                                   <>
+                                       <div className="break-all text-sm text-slate-400">{staticData.name}</div>
+                                       <div className={`break-all font-semibold text-base ${themeClasses.modalText}`}>{staticData.capabilityTitle}</div>
+                                   </>
+                               )
                            )}
                         </div>
                         <div className="flex-shrink-0 ml-2">
@@ -128,12 +138,13 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             ) : (
-                                <span className="font-bold font-mono text-lg">{value !== null && value !== undefined ? `${Math.round(value * 10) / 10}${liveData?.units || ''}` : '-'}</span>
+                                <span className="font-bold font-mono text-base">{value !== null && value !== undefined ? `${Math.round(value * 10) / 10}${liveData?.units || ''}` : '-'}</span>
                             )}
                         </div>
                     </div>
                 );
             case 'homey_flow':
+                 const flowCustomName = (item as any).customName;
                  return (
                     <button
                         onClick={() => handleTriggerFlow(item.flowId)}
@@ -141,7 +152,7 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                         className={`w-full flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
                     >
                         <PlayIcon className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{staticData.name}</span>
+                        <span className="truncate">{flowCustomName || staticData.name}</span>
                     </button>
                 );
             default:
@@ -150,8 +161,17 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     };
 
     if (!isEditMode) {
-        if (item.type === 'separator') return <div className="py-3"><hr className={`${themeClasses.dashedBorder}`} /></div>;
-        return <div className={`p-2 rounded-lg ${item.type === 'text' ? '' : `${themeClasses.inputBg}`}`}>{renderContent()}</div>;
+        if (item.type === 'separator') return <div className={isFirstItem ? 'pb-3' : 'py-3'}><hr className={`${themeClasses.dashedBorder}`} /></div>;
+        
+        if (item.type === 'text') {
+            return (
+                <div className={isFirstItem ? 'pb-1' : 'pt-3 pb-1'}>
+                    <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
+                </div>
+            );
+        }
+
+        return <div className={`p-2 rounded-lg ${themeClasses.inputBg} ${isFirstItem ? 'pt-0' : ''}`}>{renderContent()}</div>;
     }
 
     return (
@@ -168,8 +188,14 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                 {renderContent()}
             </div>
             <div className="flex items-center gap-1">
-                {item.type === 'text' && (
-                    <button onClick={() => openModal('addOrEditTextItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-600`}>
+                {(item.type === 'text' || item.type === 'homey_capability' || item.type === 'homey_flow') && (
+                    <button onClick={() => {
+                        if (item.type === 'text') {
+                            openModal('addOrEditTextItem', { item, groupId, columnId });
+                        } else {
+                            openModal('editHomeyCustomItemName', { item, staticData, groupId, columnId });
+                        }
+                    }} className={`p-1.5 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-600`}>
                         <PencilIcon className="w-4 h-4" />
                     </button>
                 )}

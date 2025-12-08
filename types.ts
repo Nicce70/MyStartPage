@@ -22,12 +22,14 @@ export interface HomeyCapabilityItem {
   type: 'homey_capability';
   deviceId: string;
   capabilityId: string;
+  customName?: string;
 }
 
 export interface HomeyFlowItem {
   id: string;
   type: 'homey_flow';
   flowId: string;
+  customName?: string;
 }
 
 export interface TextItem {
@@ -220,7 +222,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName';
 
 export interface ModalState {
   type: ModalType;

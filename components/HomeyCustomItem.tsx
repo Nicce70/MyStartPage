@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
-import type { AnyItemType, DraggedItem, HomeyCustomItemType, ModalState, Settings } from '../types';
-import { DragHandleIcon, PencilIcon, TrashIcon, PlayIcon } from './Icons';
+import type { AnyItemType, DraggedItem, HomeyCustomItemType, ModalState, Settings, ButtonHolderItem, FlowButton } from '../types';
+import { DragHandleIcon, PencilIcon, TrashIcon, PlayIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
 
 interface HomeyCustomItemProps {
     item: HomeyCustomItemType;
@@ -11,8 +11,11 @@ interface HomeyCustomItemProps {
     groupId: string;
     columnId: string;
     draggedItem: DraggedItem;
+    touchDragItem: DraggedItem;
     onDragStart: (item: DraggedItem) => void;
     onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
+    handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+    touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
     openModal: (type: ModalState['type'], data?: any) => void;
     homeyGlobalSettings?: Settings['homey'];
     showOneRow?: boolean;
@@ -22,16 +25,23 @@ interface HomeyCustomItemProps {
 
 const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     item, liveData, themeClasses, isEditMode, groupId, columnId,
-    draggedItem, onDragStart, onDrop, openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
+    draggedItem, touchDragItem, onDragStart, onDrop, handleTouchStart, touchDragOverTarget,
+    openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
     isFirstItem
 }) => {
-    const [isDragOver, setIsDragOver] = useState(false);
-    const [isTriggered, setIsTriggered] = useState(false);
+    const [isMouseDragOver, setIsMouseDragOver] = useState(false);
+    const [isTriggered, setIsTriggered] = useState<string | null>(null);
     
     // This state is needed to display names until live data loads
     const [staticData, setStaticData] = useState<{name: string, capabilityTitle?: string, zone?: string}>({name: '...'});
 
-    const isDraggingThis = draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id;
+    const isDraggingThis = (draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id) || (touchDragItem?.type === 'groupItem' && touchDragItem.item.id === item.id);
+
+    useEffect(() => {
+        if (!draggedItem && !touchDragItem) {
+          setIsMouseDragOver(false);
+        }
+    }, [draggedItem, touchDragItem]);
 
     useEffect(() => {
         // Fetch static data once for display names if needed
@@ -47,6 +57,7 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                     fetch(`${url}/api/manager/devices/device/${item.deviceId}`, { headers }),
                     fetch(`${url}/api/manager/zones/zone`, { headers })
                 ]).then(async ([deviceRes, zonesRes]) => {
+                    if (!deviceRes.ok) throw new Error('Failed to fetch static device data');
                     const deviceData = await deviceRes.json();
                     const zonesData = await zonesRes.json();
                     const cap = deviceData.capabilitiesObj[item.capabilityId];
@@ -58,7 +69,10 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                 }).catch(e => console.error("Failed to fetch static item data", e));
             } else if (item.type === 'homey_flow') {
                 fetch(`${url}/api/manager/flow/flow/${item.flowId}`, { headers })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) throw new Error('Failed to fetch static flow data');
+                        return res.json();
+                    })
                     .then(data => setStaticData({ name: data.name }))
                     .catch(e => console.error("Failed to fetch static flow data", e));
             }
@@ -70,7 +84,6 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
         const { localIp, apiToken } = homeyGlobalSettings || {};
         if (!localIp || !apiToken) return;
         
-        // Optimistically update the UI state immediately.
         onOptimisticUpdate(deviceId, capabilityId, !currentState);
 
         try {
@@ -87,8 +100,8 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
         const { localIp, apiToken } = homeyGlobalSettings || {};
         if (!localIp || !apiToken) return;
 
-        setIsTriggered(true);
-        setTimeout(() => setIsTriggered(false), 500);
+        setIsTriggered(flowId);
+        setTimeout(() => setIsTriggered(null), 500);
 
         try {
             const url = `${localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`}/api/manager/flow/flow/${flowId}/trigger`;
@@ -149,38 +162,124 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                     <button
                         onClick={() => handleTriggerFlow(item.flowId)}
                         title={staticData.name}
-                        className={`w-full flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered === item.flowId ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
                     >
                         <PlayIcon className="w-4 h-4 flex-shrink-0" />
                         <span className="truncate">{flowCustomName || staticData.name}</span>
                     </button>
                 );
+            case 'button_holder':
+                const holder = item as ButtonHolderItem;
+                if (isEditMode) {
+                    return (
+                        <div className="flex flex-wrap justify-center items-center gap-2">
+                            {holder.buttons.map((button, index) => (
+                                <div key={button.id} className="relative group/button" title={button.flowName}>
+                                    <div className={`w-12 h-12 flex items-center justify-center rounded-full bg-slate-700 text-white font-bold ${Array.from(button.symbol).length === 1 ? 'text-xl' : 'text-sm'}`}>
+                                        {button.symbol}
+                                    </div>
+                                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 items-center justify-items-center bg-black/70 rounded-full opacity-0 group-hover/button:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => openModal('moveFlowButton', { direction: 'left', button, holderId: holder.id, groupId, columnId })} 
+                                            className="text-white hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            disabled={index === 0}
+                                        >
+                                            <ChevronLeftIcon className="w-5 h-5" />
+                                        </button>
+                                        <button 
+                                            onClick={() => openModal('moveFlowButton', { direction: 'right', button, holderId: holder.id, groupId, columnId })} 
+                                            className="text-white hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            disabled={index === holder.buttons.length - 1}
+                                        >
+                                            <ChevronRightIcon className="w-5 h-5" />
+                                        </button>
+                                        <button onClick={() => openModal('editFlowButton', { button, holderId: holder.id, groupId, columnId })} className="text-white hover:text-blue-300">
+                                            <PencilIcon className="w-5 h-5" />
+                                        </button>
+                                        <button onClick={() => openModal('deleteFlowButton', { button, holderId: holder.id, groupId, columnId })} className="text-white hover:text-red-400">
+                                            <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            <button 
+                                onClick={() => openModal('addFlowButton', { holderId: holder.id, groupId, columnId })}
+                                className="w-12 h-12 flex items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-400 transition-colors"
+                            >
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    );
+                }
+                return (
+                    <div className="flex flex-wrap justify-center items-center gap-2">
+                        {holder.buttons.map(button => {
+                            const isBtnTriggered = isTriggered === button.flowId;
+                            return (
+                                <button
+                                    key={button.id}
+                                    onClick={() => handleTriggerFlow(button.flowId)}
+                                    title={button.flowName}
+                                    className={`w-12 h-12 flex items-center justify-center rounded-full font-bold transition-all duration-200 ${Array.from(button.symbol).length === 1 ? 'text-xl' : 'text-sm'} ${isBtnTriggered ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
+                                >
+                                    {button.symbol}
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
             default:
                 return null;
         }
     };
+    
+    const isTouchDragOver = touchDragItem?.type === 'groupItem' &&
+        touchDragOverTarget?.itemId === item.id &&
+        touchDragItem.item.id !== item.id;
+    
+    const isDragOver = isMouseDragOver || isTouchDragOver;
 
     if (!isEditMode) {
-        if (item.type === 'separator') return <div className={isFirstItem ? 'pb-3' : 'py-3'}><hr className={`${themeClasses.dashedBorder}`} /></div>;
-        
-        if (item.type === 'text') {
-            return (
-                <div className={isFirstItem ? 'pb-1' : 'pt-3 pb-1'}>
-                    <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
-                </div>
-            );
+        // FIX: Combine checks for 'separator' and 'text' to avoid type narrowing issues.
+        if (item.type === 'separator' || item.type === 'text') {
+            if (item.type === 'separator') {
+                return (
+                    <div className={isFirstItem ? 'pb-3' : 'py-3'}>
+                        <hr className={`${themeClasses.dashedBorder}`} />
+                    </div>
+                );
+            } else { // item.type === 'text'
+                return (
+                    <div className={isFirstItem ? 'pb-1' : 'pt-3 pb-1'}>
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
+                    </div>
+                );
+            }
         }
 
-        return <div className={`p-2 rounded-lg ${themeClasses.inputBg} ${isFirstItem ? 'pt-0' : ''}`}>{renderContent()}</div>;
+        const isButtonHolder = item.type === 'button_holder';
+        const bgClass = isButtonHolder ? '' : themeClasses.inputBg;
+        const paddingClass = isButtonHolder ? 'p-1' : 'p-2';
+        
+        return (
+            <div className={`rounded-lg ${bgClass} ${paddingClass}`}>
+                {renderContent()}
+            </div>
+        );
     }
 
     return (
         <div
             draggable
             onDragStart={(e) => { e.stopPropagation(); onDragStart({ type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId }); }}
-            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop({ columnId, groupId, itemId: item.id }); setIsDragOver(false); }}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
-            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop({ columnId, groupId, itemId: item.id }); setIsMouseDragOver(false); }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsMouseDragOver(true); }}
+            onDragLeave={() => setIsMouseDragOver(false)}
+            onTouchStart={(e) => handleTouchStart(e, {type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId})}
+            data-drop-target="item"
+            data-column-id={columnId}
+            data-group-id={groupId}
+            data-item-id={item.id}
             className={`flex items-center gap-2 p-1 rounded-md transition-all ${isDraggingThis ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
         >
             <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />

@@ -310,3 +310,15 @@ export const SquaresPlusIcon = ({ className = 'w-5 h-5' }: { className?: string 
     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 16.5h-6a2.25 2.25 0 0 1-2.25-2.25v-6a2.25 2.25 0 0 1 2.25-2.25h6a2.25 2.25 0 0 1 2.25 2.25v6a2.25 2.25 0 0 1-2.25 2.25Zm.75-12v.001M16.5 18.75h.008v.008h-.008v-.008Zm0-3.75h.008v.008h-.008v-.008Zm0-3.75h.008v.008h-.008v-.008Zm-3.75 0h.008v.008h-.008v-.008Zm0 3.75h.008v.008h-.008v-.008Zm0 3.75h.008v.008h-.008v-.008Zm-3.75 0h.008v.008h-.008v-.008Zm0-3.75h.008v.008h-.008v-.008Zm0-3.75h.008v.008h-.008v-.008Z" />
   </svg>
 );
+
+export const ChevronLeftIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+  </svg>
+);
+
+export const ChevronRightIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+  </svg>
+);

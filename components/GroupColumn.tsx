@@ -36,6 +36,9 @@ interface GroupItemProps {
   onDragStart: (item: DraggedItem) => void;
   onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   draggedItem: DraggedItem;
+  touchDragItem: DraggedItem;
+  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
   openModal: (type: ModalState['type'], data?: any) => void;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
@@ -56,26 +59,25 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
+  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, touchDragItem, handleTouchStart, touchDragOverTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
 }) => {
-  const [isDragOver, setIsDragOver] = React.useState(false);
+  const [isMouseDragOver, setIsMouseDragOver] = React.useState(false);
 
   React.useEffect(() => {
-    // When a drag operation ends (draggedItem becomes null), reset the visual indicator.
-    if (!draggedItem) {
-      setIsDragOver(false);
+    if (!draggedItem && !touchDragItem) {
+      setIsMouseDragOver(false);
     }
-  }, [draggedItem]);
+  }, [draggedItem, touchDragItem]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (!isEditMode || !draggedItem) return;
     if (draggedItem.type === 'groupItem' || (draggedItem.type === 'group' && draggedItem.group.id !== group.id)) {
       e.preventDefault();
-      setIsDragOver(true);
+      setIsMouseDragOver(true);
     }
   };
 
-  const handleDragLeave = () => setIsDragOver(false);
+  const handleDragLeave = () => setIsMouseDragOver(false);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     if (!isEditMode || !draggedItem) return;
@@ -87,10 +89,17 @@ const GroupItem: React.FC<GroupItemProps> = ({
     } else if (draggedItem.type === 'group') {
         onDrop({ columnId, groupId: group.id });
     }
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
 
-  const isDraggingThis = isEditMode && draggedItem?.type === 'group' && draggedItem.group.id === group.id;
+  const isDraggingThis = isEditMode && ((draggedItem?.type === 'group' && draggedItem.group.id === group.id) || (touchDragItem?.type === 'group' && touchDragItem.group.id === group.id));
+  
+  const isTouchDragOver = touchDragItem &&
+    (touchDragItem.type === 'groupItem' || (touchDragItem.type === 'group' && touchDragItem.group.id !== group.id)) &&
+    touchDragOverTarget?.groupId === group.id &&
+    !touchDragOverTarget.itemId;
+  
+  const isDragOver = isMouseDragOver || isTouchDragOver;
   
   const groupType = group.type || 'links';
   const widgetType = group.widgetType;
@@ -141,6 +150,10 @@ const GroupItem: React.FC<GroupItemProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onTouchStart={(e) => handleTouchStart(e, { type: 'group', group, sourceColumnId: columnId })}
+      data-drop-target="group"
+      data-column-id={columnId}
+      data-group-id={group.id}
       className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''} ${isFavoritesWidget ? `border ${accentBorderColor}` : ''}`}
     >
       <div 
@@ -340,6 +353,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
             onDragStart={onDragStart}
             onDrop={onDrop}
             draggedItem={draggedItem}
+            touchDragItem={touchDragItem}
+            handleTouchStart={handleTouchStart}
+            touchDragOverTarget={touchDragOverTarget}
           />
         ) : ( // Default to 'links' group
           <div className={compact ? "space-y-1" : "space-y-2"}>
@@ -357,6 +373,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
                         onDragStart={onDragStart}
                         onDrop={onDrop}
+                        touchDragItem={touchDragItem}
+                        handleTouchStart={handleTouchStart}
+                        touchDragOverTarget={touchDragOverTarget}
                         themeClasses={themeClasses}
                         openLinksInNewTab={openLinksInNewTab}
                         compact={compact}
@@ -372,6 +391,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
                         onDragStart={onDragStart}
                         onDrop={onDrop}
+                        touchDragItem={touchDragItem}
+                        handleTouchStart={handleTouchStart}
+                        touchDragOverTarget={touchDragOverTarget}
                         themeClasses={themeClasses}
                         compact={compact}
                     />

@@ -16,6 +16,9 @@ interface HomeyCustomWidgetProps {
     onDragStart: (item: DraggedItem) => void;
     onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
     draggedItem: DraggedItem;
+    touchDragItem: DraggedItem;
+    handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+    touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
 }
 
 interface LiveData {
@@ -34,7 +37,10 @@ const HomeyCustomWidget: React.FC<HomeyCustomWidgetProps> = ({
     openModal,
     onDragStart,
     onDrop,
-    draggedItem
+    draggedItem,
+    touchDragItem,
+    handleTouchStart,
+    touchDragOverTarget
 }) => {
     const [liveData, setLiveData] = useState<LiveData>({});
     const [error, setError] = useState<string | null>(null);
@@ -133,8 +139,11 @@ const HomeyCustomWidget: React.FC<HomeyCustomWidgetProps> = ({
                     groupId={group.id}
                     columnId={columnId}
                     draggedItem={draggedItem}
+                    touchDragItem={touchDragItem}
                     onDragStart={onDragStart}
                     onDrop={onDrop}
+                    handleTouchStart={handleTouchStart}
+                    touchDragOverTarget={touchDragOverTarget}
                     openModal={openModal}
                     homeyGlobalSettings={homeyGlobalSettings}
                     showOneRow={showOneRow}

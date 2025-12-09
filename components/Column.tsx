@@ -11,6 +11,9 @@ interface ColumnProps {
   onDragStart: (item: DraggedItem) => void;
   onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   draggedItem: DraggedItem;
+  touchDragItem: DraggedItem;
+  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
   openModal: (type: ModalState['type'], data?: any) => void;
   groupGap: number;
   showColumnTitles: boolean;
@@ -28,25 +31,25 @@ interface ColumnProps {
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
+  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, touchDragItem, handleTouchStart, touchDragOverTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
 }) => {
-  const [isDragOver, setIsDragOver] = React.useState(false);
+  const [isMouseDragOver, setIsMouseDragOver] = React.useState(false);
 
   React.useEffect(() => {
-    if (!draggedItem) {
-      setIsDragOver(false);
+    if (!draggedItem && !touchDragItem) {
+      setIsMouseDragOver(false);
     }
-  }, [draggedItem]);
+  }, [draggedItem, touchDragItem]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (!isEditMode || !draggedItem) return;
     if (draggedItem.type === 'group' || (draggedItem.type === 'column' && draggedItem.column.id !== column.id)) {
       e.preventDefault();
-      setIsDragOver(true);
+      setIsMouseDragOver(true);
     }
   };
 
-  const handleDragLeave = () => setIsDragOver(false);
+  const handleDragLeave = () => setIsMouseDragOver(false);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     if (!isEditMode || !draggedItem) return;
@@ -57,10 +60,17 @@ const ColumnComponent: React.FC<ColumnProps> = ({
     } else if (draggedItem.type === 'column') {
       onDrop({ columnId: column.id });
     }
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
   
-  const isDraggingThis = isEditMode && draggedItem?.type === 'column' && draggedItem.column.id === column.id;
+  const isDraggingThis = isEditMode && ((draggedItem?.type === 'column' && draggedItem.column.id === column.id) || (touchDragItem?.type === 'column' && touchDragItem.column.id === column.id));
+
+  const isTouchDragOver = touchDragItem && 
+    (touchDragItem.type === 'group' || (touchDragItem.type === 'column' && touchDragItem.column.id !== column.id)) &&
+    touchDragOverTarget?.columnId === column.id && 
+    !touchDragOverTarget.groupId;
+
+  const isDragOver = isMouseDragOver || isTouchDragOver;
 
   return (
     <div
@@ -73,6 +83,9 @@ const ColumnComponent: React.FC<ColumnProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onTouchStart={(e) => handleTouchStart(e, { type: 'column', column })}
+      data-drop-target="column"
+      data-column-id={column.id}
       className={`flex-shrink-0 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       {showColumnTitles && (
@@ -109,6 +122,9 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onDragStart={onDragStart}
             onDrop={onDrop}
             draggedItem={draggedItem}
+            touchDragItem={touchDragItem}
+            handleTouchStart={handleTouchStart}
+            touchDragOverTarget={touchDragOverTarget}
             openModal={openModal}
             onToggleGroupCollapsed={onToggleGroupCollapsed}
             themeClasses={themeClasses}

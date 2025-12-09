@@ -38,7 +38,21 @@ export interface TextItem {
   content: string;
 }
 
-export type HomeyCustomItemType = HomeyCapabilityItem | HomeyFlowItem | TextItem | Separator;
+export interface FlowButton {
+  id: string;
+  flowId: string;
+  symbol: string;
+  flowName?: string;
+}
+
+export interface ButtonHolderItem {
+  id: string;
+  type: 'button_holder';
+  buttons: FlowButton[];
+}
+
+
+export type HomeyCustomItemType = HomeyCapabilityItem | HomeyFlowItem | TextItem | Separator | ButtonHolderItem;
 
 // A master type for any item that can exist in a group's `items` array
 export type AnyItemType = GroupItemType | HomeyCustomItemType;
@@ -222,7 +236,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName' | 'addFlowButton' | 'editFlowButton' | 'deleteFlowButton' | 'moveFlowButton';
 
 export interface ModalState {
   type: ModalType;

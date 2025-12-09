@@ -19,7 +19,7 @@ import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
 // FIX: Import DraggedItem from types.ts and remove the local definition.
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem } from './types';
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 
 // Simple UUID generator
@@ -122,7 +122,7 @@ const DEFAULT_SETTINGS: Settings = {
   centerContent: false,
   backgroundImage: '',
   showGroupToggles: true,
-  backupReminderInterval: 30,
+  backupReminderInterval: 30, // Days. 0 = Never.
   showQuotes: false,
   quoteCategory: 'inspirational',
   quoteFrequency: 'daily',
@@ -393,6 +393,16 @@ const WeatherSettingsForm: React.FC<{
   );
 };
 
+const touchDragStyle = `
+  body.touch-dragging, body.touch-dragging * {
+    cursor: grabbing !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+`;
+
 function App() {
   const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
   const [rawSettings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
@@ -434,6 +444,97 @@ function App() {
   
   const formRef = useRef<HTMLFormElement>(null);
   const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
+
+  // New state for touch drag & drop
+  const [touchDragItem, setTouchDragItem] = useState<DraggedItem>(null);
+  const [touchDragOverTarget, setTouchDragOverTarget] = useState<{ columnId: string; groupId?: string; itemId?: string } | null>(null);
+  const touchStartTimeoutRef = useRef<number | null>(null);
+  const hasDraggedRef = useRef(false);
+
+  // The main handler for touch start, which initiates a long-press drag
+  const handleTouchStart = (e: React.TouchEvent, item: DraggedItem) => {
+    if (!isEditMode || !item) return;
+
+    if (touchStartTimeoutRef.current) {
+      clearTimeout(touchStartTimeoutRef.current);
+    }
+    hasDraggedRef.current = false;
+
+    touchStartTimeoutRef.current = window.setTimeout(() => {
+      e.preventDefault();
+      if ('vibrate' in navigator) navigator.vibrate(50);
+      setTouchDragItem(item);
+    }, 200);
+  };
+
+  // Global touch move handler
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!touchDragItem) {
+      if (touchStartTimeoutRef.current) {
+        clearTimeout(touchStartTimeoutRef.current);
+        touchStartTimeoutRef.current = null;
+      }
+      return;
+    };
+
+    e.preventDefault();
+    hasDraggedRef.current = true;
+
+    const touch = e.touches[0];
+    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    let dropTarget = targetElement?.closest('[data-drop-target]');
+    
+    if (dropTarget) {
+      const dataset = (dropTarget as HTMLElement).dataset;
+      setTouchDragOverTarget({
+        columnId: dataset.columnId || '',
+        groupId: dataset.groupId,
+        itemId: dataset.itemId
+      });
+    } else {
+      setTouchDragOverTarget(null);
+    }
+  };
+  
+  // Global touch end handler
+  const handleTouchEnd = (e: TouchEvent) => {
+    if (touchStartTimeoutRef.current) {
+      clearTimeout(touchStartTimeoutRef.current);
+      touchStartTimeoutRef.current = null;
+    }
+
+    if (touchDragItem && hasDraggedRef.current) {
+      e.preventDefault();
+      if (touchDragOverTarget) {
+        handleDrop(touchDragOverTarget);
+      }
+    }
+    
+    setDraggedItem(null); // Also clear mouse drag item just in case
+    setTouchDragItem(null);
+    setTouchDragOverTarget(null);
+    hasDraggedRef.current = false;
+  };
+  
+  // Effect to add/remove global listeners for touch drag
+  useEffect(() => {
+    if (touchDragItem) {
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd, { passive: false });
+      document.body.classList.add('touch-dragging');
+    } else {
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      document.body.classList.remove('touch-dragging');
+    }
+
+    return () => {
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      document.body.classList.remove('touch-dragging');
+    };
+  }, [touchDragItem]);
 
   // Check for overdue backup
   const isBackupOverdue = useMemo(() => {
@@ -507,6 +608,37 @@ function App() {
       }, 100);
     }
   }, [modal]);
+
+  // Headless modal action for reordering flow buttons
+  useEffect(() => {
+    if (modal?.type === 'moveFlowButton') {
+        const { direction, button, holderId, groupId, columnId } = modal.data;
+        
+        setColumns(prevColumns => {
+            const newColumns = JSON.parse(JSON.stringify(prevColumns));
+            const col = newColumns.find((c: Column) => c.id === columnId);
+            const group = col?.groups.find((g: Group) => g.id === groupId);
+            const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
+
+            if (holder) {
+                const index = holder.buttons.findIndex(b => b.id === button.id);
+                if (index > -1) {
+                    const newIndex = direction === 'left' ? index - 1 : index + 1;
+                    if (newIndex >= 0 && newIndex < holder.buttons.length) {
+                        // Swap elements
+                        const temp = holder.buttons[index];
+                        holder.buttons[index] = holder.buttons[newIndex];
+                        holder.buttons[newIndex] = temp;
+                    }
+                }
+            }
+            return newColumns;
+        });
+        
+        closeModal(); // Action is instant, close modal right away
+    }
+}, [modal]);
+
 
   // When entering edit mode, expand all groups. When exiting, restore collapsed state.
   useEffect(() => {
@@ -794,13 +926,40 @@ function App() {
         const group = col?.groups.find((g: Group) => g.id === groupId);
         if (group) {
             const item = group.items.find((i: any) => i.id === modalItem.id);
-            if (item && (item.type === 'homey_capability' || item.type === 'homey_flow')) {
+            if (item && (item.type === 'homey_capability' || item.type === 'homey_flow' || item.type === 'button_holder')) {
                 // Set to undefined if empty to remove the property
                 item.customName = customName.trim() ? customName.trim() : undefined; 
             }
         }
         setColumns(newColumns);
         break;
+      }
+      case 'addFlowButton':
+      case 'editFlowButton': {
+          const { columnId, groupId, holderId, button } = modal.data;
+          const flowValue = formData.get('flowId') as string;
+          const [flowId, flowName] = flowValue.split('|');
+          const symbol = formData.get('symbol') as string;
+
+          const col = newColumns.find((c: Column) => c.id === columnId);
+          const group = col?.groups.find((g: Group) => g.id === groupId);
+          const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
+
+          if (holder) {
+              if (modal.type === 'addFlowButton') {
+                  const newButton: FlowButton = { id: uuidv4(), flowId, symbol, flowName };
+                  holder.buttons.push(newButton);
+              } else { // editFlowButton
+                  const buttonToEdit = holder.buttons.find(b => b.id === button.id);
+                  if (buttonToEdit) {
+                      buttonToEdit.flowId = flowId;
+                      buttonToEdit.symbol = symbol;
+                      buttonToEdit.flowName = flowName;
+                  }
+              }
+              setColumns(newColumns);
+          }
+          break;
       }
     }
     closeModal();
@@ -826,6 +985,25 @@ function App() {
     }));
     closeModal();
   };
+
+  const handleAddButtonHolder = (groupId: string, columnId: string) => {
+    setColumns(prevColumns => prevColumns.map(col => {
+        if (col.id === columnId) {
+            return {
+                ...col,
+                groups: col.groups.map(g => {
+                    if (g.id === groupId) {
+                        const newHolder: ButtonHolderItem = { id: uuidv4(), type: 'button_holder', buttons: [] };
+                        return { ...g, items: [...g.items, newHolder] };
+                    }
+                    return g;
+                })
+            };
+        }
+        return col;
+    }));
+    closeModal();
+};
 
   const handleAddWidget = (widgetType: string, columnId: string) => {
     const newColumns = JSON.parse(JSON.stringify(columns));
@@ -910,6 +1088,15 @@ function App() {
         group.items = group.items.filter((i: AnyItemType) => i.id !== data.item.id);
         setColumns(newColumns);
       }
+    } else if (type === 'deleteFlowButton') {
+        const { columnId, groupId, holderId, button } = data;
+        const col = newColumns.find((c: Column) => c.id === columnId);
+        const group = col?.groups.find((g: Group) => g.id === groupId);
+        const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
+        if (holder) {
+            holder.buttons = holder.buttons.filter(b => b.id !== button.id);
+            setColumns(newColumns);
+        }
     }
     closeModal();
   };
@@ -919,13 +1106,14 @@ function App() {
   };
 
   const handleDrop = (target: { columnId: string; groupId?: string; itemId?: string }) => {
-    if (!draggedItem) return;
+    const itemToDrop = draggedItem || touchDragItem;
+    if (!itemToDrop) return;
 
     const newColumns = JSON.parse(JSON.stringify(columns));
 
     // Handle Column Reordering
-    if (draggedItem.type === 'column') {
-        const sourceIndex = newColumns.findIndex((c: Column) => c.id === draggedItem.column.id);
+    if (itemToDrop.type === 'column') {
+        const sourceIndex = newColumns.findIndex((c: Column) => c.id === itemToDrop.column.id);
         const targetIndex = newColumns.findIndex((c: Column) => c.id === target.columnId);
         
         if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
@@ -935,12 +1123,12 @@ function App() {
         }
     } 
     // Handle Group Reordering
-    else if (draggedItem.type === 'group') {
-        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
+    else if (itemToDrop.type === 'group') {
+        const sourceCol = newColumns.find((c: Column) => c.id === itemToDrop.sourceColumnId);
         const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
         
         if (sourceCol && targetCol) {
-            const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === draggedItem.group.id);
+            const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === itemToDrop.group.id);
             if (sourceGroupIndex !== -1) {
                 const [movedGroup] = sourceCol.groups.splice(sourceGroupIndex, 1);
                 
@@ -961,16 +1149,16 @@ function App() {
         }
     }
     // Handle Item (Link/Separator) Reordering
-    else if (draggedItem.type === 'groupItem') {
-        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
-        const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
+    else if (itemToDrop.type === 'groupItem') {
+        const sourceCol = newColumns.find((c: Column) => c.id === itemToDrop.sourceColumnId);
+        const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === itemToDrop.sourceGroupId);
         
         const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
         const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
 
         if (sourceGroup && targetGroup) {
             // New compatibility check
-            const itemType = draggedItem.item.type;
+            const itemType = itemToDrop.item.type;
             const isTargetLinkGroup = !targetGroup.widgetType || targetGroup.type === 'links';
             const isTargetHomeyCustom = targetGroup.widgetType === 'homey_custom';
 
@@ -980,16 +1168,17 @@ function App() {
             } else if (isTargetLinkGroup) {
                 isCompatible = ['link'].includes(itemType);
             } else if (isTargetHomeyCustom) {
-                isCompatible = ['homey_capability', 'homey_flow', 'text'].includes(itemType);
+                isCompatible = ['homey_capability', 'homey_flow', 'text', 'button_holder'].includes(itemType);
             }
 
             // If moving to a different group and it's not compatible, cancel.
             if (sourceGroup.id !== targetGroup.id && !isCompatible) {
                 setDraggedItem(null);
+                setTouchDragItem(null);
                 return;
             }
 
-            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === draggedItem.item.id);
+            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === itemToDrop.item.id);
             if (sourceItemIndex !== -1) {
                 const [movedItem] = sourceGroup.items.splice(sourceItemIndex, 1);
                 
@@ -1010,6 +1199,7 @@ function App() {
     }
 
     setDraggedItem(null);
+    setTouchDragItem(null);
   };
 
   const handleToggleGroupCollapsed = (columnId: string, groupId: string) => {
@@ -1175,7 +1365,7 @@ function App() {
                         className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
                     >
                        <LightBulbIcon className="w-5 h-5" />
-                       <span className="font-semibold">Homey Capability (Sensor/Toggle)</span>
+                       <span className="font-semibold">Capability (Sensor/Toggle)</span>
                     </button>
                     <button 
                         onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'flow' })}
@@ -1183,6 +1373,13 @@ function App() {
                     >
                        <PlayIcon className="w-5 h-5" />
                        <span className="font-semibold">Flow</span>
+                    </button>
+                    <button 
+                        onClick={() => handleAddButtonHolder(data.groupId, data.columnId)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
+                    >
+                       <SquaresPlusIcon className="w-5 h-5" />
+                       <span className="font-semibold">Button Holder</span>
                     </button>
                     <button 
                         onClick={() => openModal('addOrEditTextItem', { ...data })}
@@ -1213,6 +1410,10 @@ function App() {
                 onSelect={handleHomeySelect}
             />
         );
+    }
+
+    if (type === 'addFlowButton' || type === 'editFlowButton') {
+        return <FlowButtonForm />;
     }
 
     if (type === 'addOrEditTextItem') {
@@ -1358,7 +1559,7 @@ function App() {
     if (type === 'resetConfirm') {
         return (
           <div>
-            <p className={themeClasses.modalMutedText}>Are you sure you want to reset everything? All your columns, groups, links, and settings will be permanently deleted and restored to the default configuration.</p>
+            <p className={themeClasses.modalMutedText}>Are you sure you want to reset everything? All your columns, groups, links, and settings will be permanently deleted and restored to the default configuration. This action cannot be undone.</p>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
               <button onClick={handleResetToDefaults} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Yes, Reset Everything</button>
@@ -1372,7 +1573,8 @@ function App() {
         if (type === 'deleteColumn') itemName = data.name;
         if (type === 'deleteGroup') itemName = data.group.name;
         if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this item';
-        
+        if (type === 'deleteFlowButton') itemName = `button "${data.button.symbol}"`;
+
         return (
           <div>
             <p className={themeClasses.modalMutedText}>Are you sure you want to delete "{itemName}"?</p>
@@ -1607,6 +1809,10 @@ function App() {
       case 'selectHomeyItem': return 'Select Item';
       case 'addOrEditTextItem': return modal.data.item ? 'Edit Text' : 'Add Text';
       case 'editHomeyCustomItemName': return 'Edit Display Name';
+      case 'addFlowButton': return 'Add Flow Button';
+      case 'editFlowButton': return 'Edit Flow Button';
+      case 'deleteFlowButton': return 'Delete Button';
+      case 'moveFlowButton': return ''; // Headless
       default: return '';
     }
   };
@@ -1620,9 +1826,92 @@ function App() {
     const multiplier = globalMultipliers[settings.columnWidth];
     return { flexBasis: `${baseWidth * multiplier}rem` };
   };
+  
+  const FlowButtonForm = () => {
+      const { button } = modal?.data || {};
+      const [flows, setFlows] = useState<{ id: string, name: string }[]>([]);
+      const [isLoading, setIsLoading] = useState(true);
+      const [error, setError] = useState<string | null>(null);
+
+      useEffect(() => {
+          const fetchFlows = async () => {
+              const { homey } = settings;
+              if (!homey?.localIp || !homey?.apiToken) {
+                  setError("Homey IP and Token must be configured in global Settings first.");
+                  setIsLoading(false);
+                  return;
+              }
+              setIsLoading(true);
+              setError(null);
+
+              const cleanToken = homey.apiToken.replace(/^Bearer\s+/i, '').trim();
+              const formattedIp = homey.localIp.trim().startsWith('http') ? homey.localIp.trim() : `http://${homey.localIp.trim()}`;
+              const headers = { 'Authorization': `Bearer ${cleanToken}` };
+
+              try {
+                  const res = await fetch(`${formattedIp}/api/manager/flow/flow`, { headers });
+                  if (!res.ok) throw new Error('Failed to fetch flows.');
+                  const data = await res.json();
+                  const triggerableFlows = Object.values(data)
+                      .filter((flow: any) => flow.triggerable)
+                      .map((flow: any) => ({ id: flow.id, name: flow.name }))
+                      .sort((a, b) => a.name.localeCompare(b.name));
+                  setFlows(triggerableFlows);
+              } catch (err) {
+                  setError(err instanceof Error ? err.message : "An unknown error occurred.");
+              } finally {
+                  setIsLoading(false);
+              }
+          };
+          fetchFlows();
+      }, []);
+
+      if (isLoading) return <div className="text-center p-4">Loading flows...</div>;
+      if (error) return <div className="text-center p-4 text-red-400">{error}</div>;
+
+      return (
+          <form onSubmit={handleFormSubmit} ref={formRef}>
+              <div className="space-y-4">
+                  <div>
+                      <label htmlFor="flowId" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Flow</label>
+                      <select
+                          id="flowId"
+                          name="flowId"
+                          defaultValue={button ? `${button.flowId}|${button.flowName || ''}` : undefined}
+                          required
+                          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                      >
+                          {flows.map(flow => (
+                              <option key={flow.id} value={`${flow.id}|${flow.name}`}>{flow.name}</option>
+                          ))}
+                      </select>
+                  </div>
+                  <div>
+                      <label htmlFor="symbol" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Button Symbol</label>
+                      <input
+                          type="text"
+                          id="symbol"
+                          name="symbol"
+                          defaultValue={button?.symbol || ''}
+                          required
+                          maxLength={3}
+                          placeholder="e.g. Vol, 🔊"
+                          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">Up to 3 characters or an emoji.</p>
+                  </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6">
+                  <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
+                  <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+              </div>
+          </form>
+      );
+  };
 
   return (
     <>
+      <style>{touchDragStyle}</style>
       <ThemeStyles theme={themeClasses} />
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
         <header className="flex-shrink-0 grid grid-cols-[1fr_2fr_1fr] items-end gap-4 mb-6">
@@ -1667,6 +1956,9 @@ function App() {
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
                 draggedItem={draggedItem}
+                touchDragItem={touchDragItem}
+                handleTouchStart={handleTouchStart}
+                touchDragOverTarget={touchDragOverTarget}
                 openModal={openModal}
                 groupGap={settings.groupGap}
                 showColumnTitles={isEditMode || settings.showColumnTitles}

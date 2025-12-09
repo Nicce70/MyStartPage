@@ -14,40 +14,51 @@ interface SeparatorItemProps {
   onDragStart: (item: DraggedItem) => void;
   onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   isDragging: boolean;
+  touchDragItem: DraggedItem;
+  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
   themeClasses: typeof themes.default;
   compact: boolean;
 }
 
-const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, columnId, isEditMode, onDelete, onDragStart, onDrop, isDragging, themeClasses, compact }) => {
-  const [isDragOver, setIsDragOver] = React.useState(false);
+const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, columnId, isEditMode, onDelete, onDragStart, onDrop, isDragging, touchDragItem, handleTouchStart, touchDragOverTarget, themeClasses, compact }) => {
+  const [isMouseDragOver, setIsMouseDragOver] = React.useState(false);
 
   React.useEffect(() => {
-    if (!isDragging) {
-      setIsDragOver(false);
+    if (!isDragging && !touchDragItem) {
+      setIsMouseDragOver(false);
     }
-  }, [isDragging]);
+  }, [isDragging, touchDragItem]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+    setIsMouseDragOver(true);
   };
   
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     onDrop({ columnId, groupId, itemId: separator.id });
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
 
   if (!isEditMode) {
     return <hr className={`${themeClasses.dashedBorder} ${compact ? 'my-1' : 'my-2'}`} />;
   }
+  
+  const isDraggingThis = isDragging || (touchDragItem?.type === 'groupItem' && touchDragItem.item.id === separator.id);
+  
+  const isTouchDragOver = touchDragItem?.type === 'groupItem' &&
+    touchDragOverTarget?.itemId === separator.id &&
+    touchDragItem.item.id !== separator.id;
+
+  const isDragOver = isMouseDragOver || isTouchDragOver;
 
   return (
     <div
@@ -60,7 +71,12 @@ const SeparatorItem: React.FC<SeparatorItemProps> = ({ separator, groupId, colum
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`group/separator flex items-center justify-between p-2 rounded-md transition-all duration-150 ease-in-out cursor-grab ${isDragging ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
+      onTouchStart={(e) => handleTouchStart(e, {type: 'groupItem', item: separator, sourceGroupId: groupId, sourceColumnId: columnId})}
+      data-drop-target="item"
+      data-column-id={columnId}
+      data-group-id={groupId}
+      data-item-id={separator.id}
+      className={`group/separator flex items-center justify-between p-2 rounded-md transition-all duration-150 ease-in-out cursor-grab ${isDraggingThis ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
     >
       <div className="flex items-center gap-3 w-full">
         <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />

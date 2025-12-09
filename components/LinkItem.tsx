@@ -15,14 +15,17 @@ interface LinkItemProps {
   onDragStart: (item: DraggedItem) => void;
   onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
   isDragging: boolean;
+  touchDragItem: DraggedItem;
+  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
+  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
   compact: boolean;
 }
 
-const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, themeClasses, openLinksInNewTab, compact }) => {
+const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, touchDragItem, handleTouchStart, touchDragOverTarget, themeClasses, openLinksInNewTab, compact }) => {
   const [errorCount, setErrorCount] = useState(0);
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [isMouseDragOver, setIsMouseDragOver] = useState(false);
 
   useEffect(() => {
     // When link.url changes, reset the error counter to re-attempt loading.
@@ -30,11 +33,10 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
   }, [link.url]);
 
   useEffect(() => {
-    // When a drag operation ends, reset the visual indicator.
-    if (!isDragging) {
-      setIsDragOver(false);
+    if (!isDragging && !touchDragItem) {
+      setIsMouseDragOver(false);
     }
-  }, [isDragging]);
+  }, [isDragging, touchDragItem]);
 
   const handleFaviconError = () => {
     setErrorCount(prev => prev + 1);
@@ -43,19 +45,19 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+    setIsMouseDragOver(true);
   };
   
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     onDrop({ columnId, groupId, itemId: link.id });
-    setIsDragOver(false);
+    setIsMouseDragOver(false);
   };
 
   const handleItemClick = () => {
@@ -93,6 +95,14 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
       />
     );
   };
+  
+  const isDraggingThis = isDragging || (touchDragItem?.type === 'groupItem' && touchDragItem.item.id === link.id);
+  
+  const isTouchDragOver = touchDragItem?.type === 'groupItem' &&
+    touchDragOverTarget?.itemId === link.id &&
+    touchDragItem.item.id !== link.id;
+
+  const isDragOver = isMouseDragOver || isTouchDragOver;
 
   return (
     <div
@@ -107,7 +117,12 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`group/link flex items-start justify-between rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDragging ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''} ${compact ? 'py-1' : `p-2 ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}`}
+      onTouchStart={(e) => handleTouchStart(e, {type: 'groupItem', item: link, sourceGroupId: groupId, sourceColumnId: columnId})}
+      data-drop-target="item"
+      data-column-id={columnId}
+      data-group-id={groupId}
+      data-item-id={link.id}
+      className={`group/link flex items-start justify-between rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDraggingThis ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''} ${compact ? 'py-1' : `p-2 ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}`}
     >
       <div className={`flex items-start min-w-0 ${compact ? 'gap-2' : 'gap-3'}`}>
         {isEditMode && <DragHandleIcon className={`w-5 h-5 mt-1 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0 cursor-grab`} />}

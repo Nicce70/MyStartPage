@@ -1,160 +1,45 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { themes } from '../themes';
-import { LightBulbIcon, CpuChipIcon, ArrowPathIcon, PlayIcon } from './Icons';
-// @ts-ignore
-import { io } from "socket.io-client";
+import { PlayIcon } from './Icons';
 
 interface HomeyProps {
-  localIp: string;
-  apiToken: string;
-  pollingInterval: number; // in seconds
-  selectedCapabilities?: { deviceId: string; capabilityId: string; }[];
-  selectedFlows?: { flowId: string; }[];
   themeClasses: typeof themes.default;
   enableScroll?: boolean;
   showOneRow?: boolean;
-}
-
-interface HomeyDevice {
-  id: string;
-  name: string;
-  zone: string;
-  capabilitiesObj: Record<string, { value: any; title: string; units?: string }>;
-}
-
-interface HomeyZone {
-    id: string;
-    name: string;
-}
-
-interface HomeyFlow {
-    id: string;
-    name: string;
+  selectedCapabilities: { deviceId: string; capabilityId: string; }[];
+  selectedFlows: { flowId: string; }[];
+  devices: any; // From central state
+  zones: any;   // From central state
+  flows: any;   // From central state
+  onToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
+  onTriggerFlow: (flowId: string) => void;
+  onOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
 }
 
 const Homey: React.FC<HomeyProps> = ({ 
-    localIp, apiToken, pollingInterval = 10, 
-    selectedCapabilities = [], selectedFlows = [], themeClasses, 
-    enableScroll = true, showOneRow = false
+    themeClasses, 
+    enableScroll = true, 
+    showOneRow = false,
+    selectedCapabilities = [],
+    selectedFlows = [],
+    devices,
+    zones,
+    flows,
+    onToggle,
+    onTriggerFlow,
+    onOptimisticUpdate
 }) => {
-  const [devices, setDevices] = useState<Record<string, HomeyDevice>>({});
-  const [zones, setZones] = useState<Record<string, HomeyZone>>({});
-  const [flows, setFlows] = useState<Record<string, HomeyFlow>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [triggeredFlowId, setTriggeredFlowId] = useState<string | null>(null);
   
-  const socketRef = useRef<any>(null);
-
-  const sanitizeToken = (input: string) => input.replace(/^Bearer\s+/i, '').trim();
-  const formatUrl = (ip: string) => ip.trim().startsWith('http') ? ip.trim() : `http://${ip.trim()}`;
-
-  const fetchData = useCallback(async (isInitial = false) => {
-    if (!localIp || !apiToken) return;
-    if (isInitial) setIsLoading(true);
-
-    try {
-        const headers = { 'Authorization': `Bearer ${sanitizeToken(apiToken)}` };
-        const [devicesRes, zonesRes, flowsRes] = await Promise.all([
-            fetch(`${formatUrl(localIp)}/api/manager/devices/device`, { headers }),
-            fetch(`${formatUrl(localIp)}/api/manager/zones/zone`, { headers }),
-            fetch(`${formatUrl(localIp)}/api/manager/flow/flow`, { headers })
-        ]);
-
-        if (!devicesRes.ok || !zonesRes.ok || !flowsRes.ok) throw new Error("REST fetch failed. Check connection & credentials.");
-
-        const [devicesData, zonesData, flowsData] = await Promise.all([devicesRes.json(), zonesRes.json(), flowsRes.json()]);
-
-        setDevices(devicesData);
-        setZones(zonesData);
-        setFlows(flowsData);
-        setError(null);
-    } catch (err) {
-        console.warn("Homey initial data fetch failed:", err);
-        setError(err instanceof Error ? err.message : "Failed to load data.");
-    } finally {
-        if (isInitial) setIsLoading(false);
-    }
-  }, [localIp, apiToken]);
-
-  // Main Effect for data fetching and WebSocket
-  useEffect(() => {
-    if (!localIp || !apiToken) {
-        setIsLoading(false);
-        setError("Please configure Homey in global settings.");
-        return;
-    }
-
-    fetchData(true);
-    const intervalInMs = (pollingInterval || 10) * 1000;
-    const pollInterval = setInterval(() => fetchData(false), intervalInMs);
-
-    try {
-      const socket = io(formatUrl(localIp), { transports: ["websocket"], reconnection: true, reconnectionDelay: 5000 });
-      socket.on('connect', () => {
-          socket.emit('authenticate', { token: sanitizeToken(apiToken) }, (err: any, success: boolean) => {
-              if (err || !success) console.warn('Homey WebSocket auth failed. Relying on polling.');
-          });
-      });
-      socket.on('capability', (payload: any) => {
-        const { deviceId, capabilityId, value } = payload;
-        setDevices(prev => {
-            if (prev[deviceId] && prev[deviceId].capabilitiesObj[capabilityId]) {
-                const newDevices = { ...prev };
-                newDevices[deviceId] = {
-                    ...newDevices[deviceId],
-                    capabilitiesObj: {
-                        ...newDevices[deviceId].capabilitiesObj,
-                        [capabilityId]: {
-                            ...newDevices[deviceId].capabilitiesObj[capabilityId],
-                            value: value
-                        }
-                    }
-                };
-                return newDevices;
-            }
-            return prev;
-        });
-      });
-      socket.on('connect_error', (err: any) => console.warn(`Homey WebSocket connection error: ${err.message}. Polling will continue.`));
-      socketRef.current = socket;
-    } catch(e) { console.warn("Could not init WebSocket. Relying on polling only."); }
-
-    return () => {
-        clearInterval(pollInterval);
-        if (socketRef.current) socketRef.current.disconnect();
-    };
-  }, [localIp, apiToken, pollingInterval, fetchData]);
-  
-  const handleToggle = async (deviceId: string, currentState: boolean) => {
-      try {
-        const url = `${formatUrl(localIp)}/api/manager/devices/device/${deviceId}/capability/onoff`;
-        const headers = { 'Authorization': `Bearer ${sanitizeToken(apiToken)}`, 'Content-Type': 'application/json' };
-        const body = JSON.stringify({ value: !currentState });
-        const res = await fetch(url, { method: 'PUT', headers, body });
-        if (!res.ok) throw new Error(`API returned status ${res.status}`);
-        fetchData(false);
-      } catch (err) {
-        console.error("Homey toggle command failed:", err);
-        setError("Command failed.");
-        setTimeout(() => setError(null), 3000);
-        fetchData(false);
-      }
+  const handleToggle = (deviceId: string, capabilityId: string, currentState: boolean) => {
+    onOptimisticUpdate(deviceId, capabilityId, !currentState);
+    onToggle(deviceId, capabilityId, currentState);
   };
 
-  const handleTriggerFlow = async (flowId: string) => {
+  const handleTriggerFlow = (flowId: string) => {
     setTriggeredFlowId(flowId);
-    setTimeout(() => setTriggeredFlowId(null), 500); // Visual feedback
-    try {
-        const url = `${formatUrl(localIp)}/api/manager/flow/flow/${flowId}/trigger`;
-        const headers = { 'Authorization': `Bearer ${sanitizeToken(apiToken)}`, 'Content-Type': 'application/json' };
-        const res = await fetch(url, { method: 'POST', headers, body: '{}' });
-        if (!res.ok) throw new Error(`API returned status ${res.status}`);
-    } catch (err) {
-        console.error("Homey flow trigger failed:", err);
-        setError("Flow trigger failed.");
-        setTimeout(() => setError(null), 3000);
-    }
+    setTimeout(() => setTriggeredFlowId(null), 500);
+    onTriggerFlow(flowId);
   };
 
   const groupedCapabilities = useMemo(() => {
@@ -193,8 +78,9 @@ const Homey: React.FC<HomeyProps> = ({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [selectedFlows, flows]);
 
-  if (isLoading) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Connecting to Homey...</div>;
-  if (error) return <div className="flex flex-col items-center justify-center py-4 text-red-400"><p className="text-sm mb-2 text-center">{error}</p><button onClick={() => fetchData(true)} className={`p-2 rounded ${themeClasses.buttonSecondary}`}><ArrowPathIcon className="w-4 h-4" /></button></div>;
+  if (Object.keys(devices).length === 0) {
+    return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>Waiting for data from Homey...</div>;
+  }
   if (selectedCapabilities.length === 0 && selectedFlows.length === 0) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>No items selected. Add them in settings.</div>;
 
   const formatValue = (value: any, units?: string) => {
@@ -231,7 +117,7 @@ const Homey: React.FC<HomeyProps> = ({
                             <div className="flex-shrink-0 ml-2">
                                 {cap.capabilityId === 'onoff' ? (
                                     <button
-                                        onClick={() => handleToggle(cap.deviceId, !!cap.value)}
+                                        onClick={() => handleToggle(cap.deviceId, cap.capabilityId, !!cap.value)}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
                                             cap.value ? 'bg-green-500' : 'bg-slate-600'
                                         }`}

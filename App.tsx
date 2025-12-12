@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
 import Modal from './components/Modal';
@@ -14,13 +16,14 @@ import DonationPopup from './components/DonationPopup';
 import QuotePopup from './components/QuotePopup';
 import HomeyItemSelector from './components/HomeyItemSelector';
 import HomeyCustomSettingsForm from './components/HomeyCustomSettingsForm';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon } from './components/Icons';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon, CpuChipIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-// FIX: Import DraggedItem from types.ts and remove the local definition.
 import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
+// @ts-ignore
+import { io } from "socket.io-client";
 
 // Simple UUID generator
 const uuidv4 = () => {
@@ -122,7 +125,7 @@ const DEFAULT_SETTINGS: Settings = {
   centerContent: false,
   backgroundImage: '',
   showGroupToggles: true,
-  backupReminderInterval: 30, // Days. 0 = Never.
+  backupReminderInterval: 30,
   showQuotes: false,
   quoteCategory: 'inspirational',
   quoteFrequency: 'daily',
@@ -169,10 +172,6 @@ const searchEngines: { [key: string]: { name: string; url: string } } = {
   brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=' },
 };
 
-// FIX: Removed local DraggedItem definition to use the one from types.ts
-
-// FIX: Property 'supportedValuesOf' does not exist on type 'typeof Intl' in some TypeScript configurations.
-// Use optional chaining with a type assertion and provide a fallback to the user's current timezone.
 const timezones = (Intl as any).supportedValuesOf?.('timeZone') ?? [Intl.DateTimeFormat().resolvedOptions().timeZone];
 
 const countries = [
@@ -202,22 +201,16 @@ const TimerSettingsForm: React.FC<{
   const [isStopwatch, setIsStopwatch] = useState(group.widgetSettings?.isStopwatch ?? false);
   const isInputsDisabled = isStopwatch;
 
-  // Determine the default values for the uncontrolled inputs.
-  // These are calculated every render, which is fine because the `key` prop causes a remount.
   let defaultH, defaultM, defaultS, defaultPlaySound, defaultOvertime;
   
   if (isStopwatch) {
-    // If the form is in stopwatch mode, all values are 0/false.
     defaultH = 0;
     defaultM = 0;
     defaultS = 0;
     defaultPlaySound = false;
     defaultOvertime = false;
   } else {
-    // If the form is in timer mode...
     const savedDuration = group.widgetSettings?.timerDuration;
-    // Check if the saved duration is 0. If it is, this was likely a stopwatch.
-    // In this case, when showing the timer form, default to 5 minutes.
     if (savedDuration === 0) {
         defaultH = 0;
         defaultM = 5;
@@ -225,7 +218,6 @@ const TimerSettingsForm: React.FC<{
         defaultPlaySound = true;
         defaultOvertime = false;
     } else {
-        // Otherwise, use the saved duration or the overall default (5 mins).
         const duration = savedDuration ?? 300;
         defaultH = Math.floor(duration / 3600);
         defaultM = Math.floor((duration % 3600) / 60);
@@ -236,7 +228,7 @@ const TimerSettingsForm: React.FC<{
   }
 
   return (
-    <div key={String(isStopwatch)}> {/* Force re-render on toggle to update defaultValues */}
+    <div key={String(isStopwatch)}>
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-700">
         <label htmlFor="isStopwatch" className="text-sm font-medium">Stopwatch Mode</label>
         <label className="relative inline-flex items-center cursor-pointer">
@@ -393,15 +385,30 @@ const WeatherSettingsForm: React.FC<{
   );
 };
 
-const touchDragStyle = `
-  body.touch-dragging, body.touch-dragging * {
-    cursor: grabbing !important;
-    -webkit-touch-callout: none !important;
-    -webkit-user-select: none !important;
-    user-select: none !important;
-    -webkit-tap-highlight-color: transparent !important;
-  }
-`;
+const DragGhost = ({ children, x, y }: { children: React.ReactNode, x: number, y: number }) => {
+  if (!children) return null;
+  return (
+    <div
+      className="fixed top-0 left-0 pointer-events-none z-50 opacity-80"
+      style={{ transform: `translate(${x}px, ${y}px)` }}
+    >
+      {children}
+    </div>
+  );
+};
+
+const GlobalDragStyles = () => (
+    <style>{`
+        body.dragging, body.dragging * {
+            cursor: grabbing !important;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+    `}</style>
+);
+
 
 function App() {
   const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
@@ -409,11 +416,224 @@ function App() {
   const [pageTitle, setPageTitle] = useLocalStorage<string>('startpage-title', 'My Startpage');
   const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
   const [lastBackupDate, setLastBackupDate] = useLocalStorage<string>('startpage-last-backup', '');
-  // Track the installation date to delay initial backup warning
   const [installDate, setInstallDate] = useLocalStorage<string>('startpage-install-date', '');
 
   const columns = useMemo(() => runDataMigrationAndValidation(rawColumns), [rawColumns]);
   const settings = useMemo(() => sanitizeSettings(rawSettings), [rawSettings]);
+
+  // Universal Drag and Drop State
+  const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragGhost, setDragGhost] = useState<React.ReactNode | null>(null);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
+  const [pointerOffset, setPointerOffset] = useState({ x: 0, y: 0 });
+  const [currentDropTarget, setCurrentDropTarget] = useState<{ columnId: string; groupId?: string; itemId?: string } | null>(null);
+  
+  const longPressTimeout = useRef<number | null>(null);
+  const dragStartCoords = useRef<{ x: number, y: number } | null>(null);
+  const isPendingDrag = useRef(false);
+
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [themeClasses, setThemeClasses] = useState<Theme>(themes.default);
+  const [importData, setImportData] = useState<BackupData | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const formRef = useRef<HTMLFormElement>(null);
+  const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
+
+  // --- START OF CENTRAL HOMEY ENGINE ---
+  const [homeyDevices, setHomeyDevices] = useState<any>({});
+  const [homeyZones, setHomeyZones] = useState<any>({});
+  const [homeyFlows, setHomeyFlows] = useState<any>({});
+  const [homeyConnectionState, setHomeyConnectionState] = useState<'disconnected' | 'polling' | 'websocket'>('disconnected');
+  const [homeyLog, setHomeyLog] = useState<string[]>([]);
+  const [homeyLastUpdate, setHomeyLastUpdate] = useState<Date | null>(null);
+  const [homeyCountdown, setHomeyCountdown] = useState(0);
+
+  const homeySocketRef = useRef<any>(null);
+  const homeyHeartbeatRef = useRef<number | null>(null);
+  const homeyHasActiveWidgets = useMemo(() => 
+    columns.some(c => c.groups.some(g => g.widgetType?.startsWith('homey')))
+  , [columns]);
+
+  const addHomeyLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setHomeyLog(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 50));
+  }, []);
+
+  const handleHomeyOptimisticUpdate = useCallback((deviceId: string, capabilityId: string, value: any) => {
+    setHomeyDevices((prev: any) => {
+        if (prev[deviceId] && prev[deviceId].capabilitiesObj[capabilityId]) {
+            const newDevices = { ...prev };
+            newDevices[deviceId] = {
+                ...newDevices[deviceId],
+                capabilitiesObj: {
+                    ...newDevices[deviceId].capabilitiesObj,
+                    [capabilityId]: {
+                        ...newDevices[deviceId].capabilitiesObj[capabilityId],
+                        value: value
+                    }
+                }
+            };
+            return newDevices;
+        }
+        return prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!homeyHasActiveWidgets) {
+        if (homeySocketRef.current) homeySocketRef.current.disconnect();
+        if (homeyHeartbeatRef.current) clearInterval(homeyHeartbeatRef.current);
+        return;
+    }
+
+    const { localIp, apiToken, pollingInterval = 10 } = settings.homey || {};
+
+    if (!localIp || !apiToken) {
+        setHomeyConnectionState('disconnected');
+        addHomeyLog("Error: Homey IP/Token not set.");
+        return;
+    }
+
+    const url = localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`;
+    const token = apiToken.replace(/^Bearer\s+/i, '').trim();
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    // WebSocket Logic
+    if (homeySocketRef.current) homeySocketRef.current.disconnect();
+    try {
+        const socket = io(`${url}/api/`, { transports: ["websocket"], reconnection: true, reconnectionDelay: 5000 });
+        homeySocketRef.current = socket;
+
+        socket.on('connect', () => addHomeyLog("WS: Connecting..."));
+        socket.on('authenticated', () => {
+            setHomeyConnectionState('websocket');
+            addHomeyLog("WS: Authenticated & Connected.");
+            setHomeyLastUpdate(new Date());
+        });
+        socket.on('capability', (payload: any) => {
+            if (homeyConnectionState !== 'websocket') setHomeyConnectionState('websocket');
+            setHomeyLastUpdate(new Date());
+            handleHomeyOptimisticUpdate(payload.deviceId, payload.capabilityId, payload.value);
+        });
+        socket.on('disconnect', (reason: string) => {
+            setHomeyConnectionState('polling');
+            addHomeyLog(`WS: Disconnected (${reason}). Falling back to polling.`);
+        });
+        socket.on('connect_error', (err: any) => {
+            if (homeyConnectionState !== 'polling') {
+                setHomeyConnectionState('polling');
+                addHomeyLog(`WS: Connect Error (${err.message}).`);
+            }
+        });
+
+        socket.emit('authenticate', { token });
+    } catch (e) {
+        addHomeyLog(`WS: Init failed. ${e instanceof Error ? e.message : 'Unknown'}`);
+        setHomeyConnectionState('polling');
+    }
+
+    // --- REFACTORED UNIFIED POLLING AND COUNTDOWN LOGIC ---
+    const poll = async () => {
+        if (homeySocketRef.current?.connected) {
+            if (homeyConnectionState !== 'websocket') setHomeyConnectionState('websocket');
+            return;
+        }
+        if (homeyConnectionState !== 'polling') setHomeyConnectionState('polling');
+        addHomeyLog("Polling: Fetching data...");
+        try {
+            const [devicesRes, zonesRes, flowsRes] = await Promise.all([
+                fetch(`${url}/api/manager/devices/device`, { headers }),
+                fetch(`${url}/api/manager/zones/zone`, { headers }),
+                fetch(`${url}/api/manager/flow/flow`, { headers })
+            ]);
+            if (!devicesRes.ok || !zonesRes.ok || !flowsRes.ok) throw new Error("One or more API calls failed.");
+
+            const [devicesData, zonesData, flowsData] = await Promise.all([devicesRes.json(), zonesRes.json(), flowsRes.json()]);
+            
+            setHomeyDevices(devicesData);
+            setHomeyZones(zonesData);
+            setHomeyFlows(flowsData);
+            setHomeyLastUpdate(new Date());
+            addHomeyLog("Polling: Success.");
+        } catch (err) {
+            addHomeyLog(`Polling: Failed. ${err instanceof Error ? err.message : 'Unknown'}.`);
+            setHomeyConnectionState('disconnected');
+        }
+    };
+    
+    // Clear any old timer
+    if (homeyHeartbeatRef.current) clearInterval(homeyHeartbeatRef.current);
+
+    // Initial poll, then set up the heartbeat
+    poll(); 
+    
+    let tick = 0;
+    setHomeyCountdown(pollingInterval);
+
+    const heartbeat = () => {
+        tick = (tick + 1) % pollingInterval;
+        
+        // Update the visible countdown
+        setHomeyCountdown(pollingInterval - tick);
+        
+        // When tick is 0, a full cycle has passed, so poll.
+        if (tick === 0) {
+            poll();
+        }
+    };
+    
+    homeyHeartbeatRef.current = window.setInterval(heartbeat, 1000);
+
+    return () => {
+        if (homeySocketRef.current) homeySocketRef.current.disconnect();
+        if (homeyHeartbeatRef.current) clearInterval(homeyHeartbeatRef.current);
+    };
+  }, [homeyHasActiveWidgets, settings.homey, addHomeyLog, handleHomeyOptimisticUpdate]);
+
+  const handleHomeyToggle = async (deviceId: string, capabilityId: string, currentState: boolean) => {
+    const { localIp, apiToken } = settings.homey || {};
+    if (!localIp || !apiToken) return;
+    handleHomeyOptimisticUpdate(deviceId, capabilityId, !currentState);
+    try {
+        const url = `${localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`}/api/manager/devices/device/${deviceId}/capability/${capabilityId}`;
+        const headers = { 'Authorization': `Bearer ${apiToken.replace(/^Bearer\s+/i, '').trim()}`, 'Content-Type': 'application/json' };
+        await fetch(url, { method: 'PUT', body: JSON.stringify({ value: !currentState }), headers });
+    } catch (e) { console.error("Homey command failed", e); }
+  };
+
+  const handleHomeyTriggerFlow = async (flowId: string) => {
+      const { localIp, apiToken } = settings.homey || {};
+      if (!localIp || !apiToken) return;
+      try {
+          const url = `${localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`}/api/manager/flow/flow/${flowId}/trigger`;
+          const headers = { 'Authorization': `Bearer ${apiToken.replace(/^Bearer\s+/i, '').trim()}`, 'Content-Type': 'application/json' };
+          await fetch(url, { method: 'POST', headers, body: '{}' });
+      } catch (err) { console.error("Homey flow trigger failed:", err); }
+  };
+
+  // --- END OF CENTRAL HOMEY ENGINE ---
+
+  const isBackupOverdue = useMemo(() => {
+      if (!settings.backupReminderInterval || settings.backupReminderInterval === 0) return false;
+      
+      const now = Date.now();
+      let referenceTime: number;
+
+      if (lastBackupDate) {
+          referenceTime = new Date(lastBackupDate).getTime();
+      } else if (installDate) {
+          referenceTime = new Date(installDate).getTime();
+      } else {
+          return false;
+      }
+
+      const daysSince = (now - referenceTime) / (1000 * 60 * 60 * 24);
+      return daysSince > settings.backupReminderInterval;
+  }, [lastBackupDate, installDate, settings.backupReminderInterval]);
 
   useEffect(() => {
     if (JSON.stringify(rawColumns) !== JSON.stringify(columns)) {
@@ -427,135 +647,11 @@ function App() {
     }
   }, [rawSettings, settings, setSettings]);
 
-  // Set install date if not present
   useEffect(() => {
     if (!installDate) {
         setInstallDate(new Date().toISOString());
     }
   }, [installDate, setInstallDate]);
-
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [modal, setModal] = useState<ModalState | null>(null);
-  const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [themeClasses, setThemeClasses] = useState<Theme>(themes.default);
-  const [importData, setImportData] = useState<BackupData | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const formRef = useRef<HTMLFormElement>(null);
-  const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
-
-  // New state for touch drag & drop
-  const [touchDragItem, setTouchDragItem] = useState<DraggedItem>(null);
-  const [touchDragOverTarget, setTouchDragOverTarget] = useState<{ columnId: string; groupId?: string; itemId?: string } | null>(null);
-  const touchStartTimeoutRef = useRef<number | null>(null);
-  const hasDraggedRef = useRef(false);
-
-  // The main handler for touch start, which initiates a long-press drag
-  const handleTouchStart = (e: React.TouchEvent, item: DraggedItem) => {
-    if (!isEditMode || !item) return;
-
-    if (touchStartTimeoutRef.current) {
-      clearTimeout(touchStartTimeoutRef.current);
-    }
-    hasDraggedRef.current = false;
-
-    touchStartTimeoutRef.current = window.setTimeout(() => {
-      e.preventDefault();
-      if ('vibrate' in navigator) navigator.vibrate(50);
-      setTouchDragItem(item);
-    }, 200);
-  };
-
-  // Global touch move handler
-  const handleTouchMove = (e: TouchEvent) => {
-    if (!touchDragItem) {
-      if (touchStartTimeoutRef.current) {
-        clearTimeout(touchStartTimeoutRef.current);
-        touchStartTimeoutRef.current = null;
-      }
-      return;
-    };
-
-    e.preventDefault();
-    hasDraggedRef.current = true;
-
-    const touch = e.touches[0];
-    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-    
-    let dropTarget = targetElement?.closest('[data-drop-target]');
-    
-    if (dropTarget) {
-      const dataset = (dropTarget as HTMLElement).dataset;
-      setTouchDragOverTarget({
-        columnId: dataset.columnId || '',
-        groupId: dataset.groupId,
-        itemId: dataset.itemId
-      });
-    } else {
-      setTouchDragOverTarget(null);
-    }
-  };
-  
-  // Global touch end handler
-  const handleTouchEnd = (e: TouchEvent) => {
-    if (touchStartTimeoutRef.current) {
-      clearTimeout(touchStartTimeoutRef.current);
-      touchStartTimeoutRef.current = null;
-    }
-
-    if (touchDragItem && hasDraggedRef.current) {
-      e.preventDefault();
-      if (touchDragOverTarget) {
-        handleDrop(touchDragOverTarget);
-      }
-    }
-    
-    setDraggedItem(null); // Also clear mouse drag item just in case
-    setTouchDragItem(null);
-    setTouchDragOverTarget(null);
-    hasDraggedRef.current = false;
-  };
-  
-  // Effect to add/remove global listeners for touch drag
-  useEffect(() => {
-    if (touchDragItem) {
-      window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', handleTouchEnd, { passive: false });
-      document.body.classList.add('touch-dragging');
-    } else {
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      document.body.classList.remove('touch-dragging');
-    }
-
-    return () => {
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      document.body.classList.remove('touch-dragging');
-    };
-  }, [touchDragItem]);
-
-  // Check for overdue backup
-  const isBackupOverdue = useMemo(() => {
-      if (!settings.backupReminderInterval || settings.backupReminderInterval === 0) return false;
-      
-      const now = Date.now();
-      let referenceTime: number;
-
-      if (lastBackupDate) {
-          referenceTime = new Date(lastBackupDate).getTime();
-      } else if (installDate) {
-          // If never backed up, count from install date
-          referenceTime = new Date(installDate).getTime();
-      } else {
-          // Fallback if installDate hasn't been set yet (initial render)
-          return false;
-      }
-
-      const daysSince = (now - referenceTime) / (1000 * 60 * 60 * 24);
-      return daysSince > settings.backupReminderInterval;
-  }, [lastBackupDate, installDate, settings.backupReminderInterval]);
 
   useEffect(() => {
     document.title = pageTitle;
@@ -609,7 +705,6 @@ function App() {
     }
   }, [modal]);
 
-  // Headless modal action for reordering flow buttons
   useEffect(() => {
     if (modal?.type === 'moveFlowButton') {
         const { direction, button, holderId, groupId, columnId } = modal.data;
@@ -625,7 +720,6 @@ function App() {
                 if (index > -1) {
                     const newIndex = direction === 'left' ? index - 1 : index + 1;
                     if (newIndex >= 0 && newIndex < holder.buttons.length) {
-                        // Swap elements
                         const temp = holder.buttons[index];
                         holder.buttons[index] = holder.buttons[newIndex];
                         holder.buttons[newIndex] = temp;
@@ -635,41 +729,163 @@ function App() {
             return newColumns;
         });
         
-        closeModal(); // Action is instant, close modal right away
+        closeModal();
     }
 }, [modal]);
 
-
-  // When entering edit mode, expand all groups. When exiting, restore collapsed state.
   useEffect(() => {
-      if (isEditMode) {
-          // Store collapsed IDs
-          const collapsedIds = new Set<string>();
-          columns.forEach(col => {
-              col.groups.forEach(g => {
-                  if (g.isCollapsed) collapsedIds.add(g.id);
-              });
-          });
-          collapsedGroupsBeforeEdit.current = collapsedIds;
+    if (isEditMode) {
+      const collapsedIds = new Set<string>();
+      columns.forEach(col => {
+        col.groups.forEach(g => {
+          if (g.isCollapsed) collapsedIds.add(g.id);
+        });
+      });
+      collapsedGroupsBeforeEdit.current = collapsedIds;
 
-          // Expand all if any are collapsed
-          if (collapsedIds.size > 0) {
-              setColumns(cols => cols.map(c => ({
-                  ...c,
-                  groups: c.groups.map(g => g.isCollapsed ? { ...g, isCollapsed: false } : g)
-              })));
-          }
-      } else {
-          // Restore collapsed state
-          if (collapsedGroupsBeforeEdit.current.size > 0) {
-              setColumns(cols => cols.map(c => ({
-                  ...c,
-                  groups: c.groups.map(g => collapsedGroupsBeforeEdit.current.has(g.id) ? { ...g, isCollapsed: true } : g)
-              })));
-              collapsedGroupsBeforeEdit.current.clear();
-          }
+      if (collapsedIds.size > 0) {
+        setColumns(cols => cols.map(c => ({
+          ...c,
+          groups: c.groups.map(g => g.isCollapsed ? { ...g, isCollapsed: false } : g)
+        })));
       }
+    } else {
+      if (collapsedGroupsBeforeEdit.current.size > 0) {
+        setColumns(cols => cols.map(c => ({
+          ...c,
+          groups: c.groups.map(g => collapsedGroupsBeforeEdit.current.has(g.id) ? { ...g, isCollapsed: true } : g)
+        })));
+        // Clear the memory after restoring
+        collapsedGroupsBeforeEdit.current.clear();
+      }
+    }
   }, [isEditMode]);
+
+  const handlePointerUp = useCallback(() => {
+    if (isPendingDrag.current && longPressTimeout.current) {
+        clearTimeout(longPressTimeout.current);
+        longPressTimeout.current = null;
+    }
+    isPendingDrag.current = false;
+    dragStartCoords.current = null;
+
+    if (isDragging) {
+        if (currentDropTarget) {
+            handleDrop(currentDropTarget);
+        }
+        setIsDragging(false);
+        setDraggedItem(null);
+        setDragGhost(null);
+        setCurrentDropTarget(null);
+        document.body.classList.remove('dragging');
+    }
+
+    window.removeEventListener('mousemove', handlePointerMove);
+    window.removeEventListener('mouseup', handlePointerUp);
+    window.removeEventListener('touchmove', handlePointerMove);
+    window.removeEventListener('touchend', handlePointerUp);
+    window.removeEventListener('touchcancel', handlePointerUp);
+  }, [isDragging, currentDropTarget]);
+
+  const handlePointerMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (isPendingDrag.current) {
+        const { clientX, clientY } = 'touches' in e ? e.touches[0] : e;
+        const start = dragStartCoords.current;
+        if (start) {
+            const dx = Math.abs(clientX - start.x);
+            const dy = Math.abs(clientY - start.y);
+            if (dx > 5 || dy > 5) { // If user scrolls, cancel drag
+                isPendingDrag.current = false;
+                if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+            }
+        }
+        return;
+    }
+    
+    if (!isDragging) return;
+
+    if ('touches' in e) {
+        e.preventDefault(); // Prevent scroll on touch devices
+    }
+
+    const { clientX, clientY } = 'touches' in e ? e.touches[0] : e;
+    setPointerPosition({ x: clientX, y: clientY });
+
+    let elementUnderPointer = document.elementFromPoint(clientX, clientY);
+    let droppableElement = elementUnderPointer?.closest('[data-droppable]');
+
+    if (droppableElement) {
+        const { droppable, columnId, groupId, itemId } = (droppableElement as HTMLElement).dataset;
+        if (droppable) {
+            setCurrentDropTarget({ columnId: columnId!, groupId, itemId });
+        }
+    } else {
+        setCurrentDropTarget(null);
+    }
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (isDragging) {
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+        window.addEventListener('touchmove', handlePointerMove, { passive: false });
+        window.addEventListener('touchend', handlePointerUp);
+        window.addEventListener('touchcancel', handlePointerUp);
+    }
+    return () => {
+        window.removeEventListener('mousemove', handlePointerMove);
+        window.removeEventListener('mouseup', handlePointerUp);
+        window.removeEventListener('touchmove', handlePointerMove);
+        window.removeEventListener('touchend', handlePointerUp);
+        window.removeEventListener('touchcancel', handlePointerUp);
+    };
+  }, [isDragging, handlePointerMove, handlePointerUp]);
+
+  const handlePointerDown = (
+    e: React.MouseEvent | React.TouchEvent,
+    item: DraggedItem,
+    elementRef: HTMLElement | null
+  ) => {
+    if (!isEditMode || !elementRef) return;
+    
+    const isTouchEvent = 'touches' in e;
+    
+    const { clientX, clientY } = isTouchEvent ? e.touches[0] : e;
+    dragStartCoords.current = { x: clientX, y: clientY };
+    setDraggedItem(item);
+    
+    const startDrag = () => {
+        isPendingDrag.current = false;
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        const rect = elementRef.getBoundingClientRect();
+        const offsetX = clientX - rect.left;
+        const offsetY = clientY - rect.top;
+
+        setPointerOffset({ x: offsetX, y: offsetY });
+        setPointerPosition({ x: clientX, y: clientY });
+
+        const clone = elementRef.cloneNode(true) as HTMLElement;
+        clone.style.width = `${rect.width}px`;
+        clone.style.height = `${rect.height}px`;
+        clone.id = 'drag-ghost';
+        
+        setDragGhost(
+          <div className="opacity-80" dangerouslySetInnerHTML={{ __html: clone.outerHTML }} />
+        );
+        
+        setIsDragging(true);
+        document.body.classList.add('dragging');
+    };
+
+    if (isTouchEvent) {
+        isPendingDrag.current = true;
+        longPressTimeout.current = window.setTimeout(startDrag, 200);
+    } else {
+        startDrag();
+    }
+  };
+
 
   const openModal = (type: ModalState['type'], data?: any) => setModal({ type, data });
   const closeModal = () => {
@@ -780,21 +996,17 @@ function App() {
         break;
       }
       case 'editWidgetSettings': {
-        // ... (existing widget settings logic) ...
         const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) {
-            // Generic settings that can apply to many widgets/groups
             if (name) group.name = name;
             if (formData.has('colorVariant')) group.colorVariant = formData.get('colorVariant');
             if (!group.widgetSettings) group.widgetSettings = {};
             
-            // Link Group specific setting
             if (group.type !== 'widget') {
               group.widgetSettings.compactMode = formData.has('compactMode');
             }
 
-            // Widget-specific settings
             if (group.widgetType === 'weather') {
                 group.widgetSettings.city = formData.get('city') as string;
                 group.widgetSettings.weatherShowForecast = formData.has('weatherShowForecast');
@@ -909,11 +1121,9 @@ function App() {
           if (group) {
               const textContent = formData.get('textContent') as string;
               if (modal.data.item) {
-                  // Edit existing
                   const item = group.items.find((i: any) => i.id === modal.data.item.id);
                   if (item && item.type === 'text') item.content = textContent;
               } else {
-                  // Add new
                   group.items.push({ id: uuidv4(), type: 'text', content: textContent });
               }
               setColumns(newColumns);
@@ -927,7 +1137,6 @@ function App() {
         if (group) {
             const item = group.items.find((i: any) => i.id === modalItem.id);
             if (item && (item.type === 'homey_capability' || item.type === 'homey_flow' || item.type === 'button_holder')) {
-                // Set to undefined if empty to remove the property
                 item.customName = customName.trim() ? customName.trim() : undefined; 
             }
         }
@@ -949,7 +1158,7 @@ function App() {
               if (modal.type === 'addFlowButton') {
                   const newButton: FlowButton = { id: uuidv4(), flowId, symbol, flowName };
                   holder.buttons.push(newButton);
-              } else { // editFlowButton
+              } else {
                   const buttonToEdit = holder.buttons.find(b => b.id === button.id);
                   if (buttonToEdit) {
                       buttonToEdit.flowId = flowId;
@@ -1012,7 +1221,6 @@ function App() {
 
     let newWidget: Group;
 
-    // ... (existing widget types) ...
     if (widgetType === 'weather') {
         newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone, weatherUpdateInterval: 60 } };
     } else if (widgetType === 'clock') {
@@ -1053,6 +1261,8 @@ function App() {
         newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
     } else if (widgetType === 'homey_custom') {
         newWidget = { id: uuidv4(), name: "Homey Pro Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
+    } else if (widgetType === 'homey_status') {
+        newWidget = { id: uuidv4(), name: "Homey Pro Status", items: [], type: 'widget', widgetType: 'homey_status' };
     } else {
         return;
     }
@@ -1064,7 +1274,6 @@ function App() {
 
   const handleToggleEditMode = () => {
     setIsEditMode(!isEditMode);
-    setDraggedItem(null);
   };
 
   const handleDelete = () => {
@@ -1101,19 +1310,13 @@ function App() {
     closeModal();
   };
 
-  const handleDragStart = (item: DraggedItem) => {
-    setDraggedItem(item);
-  };
-
   const handleDrop = (target: { columnId: string; groupId?: string; itemId?: string }) => {
-    const itemToDrop = draggedItem || touchDragItem;
-    if (!itemToDrop) return;
+    if (!draggedItem) return;
 
     const newColumns = JSON.parse(JSON.stringify(columns));
 
-    // Handle Column Reordering
-    if (itemToDrop.type === 'column') {
-        const sourceIndex = newColumns.findIndex((c: Column) => c.id === itemToDrop.column.id);
+    if (draggedItem.type === 'column') {
+        const sourceIndex = newColumns.findIndex((c: Column) => c.id === draggedItem.column.id);
         const targetIndex = newColumns.findIndex((c: Column) => c.id === target.columnId);
         
         if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
@@ -1122,63 +1325,55 @@ function App() {
             setColumns(newColumns);
         }
     } 
-    // Handle Group Reordering
-    else if (itemToDrop.type === 'group') {
-        const sourceCol = newColumns.find((c: Column) => c.id === itemToDrop.sourceColumnId);
+    else if (draggedItem.type === 'group') {
+        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
         const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
         
         if (sourceCol && targetCol) {
-            const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === itemToDrop.group.id);
+            const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === draggedItem.group.id);
             if (sourceGroupIndex !== -1) {
                 const [movedGroup] = sourceCol.groups.splice(sourceGroupIndex, 1);
                 
                 if (target.groupId) {
                     const targetGroupIndex = targetCol.groups.findIndex((g: Group) => g.id === target.groupId);
                     if (targetGroupIndex !== -1) {
-                        // Drop onto a group: insert at that position
                         targetCol.groups.splice(targetGroupIndex, 0, movedGroup);
                     } else {
                         targetCol.groups.push(movedGroup);
                     }
                 } else {
-                    // Drop onto a column (empty space or header): append
                     targetCol.groups.push(movedGroup);
                 }
                 setColumns(newColumns);
             }
         }
     }
-    // Handle Item (Link/Separator) Reordering
-    else if (itemToDrop.type === 'groupItem') {
-        const sourceCol = newColumns.find((c: Column) => c.id === itemToDrop.sourceColumnId);
-        const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === itemToDrop.sourceGroupId);
+    else if (draggedItem.type === 'groupItem') {
+        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
+        const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
         
         const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
         const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
 
         if (sourceGroup && targetGroup) {
-            // New compatibility check
-            const itemType = itemToDrop.item.type;
+            const itemType = draggedItem.item.type;
             const isTargetLinkGroup = !targetGroup.widgetType || targetGroup.type === 'links';
             const isTargetHomeyCustom = targetGroup.widgetType === 'homey_custom';
 
             let isCompatible = false;
             if (itemType === 'separator') {
-                isCompatible = true; // Separators are universal
+                isCompatible = true;
             } else if (isTargetLinkGroup) {
                 isCompatible = ['link'].includes(itemType);
             } else if (isTargetHomeyCustom) {
                 isCompatible = ['homey_capability', 'homey_flow', 'text', 'button_holder'].includes(itemType);
             }
 
-            // If moving to a different group and it's not compatible, cancel.
             if (sourceGroup.id !== targetGroup.id && !isCompatible) {
-                setDraggedItem(null);
-                setTouchDragItem(null);
                 return;
             }
 
-            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === itemToDrop.item.id);
+            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === draggedItem.item.id);
             if (sourceItemIndex !== -1) {
                 const [movedItem] = sourceGroup.items.splice(sourceItemIndex, 1);
                 
@@ -1190,16 +1385,12 @@ function App() {
                         targetGroup.items.push(movedItem);
                     }
                 } else {
-                    // Dropped on group header or empty area in group
                     targetGroup.items.push(movedItem);
                 }
                 setColumns(newColumns);
             }
         }
     }
-
-    setDraggedItem(null);
-    setTouchDragItem(null);
   };
 
   const handleToggleGroupCollapsed = (columnId: string, groupId: string) => {
@@ -1523,6 +1714,7 @@ function App() {
             <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Web)</span></button>
             <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Auto Zones</span></button>
             <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Custom</span></button>
+            <button onClick={() => handleAddWidget('homey_status', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CpuChipIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Status</span></button>
           </div>
         );
 
@@ -1542,8 +1734,6 @@ function App() {
         );
     }
     
-    // ... importConfirm, resetConfirm, delete ...
-
     if (type === 'importConfirm') {
         return (
           <div>
@@ -1683,7 +1873,6 @@ function App() {
 
         return (
             <form onSubmit={handleFormSubmit} ref={formRef}>
-                {/* For Homey, the form is self-contained. For others, show generic fields. */}
                 {group.widgetType !== 'homey' && (
                     <>
                         <div className="mb-4">
@@ -1798,7 +1987,7 @@ function App() {
       case 'editLink': return 'Edit Link';
       case 'deleteColumn': return 'Delete Column';
       case 'deleteGroup': return 'Delete Group';
-      case 'deleteItem': return `Delete ${modal.data.item.type === 'link' ? 'Link' : 'Separator'}`;
+      case 'deleteItem': return `Delete ${modal.data.item.type === 'link' ? 'Link' : 'this item'}`;
       case 'importConfirm': return 'Confirm Import';
       case 'resetConfirm': return 'Confirm Reset';
       case 'addWidget': return 'Add to Column';
@@ -1812,7 +2001,7 @@ function App() {
       case 'addFlowButton': return 'Add Flow Button';
       case 'editFlowButton': return 'Edit Flow Button';
       case 'deleteFlowButton': return 'Delete Button';
-      case 'moveFlowButton': return ''; // Headless
+      case 'moveFlowButton': return '';
       default: return '';
     }
   };
@@ -1829,51 +2018,34 @@ function App() {
   
   const FlowButtonForm = () => {
       const { button } = modal?.data || {};
-      const [flows, setFlows] = useState<{ id: string, name: string }[]>([]);
       const [isLoading, setIsLoading] = useState(true);
       const [error, setError] = useState<string | null>(null);
 
+      const SPACER_ID = '---SPACER---';
+
+      const sortedFlows = useMemo(() => Object.values(homeyFlows)
+          .filter((flow: any) => flow.triggerable)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name)),
+      [homeyFlows]);
+
       useEffect(() => {
-          const fetchFlows = async () => {
-              const { homey } = settings;
-              if (!homey?.localIp || !homey?.apiToken) {
-                  setError("Homey IP and Token must be configured in global Settings first.");
-                  setIsLoading(false);
-                  return;
-              }
-              setIsLoading(true);
-              setError(null);
+          if (!homeyHasActiveWidgets) {
+              setError("Homey functionality is not active.");
+              setIsLoading(false);
+          } else if (Object.keys(homeyFlows).length > 0) {
+              setIsLoading(false);
+          }
+          // If loading, the central engine will provide the data
+      }, [homeyFlows, homeyHasActiveWidgets]);
 
-              const cleanToken = homey.apiToken.replace(/^Bearer\s+/i, '').trim();
-              const formattedIp = homey.localIp.trim().startsWith('http') ? homey.localIp.trim() : `http://${homey.localIp.trim()}`;
-              const headers = { 'Authorization': `Bearer ${cleanToken}` };
-
-              try {
-                  const res = await fetch(`${formattedIp}/api/manager/flow/flow`, { headers });
-                  if (!res.ok) throw new Error('Failed to fetch flows.');
-                  const data = await res.json();
-                  const triggerableFlows = Object.values(data)
-                      .filter((flow: any) => flow.triggerable)
-                      .map((flow: any) => ({ id: flow.id, name: flow.name }))
-                      .sort((a, b) => a.name.localeCompare(b.name));
-                  setFlows(triggerableFlows);
-              } catch (err) {
-                  setError(err instanceof Error ? err.message : "An unknown error occurred.");
-              } finally {
-                  setIsLoading(false);
-              }
-          };
-          fetchFlows();
-      }, []);
-
-      if (isLoading) return <div className="text-center p-4">Loading flows...</div>;
+      if (isLoading) return <div className="text-center p-4">Loading flows from central engine...</div>;
       if (error) return <div className="text-center p-4 text-red-400">{error}</div>;
 
       return (
           <form onSubmit={handleFormSubmit} ref={formRef}>
               <div className="space-y-4">
                   <div>
-                      <label htmlFor="flowId" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Flow</label>
+                      <label htmlFor="flowId" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Action</label>
                       <select
                           id="flowId"
                           name="flowId"
@@ -1881,24 +2053,25 @@ function App() {
                           required
                           className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                       >
-                          {flows.map(flow => (
+                          <option value={`${SPACER_ID}|No Action (Spacer)`}>--- No Action (Spacer) ---</option>
+                          {sortedFlows.map((flow: any) => (
                               <option key={flow.id} value={`${flow.id}|${flow.name}`}>{flow.name}</option>
                           ))}
                       </select>
                   </div>
                   <div>
-                      <label htmlFor="symbol" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Button Symbol</label>
+                      <label htmlFor="symbol" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Button Symbol (optional for spacer)</label>
                       <input
                           type="text"
                           id="symbol"
                           name="symbol"
                           defaultValue={button?.symbol || ''}
-                          required
                           maxLength={3}
                           placeholder="e.g. Vol, 🔊"
                           className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                       />
                       <p className="text-xs text-slate-500 mt-1">Up to 3 characters or an emoji.</p>
+                      <p className="text-xs text-slate-500 mt-1">In Windows press: "WIN - ."</p>
                   </div>
               </div>
               <div className="flex justify-end gap-3 pt-6">
@@ -1911,8 +2084,12 @@ function App() {
 
   return (
     <>
-      <style>{touchDragStyle}</style>
       <ThemeStyles theme={themeClasses} />
+      {isDragging && <GlobalDragStyles />}
+      <DragGhost x={pointerPosition.x - pointerOffset.x} y={pointerPosition.y - pointerOffset.y}>
+        {dragGhost}
+      </DragGhost>
+
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
         <header className="flex-shrink-0 grid grid-cols-[1fr_2fr_1fr] items-end gap-4 mb-6">
           <div className="justify-self-start w-full min-w-0">
@@ -1951,14 +2128,11 @@ function App() {
               <ColumnComponent
                 key={col.id}
                 column={col}
-                allColumns={columns} // Pass all columns here
+                allColumns={columns}
                 isEditMode={isEditMode}
-                onDragStart={handleDragStart}
-                onDrop={handleDrop}
+                onPointerDown={handlePointerDown}
                 draggedItem={draggedItem}
-                touchDragItem={touchDragItem}
-                handleTouchStart={handleTouchStart}
-                touchDragOverTarget={touchDragOverTarget}
+                dropTarget={currentDropTarget}
                 openModal={openModal}
                 groupGap={settings.groupGap}
                 showColumnTitles={isEditMode || settings.showColumnTitles}
@@ -1973,6 +2147,16 @@ function App() {
                 onScratchpadChange={handleScratchpadChange}
                 showGroupToggles={settings.showGroupToggles}
                 homeyGlobalSettings={settings.homey}
+                homeyDevices={homeyDevices}
+                homeyZones={homeyZones}
+                homeyFlows={homeyFlows}
+                homeyConnectionState={homeyConnectionState}
+                homeyLastUpdate={homeyLastUpdate}
+                homeyCountdown={homeyCountdown}
+                homeyLog={homeyLog}
+                onHomeyToggle={handleHomeyToggle}
+                onHomeyTriggerFlow={handleHomeyTriggerFlow}
+                onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
               />
             ))}
 

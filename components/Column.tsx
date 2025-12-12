@@ -1,19 +1,18 @@
 import React from 'react';
-import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, GroupItemType, AnyItemType } from '../types';
+import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, AnyItemType } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
 
+type DropTarget = { columnId: string; groupId?: string; itemId?: string; } | null;
+
 interface ColumnProps {
   column: Column;
-  allColumns: Column[]; // Added to pass down global state
+  allColumns: Column[];
   isEditMode: boolean;
-  onDragStart: (item: DraggedItem) => void;
-  onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
+  onPointerDown: (e: React.MouseEvent | React.TouchEvent, item: DraggedItem, elementRef: HTMLElement | null) => void;
   draggedItem: DraggedItem;
-  touchDragItem: DraggedItem;
-  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
-  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
+  dropTarget: DropTarget;
   openModal: (type: ModalState['type'], data?: any) => void;
   groupGap: number;
   showColumnTitles: boolean;
@@ -28,68 +27,45 @@ interface ColumnProps {
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
   homeyGlobalSettings?: Settings['homey'];
+  // Central Homey Engine Props
+  homeyDevices: any;
+  homeyZones: any;
+  homeyFlows: any;
+  homeyConnectionState: 'websocket' | 'polling' | 'disconnected';
+  homeyLastUpdate: Date | null;
+  homeyCountdown: number;
+  homeyLog: string[];
+  onHomeyToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
+  onHomeyTriggerFlow: (flowId: string) => void;
+  onHomeyOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, allColumns, isEditMode, onDragStart, onDrop, draggedItem, touchDragItem, handleTouchStart, touchDragOverTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
+  column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
+  // Central Homey Engine Props
+  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate
 }) => {
-  const [isMouseDragOver, setIsMouseDragOver] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!draggedItem && !touchDragItem) {
-      setIsMouseDragOver(false);
-    }
-  }, [draggedItem, touchDragItem]);
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isEditMode || !draggedItem) return;
-    if (draggedItem.type === 'group' || (draggedItem.type === 'column' && draggedItem.column.id !== column.id)) {
-      e.preventDefault();
-      setIsMouseDragOver(true);
-    }
-  };
-
-  const handleDragLeave = () => setIsMouseDragOver(false);
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isEditMode || !draggedItem) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (draggedItem.type === 'group') {
-      onDrop({ columnId: column.id });
-    } else if (draggedItem.type === 'column') {
-      onDrop({ columnId: column.id });
-    }
-    setIsMouseDragOver(false);
-  };
+  const columnRef = React.useRef<HTMLDivElement>(null);
   
-  const isDraggingThis = isEditMode && ((draggedItem?.type === 'column' && draggedItem.column.id === column.id) || (touchDragItem?.type === 'column' && touchDragItem.column.id === column.id));
-
-  const isTouchDragOver = touchDragItem && 
-    (touchDragItem.type === 'group' || (touchDragItem.type === 'column' && touchDragItem.column.id !== column.id)) &&
-    touchDragOverTarget?.columnId === column.id && 
-    !touchDragOverTarget.groupId;
-
-  const isDragOver = isMouseDragOver || isTouchDragOver;
+  const isDropTarget = dropTarget?.columnId === column.id && !dropTarget.groupId;
+  const isDraggingThis = isEditMode && draggedItem?.type === 'column' && draggedItem.column.id === column.id;
 
   return (
     <div
+      ref={columnRef}
       style={widthStyle}
-      draggable={isEditMode}
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        onDragStart({ type: 'column', column });
-      }}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onTouchStart={(e) => handleTouchStart(e, { type: 'column', column })}
-      data-drop-target="column"
+      data-droppable="column"
       data-column-id={column.id}
-      className={`flex-shrink-0 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''}`}
+      onContextMenu={(e) => { if (isEditMode) e.preventDefault(); }}
+      className={`flex-shrink-0 rounded-lg transition-all duration-200 h-fit ${themeClasses.columnBg} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       {showColumnTitles && (
-        <div className="flex justify-between items-start mb-4 group/header p-2">
+        <div 
+          className="flex justify-between items-start mb-4 group/header p-2"
+          style={isEditMode ? { touchAction: 'none', userSelect: 'none' } : {}}
+          onMouseDown={(e) => onPointerDown(e, { type: 'column', column }, columnRef.current)}
+          onTouchStart={(e) => onPointerDown(e, { type: 'column', column }, columnRef.current)}
+        >
           <div className="flex items-start gap-2 min-w-0">
             {isEditMode && <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1" />}
             <h2 className={`text-xl font-bold ${themeClasses.header} break-all`}>{column.name}</h2>
@@ -116,15 +92,12 @@ const ColumnComponent: React.FC<ColumnProps> = ({
           <GroupItem
             key={group.id}
             group={group}
-            allColumns={allColumns} // Pass down global columns
+            allColumns={allColumns}
             columnId={column.id}
             isEditMode={isEditMode}
-            onDragStart={onDragStart}
-            onDrop={onDrop}
+            onPointerDown={onPointerDown}
             draggedItem={draggedItem}
-            touchDragItem={touchDragItem}
-            handleTouchStart={handleTouchStart}
-            touchDragOverTarget={touchDragOverTarget}
+            dropTarget={dropTarget}
             openModal={openModal}
             onToggleGroupCollapsed={onToggleGroupCollapsed}
             themeClasses={themeClasses}
@@ -135,6 +108,17 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onScratchpadChange={onScratchpadChange}
             showGroupToggles={showGroupToggles}
             homeyGlobalSettings={homeyGlobalSettings}
+            // Pass central homey props down
+            homeyDevices={homeyDevices}
+            homeyZones={homeyZones}
+            homeyFlows={homeyFlows}
+            homeyConnectionState={homeyConnectionState}
+            homeyLastUpdate={homeyLastUpdate}
+            homeyCountdown={homeyCountdown}
+            homeyLog={homeyLog}
+            onHomeyToggle={onHomeyToggle}
+            onHomeyTriggerFlow={onHomeyTriggerFlow}
+            onHomeyOptimisticUpdate={onHomeyOptimisticUpdate}
           />
         ))}
          {column.groups.length === 0 && (

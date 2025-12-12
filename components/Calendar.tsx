@@ -158,10 +158,15 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
               const isSunday = dayIndex === 6;
 
               let dayTextColor = themeClasses.linkText;
+              // FIX: The dayTextColor needs to be applied correctly.
+              // We introduce isSpecialDay to help apply colors to 'today' as well.
+              let isSpecialDay = false;
               if (isHoliday || isSunday) {
                 dayTextColor = 'text-red-500';
+                isSpecialDay = true;
               } else if (isSaturday) {
                 dayTextColor = 'text-orange-400';
+                isSpecialDay = true;
               }
 
               return (
@@ -174,8 +179,7 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
                   className={`flex items-center justify-center border text-sm font-bold cursor-pointer transition-colors 
                     ${cellBorderClass}
                     ${isToday
-                      ? `${todayBgClass} ${todayTextClass}`
-                      // FIX: The dayTextColor needs to be applied correctly.
+                      ? `${todayBgClass} ${isSpecialDay ? dayTextColor : todayTextClass}`
                       : `${themeClasses.linkBg} ${dayTextColor} ${themeClasses.linkHoverBg}`
                     }`}
                 >

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import type { AnyItemType, DraggedItem, HomeyCustomItemType, ModalState, Settings, ButtonHolderItem, FlowButton } from '../types';
-import { DragHandleIcon, PencilIcon, TrashIcon, PlayIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { DragHandleIcon, PencilIcon, TrashIcon, PlayIcon, PlusIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon } from './Icons';
+
+type DropTarget = { columnId: string; groupId?: string; itemId?: string; } | null;
 
 interface HomeyCustomItemProps {
     item: HomeyCustomItemType;
@@ -11,40 +13,35 @@ interface HomeyCustomItemProps {
     groupId: string;
     columnId: string;
     draggedItem: DraggedItem;
-    touchDragItem: DraggedItem;
-    onDragStart: (item: DraggedItem) => void;
-    onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
-    handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
-    touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
+    onPointerDown: (e: React.MouseEvent | React.TouchEvent, item: DraggedItem, elementRef: HTMLElement | null) => void;
+    dropTarget: DropTarget;
     openModal: (type: ModalState['type'], data?: any) => void;
     homeyGlobalSettings?: Settings['homey'];
     showOneRow?: boolean;
     onOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
     isFirstItem: boolean;
+    // FIX: Add onToggle and onTriggerFlow to props to match what is being passed from the parent.
+    onToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
+    onTriggerFlow: (flowId: string) => void;
 }
 
-const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
+const SPACER_ID = '---SPACER---';
+
+// FIX: Corrected multiple syntax errors, function nesting, and changed to a named export.
+export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     item, liveData, themeClasses, isEditMode, groupId, columnId,
-    draggedItem, touchDragItem, onDragStart, onDrop, handleTouchStart, touchDragOverTarget,
-    openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
-    isFirstItem
+    draggedItem, onPointerDown, dropTarget, openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
+    isFirstItem, onToggle, onTriggerFlow
 }) => {
-    const [isMouseDragOver, setIsMouseDragOver] = useState(false);
+    const itemRef = useRef<HTMLDivElement>(null);
     const [isTriggered, setIsTriggered] = useState<string | null>(null);
-    
-    // This state is needed to display names until live data loads
     const [staticData, setStaticData] = useState<{name: string, capabilityTitle?: string, zone?: string}>({name: '...'});
+    const [selectedButtonId, setSelectedButtonId] = useState<string | null>(null);
 
-    const isDraggingThis = (draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id) || (touchDragItem?.type === 'groupItem' && touchDragItem.item.id === item.id);
-
-    useEffect(() => {
-        if (!draggedItem && !touchDragItem) {
-          setIsMouseDragOver(false);
-        }
-    }, [draggedItem, touchDragItem]);
+    const isDraggingThis = draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id;
+    const isDropTarget = dropTarget?.itemId === item.id;
 
     useEffect(() => {
-        // Fetch static data once for display names if needed
         if (item.type === 'homey_capability' || item.type === 'homey_flow') {
             const { localIp, apiToken } = homeyGlobalSettings || {};
             if (!localIp || !apiToken) return;
@@ -77,41 +74,27 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                     .catch(e => console.error("Failed to fetch static flow data", e));
             }
         }
-    }, [item.id, homeyGlobalSettings]);
+    }, [item.id, homeyGlobalSettings, item.type]);
 
-
-    const handleToggle = async (deviceId: string, capabilityId: string, currentState: boolean) => {
-        const { localIp, apiToken } = homeyGlobalSettings || {};
-        if (!localIp || !apiToken) return;
-        
-        onOptimisticUpdate(deviceId, capabilityId, !currentState);
-
-        try {
-            const url = `${localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`}/api/manager/devices/device/${deviceId}/capability/${capabilityId}`;
-            const headers = { 'Authorization': `Bearer ${apiToken.replace(/^Bearer\s+/i, '').trim()}`, 'Content-Type': 'application/json' };
-            const body = JSON.stringify({ value: !currentState });
-            await fetch(url, { method: 'PUT', headers, body });
-        } catch (e) {
-            console.error("Homey command failed", e);
-        }
-    };
-    
-    const handleTriggerFlow = async (flowId: string) => {
-        const { localIp, apiToken } = homeyGlobalSettings || {};
-        if (!localIp || !apiToken) return;
-
+    // FIX: Use onTriggerFlow prop and handle UI state locally.
+    const handleTriggerFlow = (flowId: string) => {
         setIsTriggered(flowId);
         setTimeout(() => setIsTriggered(null), 500);
-
-        try {
-            const url = `${localIp.trim().startsWith('http') ? localIp.trim() : `http://${localIp.trim()}`}/api/manager/flow/flow/${flowId}/trigger`;
-            const headers = { 'Authorization': `Bearer ${apiToken.replace(/^Bearer\s+/i, '').trim()}`, 'Content-Type': 'application/json' };
-            await fetch(url, { method: 'POST', headers, body: '{}' });
-        } catch (err) {
-            console.error("Homey flow trigger failed:", err);
-        }
+        onTriggerFlow(flowId);
     };
     
+    const getItemTypeLabel = (currentItem: HomeyCustomItemType): string => {
+        switch (currentItem.type) {
+            case 'text': return 'HEADER';
+            case 'separator': return 'SEPARATOR';
+            case 'homey_capability':
+                return currentItem.capabilityId === 'onoff' ? 'TOGGLE' : 'SENSOR';
+            case 'homey_flow': return 'FLOW';
+            case 'button_holder': return 'BUTTON HOLDER';
+            default: return '';
+        }
+    };
+
     const renderContent = () => {
         switch (item.type) {
             case 'text':
@@ -145,7 +128,7 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                         <div className="flex-shrink-0 ml-2">
                             {item.capabilityId === 'onoff' ? (
                                 <button
-                                    onClick={() => handleToggle(item.deviceId, item.capabilityId, !!value)}
+                                    onClick={() => onToggle(item.deviceId, item.capabilityId, !!value)}
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? 'bg-green-500' : 'bg-slate-600'}`}
                                 >
                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -171,49 +154,105 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
             case 'button_holder':
                 const holder = item as ButtonHolderItem;
                 if (isEditMode) {
+                    const selectedButton = holder.buttons.find(b => b.id === selectedButtonId);
+                    const selectedButtonIndex = holder.buttons.findIndex(b => b.id === selectedButtonId);
+                    
                     return (
-                        <div className="flex flex-wrap justify-center items-center gap-2">
-                            {holder.buttons.map((button, index) => (
-                                <div key={button.id} className="relative group/button" title={button.flowName}>
-                                    <div className={`w-12 h-12 flex items-center justify-center rounded-full bg-slate-700 text-white font-bold ${Array.from(button.symbol).length === 1 ? 'text-xl' : 'text-sm'}`}>
-                                        {button.symbol}
-                                    </div>
-                                    <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 items-center justify-items-center bg-black/70 rounded-full opacity-0 group-hover/button:opacity-100 transition-opacity">
+                        <div 
+                            className="flex flex-col gap-4"
+                             onClick={(e) => {
+                                // Deselect if clicking the background of the holder
+                                if (e.target === e.currentTarget) {
+                                    setSelectedButtonId(null);
+                                }
+                            }}
+                        >
+                            <div className="flex flex-wrap justify-center items-center gap-2">
+                                {holder.buttons.map((button) => {
+                                    const isSpacer = button.flowId === SPACER_ID;
+                                    const isSelected = selectedButtonId === button.id;
+                                    return (
+                                        <div 
+                                            key={button.id} 
+                                            className="relative cursor-pointer" 
+                                            title={isSpacer ? 'Spacer' : button.flowName}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedButtonId(isSelected ? null : button.id);
+                                            }}
+                                        >
+                                            <div className={`w-12 h-12 flex items-center justify-center rounded-full font-bold transition-all ${Array.from(button.symbol).length === 1 ? 'text-xl' : 'text-sm'} ${isSpacer ? 'border-2 border-solid border-slate-600 text-slate-500' : 'bg-slate-700 text-white'} ${isSelected ? 'ring-2 ring-offset-2 ring-orange-500 ring-offset-slate-800' : ''}`}>
+                                                {button.symbol}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <button 
+                                    onClick={() => openModal('addFlowButton', { holderId: holder.id, groupId, columnId })}
+                                    className="w-12 h-12 flex items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-400 transition-colors"
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {selectedButton && (
+                                <div className={`mt-2 p-2 rounded-lg border ${themeClasses.dashedBorder} bg-black/20 flex flex-col items-center gap-2 animate-fade-in-up`}>
+                                    {/* Row 1: Move Buttons */}
+                                    <div className="flex justify-center gap-4">
                                         <button 
-                                            onClick={() => openModal('moveFlowButton', { direction: 'left', button, holderId: holder.id, groupId, columnId })} 
-                                            className="text-white hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                                            disabled={index === 0}
+                                            onClick={() => openModal('moveFlowButton', { direction: 'left', button: selectedButton, holderId: holder.id, groupId, columnId })} 
+                                            className="p-2 rounded-md text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            disabled={selectedButtonIndex === 0}
+                                            title="Move Left"
                                         >
                                             <ChevronLeftIcon className="w-5 h-5" />
                                         </button>
                                         <button 
-                                            onClick={() => openModal('moveFlowButton', { direction: 'right', button, holderId: holder.id, groupId, columnId })} 
-                                            className="text-white hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                                            disabled={index === holder.buttons.length - 1}
+                                            onClick={() => openModal('moveFlowButton', { direction: 'right', button: selectedButton, holderId: holder.id, groupId, columnId })} 
+                                            className="p-2 rounded-md text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                            disabled={selectedButtonIndex === holder.buttons.length - 1}
+                                            title="Move Right"
                                         >
                                             <ChevronRightIcon className="w-5 h-5" />
                                         </button>
-                                        <button onClick={() => openModal('editFlowButton', { button, holderId: holder.id, groupId, columnId })} className="text-white hover:text-blue-300">
+                                    </div>
+                                    
+                                    {/* Row 2: Edit/Delete Buttons */}
+                                    <div className="flex justify-center gap-4">
+                                        <button onClick={() => openModal('editFlowButton', { button: selectedButton, holderId: holder.id, groupId, columnId })} className="p-2 rounded-md text-slate-300 hover:bg-slate-700" title="Edit">
                                             <PencilIcon className="w-5 h-5" />
                                         </button>
-                                        <button onClick={() => openModal('deleteFlowButton', { button, holderId: holder.id, groupId, columnId })} className="text-white hover:text-red-400">
+                                        <button onClick={() => openModal('deleteFlowButton', { button: selectedButton, holderId: holder.id, groupId, columnId })} className="p-2 rounded-md text-red-400 hover:bg-red-900/40" title="Delete">
                                             <TrashIcon className="w-5 h-5" />
                                         </button>
                                     </div>
+
+                                    {/* Separator and Done Button */}
+                                    <div className="w-full border-t border-slate-700 my-1"></div>
+                                    
+                                    <button onClick={() => setSelectedButtonId(null)} className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-md font-semibold text-sm ${themeClasses.buttonSecondary}`} title="Done">
+                                      <CheckIcon className="w-4 h-4" /> Done
+                                    </button>
                                 </div>
-                            ))}
-                            <button 
-                                onClick={() => openModal('addFlowButton', { holderId: holder.id, groupId, columnId })}
-                                className="w-12 h-12 flex items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-slate-500 hover:border-slate-400 hover:text-slate-400 transition-colors"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                            </button>
+                            )}
                         </div>
                     );
                 }
                 return (
                     <div className="flex flex-wrap justify-center items-center gap-2">
                         {holder.buttons.map(button => {
+                            const isSpacer = button.flowId === SPACER_ID;
+                            if (isSpacer) {
+                                if (!button.symbol) {
+                                    return <div key={button.id} className="w-12 h-12 flex-shrink-0" />;
+                                }
+                                return (
+                                    <div key={button.id} title="Spacer" className={`w-12 h-12 flex items-center justify-center rounded-full font-bold text-slate-500 ${Array.from(button.symbol).length === 1 ? 'text-xl' : 'text-sm'}`}>
+                                        {button.symbol}
+                                    </div>
+                                );
+                            }
+
                             const isBtnTriggered = isTriggered === button.flowId;
                             return (
                                 <button
@@ -232,61 +271,67 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                 return null;
         }
     };
-    
-    const isTouchDragOver = touchDragItem?.type === 'groupItem' &&
-        touchDragOverTarget?.itemId === item.id &&
-        touchDragItem.item.id !== item.id;
-    
-    const isDragOver = isMouseDragOver || isTouchDragOver;
 
     if (!isEditMode) {
-        // FIX: Combine checks for 'separator' and 'text' to avoid type narrowing issues.
-        if (item.type === 'separator' || item.type === 'text') {
-            if (item.type === 'separator') {
-                return (
-                    <div className={isFirstItem ? 'pb-3' : 'py-3'}>
-                        <hr className={`${themeClasses.dashedBorder}`} />
-                    </div>
-                );
-            } else { // item.type === 'text'
-                return (
-                    <div className={isFirstItem ? 'pb-1' : 'pt-3 pb-1'}>
-                        <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
-                    </div>
-                );
-            }
-        }
-
-        const isButtonHolder = item.type === 'button_holder';
-        const bgClass = isButtonHolder ? '' : themeClasses.inputBg;
-        const paddingClass = isButtonHolder ? 'p-1' : 'p-2';
-        
-        return (
-            <div className={`rounded-lg ${bgClass} ${paddingClass}`}>
-                {renderContent()}
+      if (item.type === 'separator' || item.type === 'text') {
+        const isFirstAndSpecial = isFirstItem && (item.type === 'text' || item.type === 'separator');
+        if (item.type === 'text') {
+          return (
+              <div className={isFirstAndSpecial ? 'pb-1' : 'pt-3 pb-1'}>
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
+              </div>
+          );
+        } else { // separator
+          return (
+            <div className={isFirstAndSpecial ? 'pb-3' : 'py-3'}>
+                <hr className={`${themeClasses.dashedBorder}`} />
             </div>
-        );
+          );
+        }
+      }
+
+      const isButtonHolder = item.type === 'button_holder';
+      const bgClass = isButtonHolder ? '' : themeClasses.inputBg;
+      const paddingClass = isButtonHolder ? 'p-1' : 'p-2';
+      
+      return (
+          <div className={`rounded-lg ${bgClass} ${paddingClass}`}>
+              {renderContent()}
+          </div>
+      );
     }
 
+    // --- NEW EDIT MODE ---
     return (
         <div
-            draggable
-            onDragStart={(e) => { e.stopPropagation(); onDragStart({ type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId }); }}
-            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop({ columnId, groupId, itemId: item.id }); setIsMouseDragOver(false); }}
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsMouseDragOver(true); }}
-            onDragLeave={() => setIsMouseDragOver(false)}
-            onTouchStart={(e) => handleTouchStart(e, {type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId})}
-            data-drop-target="item"
+            ref={itemRef}
+            id={`item-${item.id}`}
+            data-droppable="item"
             data-column-id={columnId}
             data-group-id={groupId}
             data-item-id={item.id}
-            className={`flex items-center gap-2 p-1 rounded-md transition-all ${isDraggingThis ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''}`}
+            onContextMenu={(e) => { if (isEditMode) e.preventDefault(); }}
+            style={{ touchAction: 'none', userSelect: 'none' }}
+            className={`relative rounded-md transition-all ${isDraggingThis ? 'opacity-30' : ''} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''}`}
         >
-            <DragHandleIcon className="w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab" />
-            <div className={`flex-grow p-2 rounded ${themeClasses.inputBg} min-w-0`}>
-                {renderContent()}
+            {/* Overlay Controls */}
+            <div 
+                className="absolute top-1 left-1 z-10 p-1.5 cursor-grab"
+                onMouseDown={(e) => onPointerDown(e, { type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId }, itemRef.current)}
+                onTouchStart={(e) => onPointerDown(e, { type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId }, itemRef.current)}
+            >
+                <DragHandleIcon className="w-5 h-5 text-slate-400" />
             </div>
-            <div className="flex items-center gap-1">
+
+            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 z-10 px-2 h-4 flex items-center justify-center bg-black/30 rounded-full pointer-events-none">
+                 <div className="flex items-center justify-center h-full">
+                    <span className="font-bold text-slate-300 tracking-wider uppercase" style={{ fontSize: '9px', lineHeight: '1' }}>
+                        {getItemTypeLabel(item)}
+                    </span>
+                 </div>
+            </div>
+
+            <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
                 {(item.type === 'text' || item.type === 'homey_capability' || item.type === 'homey_flow') && (
                     <button onClick={() => {
                         if (item.type === 'text') {
@@ -294,16 +339,19 @@ const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                         } else {
                             openModal('editHomeyCustomItemName', { item, staticData, groupId, columnId });
                         }
-                    }} className={`p-1.5 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-600`}>
+                    }} className={`p-1.5 ${themeClasses.iconMuted} hover:text-white rounded-full bg-black/40 hover:bg-slate-600`}>
                         <PencilIcon className="w-4 h-4" />
                     </button>
                 )}
-                <button onClick={() => openModal('deleteItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-600`}>
+                <button onClick={() => openModal('deleteItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-red-400 rounded-full bg-black/40 hover:bg-slate-600`}>
                     <TrashIcon className="w-4 h-4" />
                 </button>
+            </div>
+            
+            {/* Content with padding to avoid being obscured */}
+            <div className={`w-full min-h-[4rem] rounded ${themeClasses.inputBg} pt-8 pb-2 px-2`}>
+                {renderContent()}
             </div>
         </div>
     );
 };
-
-export default HomeyCustomItem;

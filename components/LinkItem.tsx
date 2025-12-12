@@ -1,9 +1,9 @@
-
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { DraggedItem, Link } from '../types';
 import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
 import type { themes } from '../themes';
+
+type DropTarget = { columnId: string; groupId?: string; itemId?: string; } | null;
 
 interface LinkItemProps {
   link: Link;
@@ -12,54 +12,28 @@ interface LinkItemProps {
   isEditMode: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onDragStart: (item: DraggedItem) => void;
-  onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
-  isDragging: boolean;
-  touchDragItem: DraggedItem;
-  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
-  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
+  onPointerDown: (e: React.MouseEvent | React.TouchEvent, item: DraggedItem, elementRef: HTMLElement | null) => void;
+  draggedItem: DraggedItem;
+  dropTarget: DropTarget;
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
   compact: boolean;
 }
 
-const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode, onEdit, onDelete, onDragStart, onDrop, isDragging, touchDragItem, handleTouchStart, touchDragOverTarget, themeClasses, openLinksInNewTab, compact }) => {
+const LinkItem: React.FC<LinkItemProps> = ({ 
+  link, groupId, columnId, isEditMode, onEdit, onDelete, onPointerDown, draggedItem, dropTarget, themeClasses, openLinksInNewTab, compact 
+}) => {
   const [errorCount, setErrorCount] = useState(0);
-  const [isMouseDragOver, setIsMouseDragOver] = useState(false);
+  const itemRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // When link.url changes, reset the error counter to re-attempt loading.
     setErrorCount(0);
   }, [link.url]);
-
-  useEffect(() => {
-    if (!isDragging && !touchDragItem) {
-      setIsMouseDragOver(false);
-    }
-  }, [isDragging, touchDragItem]);
 
   const handleFaviconError = () => {
     setErrorCount(prev => prev + 1);
   };
   
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsMouseDragOver(true);
-  };
-  
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    setIsMouseDragOver(false);
-  };
-  
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onDrop({ columnId, groupId, itemId: link.id });
-    setIsMouseDragOver(false);
-  };
-
   const handleItemClick = () => {
     if (!isEditMode) {
       if (openLinksInNewTab) {
@@ -89,42 +63,35 @@ const LinkItem: React.FC<LinkItemProps> = ({ link, groupId, columnId, isEditMode
     return (
       <img
         src={src}
-        alt="" // alt is empty for decorative images
+        alt=""
         className="w-6 h-6 object-contain flex-shrink-0"
         onError={handleFaviconError}
       />
     );
   };
-  
-  const isDraggingThis = isDragging || (touchDragItem?.type === 'groupItem' && touchDragItem.item.id === link.id);
-  
-  const isTouchDragOver = touchDragItem?.type === 'groupItem' &&
-    touchDragOverTarget?.itemId === link.id &&
-    touchDragItem.item.id !== link.id;
 
-  const isDragOver = isMouseDragOver || isTouchDragOver;
+  const isDraggingThis = draggedItem?.type === 'groupItem' && draggedItem.item.id === link.id;
+  const isDropTarget = dropTarget?.itemId === link.id;
 
   return (
     <div
-      id={`link-${link.id}`}
-      title={link.comment}
-      draggable={isEditMode}
-      onClick={handleItemClick}
-      onDragStart={(e) => {
-        e.stopPropagation();
-        onDragStart({type: 'groupItem', item: link, sourceGroupId: groupId, sourceColumnId: columnId})
-      }}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onTouchStart={(e) => handleTouchStart(e, {type: 'groupItem', item: link, sourceGroupId: groupId, sourceColumnId: columnId})}
-      data-drop-target="item"
+      ref={itemRef}
+      id={`item-${link.id}`}
+      data-droppable="item"
       data-column-id={columnId}
       data-group-id={groupId}
       data-item-id={link.id}
-      className={`group/link flex items-start justify-between rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDraggingThis ? 'opacity-30' : ''} ${isDragOver ? `ring-1 ${themeClasses.ring}` : ''} ${compact ? 'py-1' : `p-2 ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}`}
+      title={link.comment}
+      onClick={handleItemClick}
+      onContextMenu={(e) => { if (isEditMode) e.preventDefault(); }}
+      className={`group/link flex items-start justify-between rounded-md transition-all duration-150 ease-in-out ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} ${isDraggingThis ? 'opacity-30' : ''} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''} ${compact ? 'py-1' : `p-2 ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}`}
     >
-      <div className={`flex items-start min-w-0 ${compact ? 'gap-2' : 'gap-3'}`}>
+      <div 
+        className={`flex items-start min-w-0 ${compact ? 'gap-2' : 'gap-3'}`}
+        style={isEditMode ? { touchAction: 'none', userSelect: 'none' } : {}}
+        onMouseDown={(e) => onPointerDown(e, {type: 'groupItem', item: link, sourceGroupId: groupId, sourceColumnId: columnId}, itemRef.current)}
+        onTouchStart={(e) => onPointerDown(e, {type: 'groupItem', item: link, sourceGroupId: groupId, sourceColumnId: columnId}, itemRef.current)}
+      >
         {isEditMode && <DragHandleIcon className={`w-5 h-5 mt-1 text-slate-500 group-hover/link:text-slate-400 flex-shrink-0 cursor-grab`} />}
         {!compact && renderFavicon()}
         <span

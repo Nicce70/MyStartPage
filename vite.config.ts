@@ -1,3 +1,4 @@
+// MIN CONFIG:
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -5,7 +6,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: './',   // ← Lägg till detta för att göra alla sökvägar relativa
+      base: './',
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -19,6 +20,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+
+      // 👉 Läggs in här
+      build: {
+        chunkSizeWarningLimit: 1000   // höjer gränsen från 500 kB → 1000 kB
       }
     };
 });

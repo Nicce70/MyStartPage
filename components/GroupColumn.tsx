@@ -1,10 +1,11 @@
+
+
 import React from 'react';
-// FIX: Import DraggedItem from types.ts and remove the local definition.
-import type { Column, Group, GroupItemType, Link, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem } from '../types';
+import type { Column, Group, AnyItemType, Link, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon, SquaresPlusIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon, SquaresPlusIcon, CpuChipIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -26,19 +27,18 @@ import Favorites from './Favorites';
 import PictureWidget from './PictureWidget';
 import IframeWidget from './IframeWidget';
 import HomeyCustomWidget from './HomeyCustomWidget';
+import HomeyStatus from './HomeyStatus';
 
-// FIX: Removed local DraggedItem definition to use the one from types.ts
+type DropTarget = { columnId: string; groupId?: string; itemId?: string; } | null;
+
 interface GroupItemProps {
   group: Group;
-  allColumns: Column[]; // Need access to full tree for Favorites
+  allColumns: Column[];
   columnId: string;
   isEditMode: boolean;
-  onDragStart: (item: DraggedItem) => void;
-  onDrop: (target: { columnId: string; groupId?: string; itemId?: string }) => void;
+  onPointerDown: (e: React.MouseEvent | React.TouchEvent, item: DraggedItem, elementRef: HTMLElement | null) => void;
   draggedItem: DraggedItem;
-  touchDragItem: DraggedItem;
-  handleTouchStart: (e: React.TouchEvent, item: DraggedItem) => void;
-  touchDragOverTarget: { columnId: string; groupId?: string; itemId?: string } | null;
+  dropTarget: DropTarget;
   openModal: (type: ModalState['type'], data?: any) => void;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
@@ -49,6 +49,17 @@ interface GroupItemProps {
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
   homeyGlobalSettings?: Settings['homey'];
+  // Central Homey Engine Props
+  homeyDevices: any;
+  homeyZones: any;
+  homeyFlows: any;
+  homeyConnectionState: 'websocket' | 'polling' | 'disconnected';
+  homeyLastUpdate: Date | null;
+  homeyCountdown: number;
+  homeyLog: string[];
+  onHomeyToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
+  onHomeyTriggerFlow: (flowId: string) => void;
+  onHomeyOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
 }
 
 const DEFAULT_CALCULATOR_STATE: CalculatorState = {
@@ -59,47 +70,14 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, allColumns, columnId, isEditMode, onDragStart, onDrop, draggedItem, touchDragItem, handleTouchStart, touchDragOverTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings
+  group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
+  // Central Homey Engine Props
+  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate
 }) => {
-  const [isMouseDragOver, setIsMouseDragOver] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!draggedItem && !touchDragItem) {
-      setIsMouseDragOver(false);
-    }
-  }, [draggedItem, touchDragItem]);
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isEditMode || !draggedItem) return;
-    if (draggedItem.type === 'groupItem' || (draggedItem.type === 'group' && draggedItem.group.id !== group.id)) {
-      e.preventDefault();
-      setIsMouseDragOver(true);
-    }
-  };
-
-  const handleDragLeave = () => setIsMouseDragOver(false);
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isEditMode || !draggedItem) return;
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (draggedItem.type === 'groupItem') {
-        onDrop({ columnId, groupId: group.id });
-    } else if (draggedItem.type === 'group') {
-        onDrop({ columnId, groupId: group.id });
-    }
-    setIsMouseDragOver(false);
-  };
-
-  const isDraggingThis = isEditMode && ((draggedItem?.type === 'group' && draggedItem.group.id === group.id) || (touchDragItem?.type === 'group' && touchDragItem.group.id === group.id));
+  const groupRef = React.useRef<HTMLDivElement>(null);
   
-  const isTouchDragOver = touchDragItem &&
-    (touchDragItem.type === 'groupItem' || (touchDragItem.type === 'group' && touchDragItem.group.id !== group.id)) &&
-    touchDragOverTarget?.groupId === group.id &&
-    !touchDragOverTarget.itemId;
-  
-  const isDragOver = isMouseDragOver || isTouchDragOver;
+  const isDropTarget = dropTarget?.groupId === group.id && !dropTarget.itemId;
+  const isDraggingThis = isEditMode && draggedItem?.type === 'group' && draggedItem.group.id === group.id;
   
   const groupType = group.type || 'links';
   const widgetType = group.widgetType;
@@ -126,8 +104,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isPictureWidget = widgetType === 'picture';
   const isIframeWidget = widgetType === 'iframe';
   const isHomeyCustomWidget = widgetType === 'homey_custom';
+  const isHomeyStatusWidget = widgetType === 'homey_status';
 
-  // Determine background color class based on colorVariant
   const bgClass = {
     'default': themeClasses.groupBg,
     'secondary': themeClasses.groupBgSecondary,
@@ -142,25 +120,23 @@ const GroupItem: React.FC<GroupItemProps> = ({
 
   return (
     <div
-      draggable={isEditMode}
-      onDragStart={(e) => {
-        e.stopPropagation();
-        onDragStart({ type: 'group', group, sourceColumnId: columnId });
-      }}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onTouchStart={(e) => handleTouchStart(e, { type: 'group', group, sourceColumnId: columnId })}
-      data-drop-target="group"
+      ref={groupRef}
+      data-droppable="group"
       data-column-id={columnId}
       data-group-id={group.id}
-      className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDragOver ? `ring-2 ${themeClasses.ring}` : ''} ${isFavoritesWidget ? `border ${accentBorderColor}` : ''}`}
+      onContextMenu={(e) => { if (isEditMode) e.preventDefault(); }}
+      className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''} ${isFavoritesWidget ? `border ${accentBorderColor}` : ''}`}
     >
       <div 
         className={`flex justify-between items-start group/header ${!group.isCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
         onClick={!isEditMode ? () => onToggleGroupCollapsed(columnId, group.id) : undefined}
       >
-        <div className="flex items-start gap-2 min-w-0">
+        <div 
+          className="flex items-start gap-2 min-w-0"
+          style={isEditMode ? { touchAction: 'none', userSelect: 'none' } : {}}
+          onMouseDown={(e) => onPointerDown(e, { type: 'group', group, sourceColumnId: columnId }, groupRef.current)}
+          onTouchStart={(e) => onPointerDown(e, { type: 'group', group, sourceColumnId: columnId }, groupRef.current)}
+        >
           {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1`} />}
           {!isEditMode && showGroupToggles && (
             <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'} mt-1`} />
@@ -191,6 +167,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
              {isPictureWidget && <PhotoIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isIframeWidget && <WindowIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
              {isHomeyCustomWidget && <HomeIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
+             {isHomeyStatusWidget && <CpuChipIcon className="w-5 h-5 flex-shrink-0 mt-1" />}
             <h2 className={`text-lg font-bold ${themeClasses.header} break-all`}>
                 {group.name}
             </h2>
@@ -303,14 +280,17 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isHomeyWidget ? (
           <Homey
-            localIp={homeyGlobalSettings?.localIp || ''}
-            apiToken={homeyGlobalSettings?.apiToken || ''}
-            pollingInterval={homeyGlobalSettings?.pollingInterval || 10}
             selectedCapabilities={group.widgetSettings?.homeySettings?.selectedCapabilities || []}
             selectedFlows={group.widgetSettings?.homeySettings?.selectedFlows || []}
             enableScroll={group.widgetSettings?.homeySettings?.enableScroll}
             showOneRow={group.widgetSettings?.homeySettings?.showOneRow}
             themeClasses={themeClasses}
+            devices={homeyDevices}
+            zones={homeyZones}
+            flows={homeyFlows}
+            onToggle={onHomeyToggle}
+            onTriggerFlow={onHomeyTriggerFlow}
+            onOptimisticUpdate={onHomeyOptimisticUpdate}
           />
         ) : isRadioWidget ? (
           <Radio 
@@ -350,16 +330,25 @@ const GroupItem: React.FC<GroupItemProps> = ({
             homeyGlobalSettings={homeyGlobalSettings}
             isEditMode={isEditMode}
             openModal={openModal}
-            onDragStart={onDragStart}
-            onDrop={onDrop}
+            onPointerDown={onPointerDown}
             draggedItem={draggedItem}
-            touchDragItem={touchDragItem}
-            handleTouchStart={handleTouchStart}
-            touchDragOverTarget={touchDragOverTarget}
+            dropTarget={dropTarget}
+            homeyDevices={homeyDevices}
+            onToggle={onHomeyToggle}
+            onTriggerFlow={onHomeyTriggerFlow}
+            onOptimisticUpdate={onHomeyOptimisticUpdate}
           />
-        ) : ( // Default to 'links' group
+        ) : isHomeyStatusWidget ? (
+            <HomeyStatus
+                themeClasses={themeClasses}
+                homeyGlobalSettings={homeyGlobalSettings}
+                connectionState={homeyConnectionState}
+                lastUpdate={homeyLastUpdate}
+                countdown={homeyCountdown}
+                log={homeyLog}
+            />
+        ) : (
           <div className={compact ? "space-y-1" : "space-y-2"}>
-            {/* FIX: Explicitly check for item.type === 'separator' */}
             {group.items.map(item =>
                 item.type === 'link' ? (
                     <LinkItem
@@ -370,12 +359,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         isEditMode={isEditMode}
                         onEdit={() => openModal('editLink', { link: item, groupId: group.id, columnId })}
                         onDelete={() => openModal('deleteItem', { item, groupId: group.id, columnId })}
-                        isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
-                        onDragStart={onDragStart}
-                        onDrop={onDrop}
-                        touchDragItem={touchDragItem}
-                        handleTouchStart={handleTouchStart}
-                        touchDragOverTarget={touchDragOverTarget}
+                        onPointerDown={onPointerDown}
+                        draggedItem={draggedItem}
+                        dropTarget={dropTarget}
                         themeClasses={themeClasses}
                         openLinksInNewTab={openLinksInNewTab}
                         compact={compact}
@@ -388,12 +374,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
                         columnId={columnId}
                         isEditMode={isEditMode}
                         onDelete={() => openModal('deleteItem', { item, groupId: group.id, columnId })}
-                        isDragging={draggedItem?.type === 'groupItem' && draggedItem.item.id === item.id}
-                        onDragStart={onDragStart}
-                        onDrop={onDrop}
-                        touchDragItem={touchDragItem}
-                        handleTouchStart={handleTouchStart}
-                        touchDragOverTarget={touchDragOverTarget}
+                        onPointerDown={onPointerDown}
+                        draggedItem={draggedItem}
+                        dropTarget={dropTarget}
                         themeClasses={themeClasses}
                         compact={compact}
                     />

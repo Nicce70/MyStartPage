@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Group, Theme } from '../types';
 import { ArrowPathIcon } from './Icons';

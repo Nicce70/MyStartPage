@@ -15,7 +15,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '3.4';
+const APP_VERSION = '3.7';
 
 const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSettings: Settings) => void, themeClasses: Theme }> = ({ settings, onSettingsChange, themeClasses }) => {
     const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');

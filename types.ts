@@ -85,7 +85,7 @@ export interface Group {
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
   colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue';
-  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe' | 'homey_custom';
+  widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe' | 'homey_custom' | 'homey_status';
   widgetSettings?: {
     city?: string;
     weatherShowForecast?: boolean;

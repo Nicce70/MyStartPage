@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Column, Link, Theme, Group, GroupItemType } from '../types';
 import { GlobeIcon } from './Icons';
@@ -60,7 +59,7 @@ const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, 
     const order = group.widgetSettings?.favoritesOrder;
     if (order) {
         const orderMap = new Map(order.map((id, index) => [id, index]));
-        favs.sort((a, b) => {
+        favs.sort((a: Link, b: Link) => {
             const indexA = orderMap.get(a.id);
             const indexB = orderMap.get(b.id);
             // FIX: Explicitly cast to Number to resolve a potential TypeScript type inference issue.

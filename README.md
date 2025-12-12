@@ -1,3 +1,13 @@
+# MyStartPage
+
+A lightweight personal start page written in **TypeScript**, built with **Vite**, and designed to be fast, clean, and fully customizable.  
+Local preferences are stored directly in your browser, so no external database or backend is required.
+
+The rest of this documentation is written in **Swedish**.
+
+---
+
+
 # MyStartPage – Webbaserad start- och dashboardsida
 
 Detta är en webbaserad start-/dashboardsida gjord i **TypeScript** med stor hjälp av Google AI Studio.  
@@ -35,6 +45,14 @@ Det här är det absolut enklaste sättet att använda sidan.
   (Homey kräver att webbsidan körs lokalt i samma nätverk för detta)
 
 Allt annat i appen fungerar som vanligt.
+
+---
+
+# OBS!
+De två kommande sätten kräver att du också plockar ut en PAT-kod (API-nyckel) från din Homey Pro via:  
+Inställningar > API-nycklar - + Ny API Nyckel. Kopiera den och spara, den ska klistras in i appen Settings > Homey > Personal Acess Token.
+
+- Och värt att tillägga, enbart Polling fungerar i dagsläget, dvs den hämtar data från Homey med jämna mellanrum (som du anger), så det blir tyvärr ingen Live uppdatering vilket kräver en wss websocket anslutning (då behöver man gå via proxy och sånt)
 
 ---
 
@@ -162,10 +180,10 @@ Strukturen i webbkatalogen ska alltså se ut så här:
    └── (alla JS/CSS/bilder)
 ```
 
-4. När filerna ligger på plats, öppna webbläsaren och gå till adressen för din NAS webbserver, till exempel:
+4. När filerna ligger på plats, öppna webbläsaren och gå till adressen för din NAS webbserver, till exempel:  
 http://din-nas-ip-adress/
 
-eller om du lade filerna i en undermapp:
+eller om du lade filerna i en undermapp:  
 http://din-nas-ip-adress/mystartpage/
 
 5. Sidan ska nu starta direkt från NAS:en. Alla funktioner som inte kräver Homey kommer att fungera direkt.

@@ -11,16 +11,16 @@ The rest of this documentation is written in **Swedish**.
 # MyStartPage – Webbaserad start- och dashboardsida
 
 Detta är en webbaserad start-/dashboardsida gjord i **TypeScript** med stor hjälp av Google AI Studio.  
-Den är helt **gratis**, **öppen källkod**.
+Och det är en **öppen källkod**.
+
+> **Obs:** Detta är *inte* en officiell Homey-app, utan något jag byggt för privat bruk egentligen.
 
 Det är en kombination av **startpage och dashboard** där du kan samla länkar och olika widgets.  
 
 ## Integration med Homey Pro 2023
 
-För att använda den mot Homey Pro 2023, använder du antingen webhooks eller kör appen lokalt.  
+För att använda den mot Homey Pro 2023, använder du antingen webhooks eller kör appen lokalt på din dator eller på en NAS.  
 Du kan se status och styra enheter direkt från sidan (beroende på hur du kör appen).
-
-> **Obs:** Detta är *inte* en officiell Homey-app, utan något jag byggt för privat bruk egentligen.
 
 ---
 
@@ -82,11 +82,12 @@ Node.js är en plattform som låter dig köra JavaScript-kod utanför webbläsar
 
 - Ladda ner och installera den rekommenderade versionen för ditt operativsystem (Windows, macOS, Linux).
 
-- När installationen är klar, öppna ett terminal- eller kommandofönster och skriv node -v för att verifiera att Node.js är installerat. Du ska se versionsnumret, t.ex. v20.x.x.
+- När installationen är klar, öppna ett terminal- eller kommandofönster och skriv "node -v" för att verifiera att Node.js är installerat.  
+Du ska då se versionsnumret, t.ex. v20.x.x.
 
 2. **Ladda ner projektet från GitHub**
 
-- Gå till projektets GitHub-sida.
+- Gå till projektets GitHub-sida: https://github.com/Nicce70/MyStartPage.
 
 - Klicka på "Code" och välj "Download ZIP".
 
@@ -157,19 +158,18 @@ Homey-integration: styrning, status, enhetslistor
 
 ## Instruktioner för att köra MyStartPage på en NAS (Apache, Nginx, Asustor, Synology, QNAP)
 
-0. Du måste ha en webserver aktiverad på din NAS, har du inte redan det, hoppa ner till separata instruktioner för detta längre ner!
+0. **Du måste ha en webserver aktiverad på din NAS** - har du inte redan det, hoppa ner till separata instruktioner för detta längre ner!
 
-1. Öppna projektets GitHub-sida och gå till mappen som heter “docs”. Det är där de färdiga kompilerade filerna ligger. Detta är samma filer som normalt hamnar i “dist” när man gör en build, men de finns redan färdiga i “docs”.
+1. Öppna projektets GitHub-sida https://github.com/Nicce70/MyStartPage och gå till mappen som heter “docs”. Det är där de färdiga kompilerade filerna ligger. Detta är samma filer som normalt hamnar i “/dist” när man gör en build, men de finns redan färdiga i “/docs”.
 
-2. Ladda ner filerna från mappen “docs” till din dator. Det du behöver är:
+2. Ladda ner filerna från mappen “/docs” till din dator. Det du behöver är:
 
-index.html
-hela mappen “assets” (med alla JavaScript-, CSS- och bildfiler)
+index.html och hela mappen “assets” (med alla JavaScript-, CSS- och bildfiler)
 
 3. Logga in på din NAS och öppna den webserver du använder (t.ex. Apache eller Nginx). 
 På de flesta NAS finns en mapp som heter “web”, “www” eller liknande där man placerar webbfiler.
 
-Kopiera filen index.html och hela mappen assets till webserverns katalog på din NAS. Det är mycket viktigt att både index.html och mappen assets ligger på samma nivå i samma mapp, alltså tillsammans sida vid sida.
+Kopiera filen index.html och hela mappen /assets till webserverns katalog på din NAS. Det är mycket viktigt att både index.html och mappen /assets ligger på samma nivå i samma mapp, alltså tillsammans sida vid sida.
 (Byt inte namn på index.html — den måste heta exakt så för att webbsidan ska fungera som förväntat.)
 
 Strukturen i webbkatalogen ska alltså se ut så här:
@@ -190,9 +190,9 @@ http://din-nas-ip-adress/mystartpage/
 
 6. Om du vill använda Homey-integration (styra enheter och hämta status) måste du befinna dig i samma nätverk som din Homey Pro. Alternativt kan du använda VPN. Då fungerar allt på samma sätt som om du var hemma.
 
-7. Alla inställningar och favoritlänkar du skapar sparas automatiskt i webbläsaren via LocalStorage. Det innebär att inställningarna är unika för varje webbläsare och enhet du använder.
+7. Alla inställningar och favoritlänkar du skapar sparas automatiskt i webbläsaren via LocalStorage. Det innebär att inställningarna är unika för varje webbläsare och enhet du använder. (Du kan göra backup och läsa in den filen i en annan webbläsare)
 
-8. Webhooks fungerar även om du inte är i samma nätverk som Homey, men att läsa status och enhetsvärden kräver att webbsidan körs lokalt på samma nätverk eller via VPN.
+8. Webhooks fungerar även om du inte är i samma nätverk som Homey, men att läsa status och enhetsvärden kräver att webbsidan körs lokalt på samma nätverk eller via VPN som sagt.
 
 ---
 
@@ -230,14 +230,9 @@ Webbmappen är den katalog som webservern visar när du går till din NAS IP-adr
 4. **Starta om webservern via NAS kontrollpanel** (ofta heter det “Restart Service”).
 
 5. **Klart!**
-Din NAS kör nu appen som en egen liten webserver, helt utan backend, helt lokalt i ditt nätverk.
+Din NAS kör nu en lokal webbserver, nu kan du återgå till att installera själva appen MyStartPage enligt tidigare punkt på din NAS.
 
 Tips:
-Om du vill komma åt sidan även utanför hemmet kan du:
+Om du vill komma åt sidan även utanför hemmet kan du använda VPN.
 
-använda VPN
 
-inte öppna portar på internet
-
-inte använda port forwarding
-(det är säkrare så)

@@ -5,7 +5,7 @@ Den är helt **gratis**, **öppen källkod**.
 
 Det är en kombination av **startpage och dashboard** där du kan samla länkar och olika widgets.  
 
-##Integration med Homey Pro 2023
+## Integration med Homey Pro 2023
 
 För att använda den mot Homey Pro 2023, använder du antingen webhooks eller kör appen lokalt.  
 Du kan se status och styra enheter direkt från sidan (beroende på hur du kör appen).
@@ -76,14 +76,14 @@ Node.js är en plattform som låter dig köra JavaScript-kod utanför webbläsar
 
 3. **Öppna en terminal / kommandoprompt**
 
-- Navigera till mappen där du pacakde upp filerna (t.ex. "cd C:\Users\DittNamn\MyStartPage")
+- Navigera till mappen där du packade upp filerna (t.ex. "cd C:\Users\DittNamn\MyStartPage")
 
 4. **Installera beroenden**
 
-- Skriv "npm install" och tryck Enter
-om allt gick ok
+Detta hämtar och installerar alla nödvändiga paket som projektet behöver (inklusive Vite och React)
+
+- Skriv "npm install" och tryck Enter, om allt gick ok fortsätt med
 - Skriv "npm install socket.io-client" och tryck Enter
-(Detta hämtar och installerar alla nödvändiga paket som projektet behöver (inklusive Vite och React))
 
 5. **Starta utvecklingsservern**
 
@@ -91,17 +91,17 @@ om allt gick ok
 
 - Vite startar en lokal webserver och visar en länk, oftast http://localhost:3000/
 
-- Öppna den länken i din webbläsare för att se appen live (alltså skriv "http://localhost:3000/" i din webläsare)
+- Öppna den länken i din webbläsare för att se appen live (skriv "http://localhost:3000/" i din webläsare)
 
-Nu öppnas förhoppningsvis MyStartpage i din webbläsare.
+Nu öppnas förhoppningsvis MyStartpage i din webbläsare, och den körs helt lokalt.
 
-(Nu kan du ändra i koden och sidan laddas om automatiskt när du sparar)
+(Nu kan du även ändra i koden och sidan laddas om automatiskt när du sparar)
 
 **Bra att veta**
 
 För att avsluta servern, tryck Ctrl+C i terminalen
 
-Om du får fel, kontrollera att Node.js är korrekt installerat och att du kör kommandon i rätt mapp
+Om du får fel, kontrollera att Node.js är korrekt installerat (inga brandväggar i vägen) och att du kör kommandon i rätt mapp.
 
 Om du vill bygga färdiga filer för produktion (t.ex. för att lägga på en NAS) använder du kommandot "npm run build"
 
@@ -116,16 +116,14 @@ De färdiga kompilerade filerna ligger här i GitHub-repot:
 
 Det här är viktiga skillnaden:
 
-- NAS:ens server kan inte köra okompilerad TypeScript eller utvecklingskod, den kan bara servera färdiga statiska filer (HTML, JS, CSS), därför måste man använda den kompilerade versionen som ligger i /docs. Det är dessa filer Apache/Nginx använder för att köra sidan:
-index.html
-/assets
+- NAS:ens server kan inte köra okompilerad TypeScript eller utvecklingskod, den kan bara servera färdiga statiska filer (HTML, JS, CSS), därför måste man använda den kompilerade versionen som ligger i mappen /docs. Det är dessa filer Apache/Nginx använder för att köra sidan (index.html & mappen /assets)
 
 ⭐ Måste jag vara i samma nätverk som Homey?
 
 Ja – om du vill både styra och läsa status.
 
 Undantag:
-Om du använder VPN funkar allt fullt ut var du än är, för det blir som att du kör lokalt
+Om du använder VPN funkar allt fullt ut var du än är, för det blir som att du kör lokalt.
 
 ⭐ Funktioner
 
@@ -157,11 +155,12 @@ Kopiera filen index.html och hela mappen assets till webserverns katalog på din
 (Byt inte namn på index.html — den måste heta exakt så för att webbsidan ska fungera som förväntat.)
 
 Strukturen i webbkatalogen ska alltså se ut så här:
-
+```
 /web
 ├── index.html
 └── assets/
    └── (alla JS/CSS/bilder)
+```
 
 4. När filerna ligger på plats, öppna webbläsaren och gå till adressen för din NAS webbserver, till exempel:
 http://din-nas-ip-adress/
@@ -189,25 +188,25 @@ De flesta NAS-enheter kan köra en enkel webbserver som låter dig visa statiska
 
 2. **Öppna NAS:ens app-/paketcenter.**
 Sök efter någon av följande:
-
+```
 “Web Server”
 “Apache”
 “Nginx”
 “Web Station”
 “Hosting”
 “WWW Server”
-
+```
 3. **Installera webservern med standardinställningar.**
 På vissa NAS-modeller aktiveras även PHP eller MySQL, men det behövs inte för denna app — du kan ignorera alla sådana extra funktioner.
 När webservern är installerad finns det alltid en webbmapp där du ska lägga dina filer. Den brukar heta något i stil med:
-
+```
 /web
 /www
 /var/www
 /home/www
 /WebServer
 /volume1/web (Synology)
-
+```
 Webbmappen är den katalog som webservern visar när du går till din NAS IP-adress i webbläsaren.
 
 4. **Starta om webservern via NAS kontrollpanel** (ofta heter det “Restart Service”).
@@ -224,4 +223,3 @@ inte öppna portar på internet
 
 inte använda port forwarding
 (det är säkrare så)
-

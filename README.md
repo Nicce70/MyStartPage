@@ -1,4 +1,5 @@
-![MyStartPage_Logo](https://github.com/user-attachments/assets/438e6684-84f1-489d-b1fa-3c4be132f981)
+
+![MyStartPage_Logo2](https://github.com/user-attachments/assets/e13366a0-6c99-4768-9da6-c9e8492669cd)
 
 # MyStartPage
 

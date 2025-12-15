@@ -18,9 +18,7 @@ The rest of this documentation is written in **Swedish**.
 # MyStartPage – Webbaserad start- och dashboardsida
 
 Detta är en webbaserad start-/dashboardsida gjord i **TypeScript** med stor hjälp av Google AI Studio.  
-Och det är en **öppen källkod**.
-
-> **Obs:** Detta är *inte* en officiell Homey-app, utan något jag byggt för privat bruk egentligen.
+Och det är en **öppen källkod**.  
 
 Det är en kombination av **startpage och dashboard** där du kan samla länkar och olika widgets.  
 
@@ -29,7 +27,9 @@ Det är en kombination av **startpage och dashboard** där du kan samla länkar 
 ## För dig som vill köra Integration med Homey Pro 2023:
 
 För att använda den mot Homey Pro 2023, använder du antingen webhooks eller kör appen lokalt på din dator eller på en NAS.  
-Du kan se status och styra enheter direkt från sidan (beroende på hur du kör appen).
+Du kan se status och styra enheter direkt från sidan (beroende på hur du kör appen).  
+
+> **Obs:** Detta är *inte* en officiell Homey-app, utan något jag byggt för privat bruk egentligen.
 
 ---
 

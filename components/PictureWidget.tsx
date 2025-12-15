@@ -1,5 +1,6 @@
 
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
 import { PhotoIcon } from './Icons';
 
@@ -10,6 +11,9 @@ interface PictureWidgetProps {
   height?: number;
   fit?: 'cover' | 'contain' | 'fill';
   borderRadius?: boolean;
+  updateInterval?: number; // in minutes
+  pictureClickUrl?: string;
+  openLinksInNewTab?: boolean;
   themeClasses: typeof themes.default;
 }
 
@@ -20,9 +24,28 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   height = 200, 
   fit = 'cover',
   borderRadius = true,
+  updateInterval = 0,
+  pictureClickUrl,
+  openLinksInNewTab = true,
   themeClasses 
 }) => {
-  const imgSrc = sourceType === 'upload' ? base64 : url;
+  const [cacheBust, setCacheBust] = useState(0);
+
+  useEffect(() => {
+    if (updateInterval > 0 && sourceType === 'url' && url) {
+      const intervalId = setInterval(() => {
+        setCacheBust(Date.now());
+      }, updateInterval * 60 * 1000);
+      return () => clearInterval(intervalId);
+    }
+  }, [updateInterval, sourceType, url]);
+
+  let imgSrc = sourceType === 'upload' ? base64 : url;
+
+  if (sourceType === 'url' && url && updateInterval > 0 && cacheBust > 0) {
+    // Add a cache-busting query parameter.
+    imgSrc = `${url}${url.includes('?') ? '&' : '?'}refresh=${cacheBust}`;
+  }
 
   if (!imgSrc) {
     return (
@@ -36,17 +59,35 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
     );
   }
 
+  const imgElement = (
+    <img 
+      src={imgSrc} 
+      alt="Widget" 
+      className={`w-full h-full ${borderRadius ? 'rounded-lg' : ''}`}
+      style={{ objectFit: fit }}
+      onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+      }}
+    />
+  );
+
+  if (pictureClickUrl) {
+    return (
+      <a
+        href={pictureClickUrl}
+        target={openLinksInNewTab ? "_blank" : "_self"}
+        rel="noopener noreferrer"
+        className="block w-full overflow-hidden cursor-pointer"
+        style={{ height: `${height}px` }}
+      >
+        {imgElement}
+      </a>
+    );
+  }
+
   return (
     <div className="w-full overflow-hidden" style={{ height: `${height}px` }}>
-      <img 
-        src={imgSrc} 
-        alt="Widget" 
-        className={`w-full h-full ${borderRadius ? 'rounded-lg' : ''}`}
-        style={{ objectFit: fit }}
-        onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-        }}
-      />
+      {imgElement}
     </div>
   );
 };

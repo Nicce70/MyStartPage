@@ -20,7 +20,7 @@ import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon,
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton } from './types';
+import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton, RadioStation } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 // @ts-ignore
 import { io } from "socket.io-client";
@@ -41,10 +41,10 @@ const DEFAULT_COLUMNS: Column[] = [
     groups: [
       {
         id: uuidv4(),
-        name: "Work",
+        name: "Develop",
         items: [
-          { id: uuidv4(), type: 'link', name: "Gmail", url: "https://mail.google.com", comment: "Work Email" },
-          { id: uuidv4(), type: 'link', name: "Google Calendar", url: "https://calendar.google.com" },
+          { id: uuidv4(), type: 'link', name: "GitHub", url: "https://github.com", comment: "GitHub" },
+          { id: uuidv4(), type: 'link', name: "Stack Overflow", url: "https://stackoverflow.com" },
         ],
         type: 'links',
       },
@@ -66,6 +66,19 @@ const DEFAULT_COLUMNS: Column[] = [
       },
     ]
   }
+];
+
+const DEFAULT_RADIO_STATIONS: RadioStation[] = [
+  { id: 'sr-p1', name: 'Sveriges Radio P1', url: 'https://sverigesradio.se/topsy/direkt/srapi/132.mp3' },
+  { id: 'sr-p2', name: 'Sveriges Radio P2', url: 'https://sverigesradio.se/topsy/direkt/srapi/163.mp3' },
+  { id: 'sr-p3', name: 'Sveriges Radio P3', url: 'https://sverigesradio.se/topsy/direkt/srapi/164.mp3' },
+  { id: 'sr-p4-sthlm', name: 'SR P4 Stockholm', url: 'https://sverigesradio.se/topsy/direkt/srapi/701.mp3' },
+  { id: 'mix-megapol', name: 'Mix Megapol', url: 'https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3' },
+  { id: 'rockklassiker', name: 'Rockklassiker', url: 'https://live-bauerse-fm.sharp-stream.com/rockklassiker_instream_se_mp3' },
+  { id: 'bandit-metal', name: 'Bandit Metal', url: 'https://wr03-ice.stream.khz.se/wr03_mp3' },
+  { id: 'rix-fm', name: 'Rix FM', url: 'https://fm01-ice.stream.khz.se/fm01_mp3' },
+  { id: 'lugna-favoriter', name: 'Lugna Favoriter', url: 'https://fm03-ice.stream.khz.se/fm03_mp3' },
+  { id: 'star-fm', name: 'Star FM', url: 'https://fm05-ice.stream.khz.se/fm05_mp3' },
 ];
 
 const runDataMigrationAndValidation = (data: any): Column[] => {
@@ -735,27 +748,32 @@ function App() {
 
   useEffect(() => {
     if (isEditMode) {
-      const collapsedIds = new Set<string>();
-      columns.forEach(col => {
-        col.groups.forEach(g => {
-          if (g.isCollapsed) collapsedIds.add(g.id);
+      collapsedGroupsBeforeEdit.current.clear();
+      const newColumns = JSON.parse(JSON.stringify(columns));
+      let hadCollapsed = false;
+      newColumns.forEach((c: Column) => {
+        c.groups.forEach((g: Group) => {
+          if (g.isCollapsed) {
+            collapsedGroupsBeforeEdit.current.add(g.id);
+            g.isCollapsed = false;
+            hadCollapsed = true;
+          }
         });
       });
-      collapsedGroupsBeforeEdit.current = collapsedIds;
-
-      if (collapsedIds.size > 0) {
-        setColumns(cols => cols.map(c => ({
-          ...c,
-          groups: c.groups.map(g => g.isCollapsed ? { ...g, isCollapsed: false } : g)
-        })));
+      if (hadCollapsed) {
+        setColumns(newColumns);
       }
     } else {
       if (collapsedGroupsBeforeEdit.current.size > 0) {
-        setColumns(cols => cols.map(c => ({
-          ...c,
-          groups: c.groups.map(g => collapsedGroupsBeforeEdit.current.has(g.id) ? { ...g, isCollapsed: true } : g)
-        })));
-        // Clear the memory after restoring
+        const newColumns = JSON.parse(JSON.stringify(columns));
+        newColumns.forEach((c: Column) => {
+          c.groups.forEach((g: Group) => {
+            if (collapsedGroupsBeforeEdit.current.has(g.id)) {
+              g.isCollapsed = true;
+            }
+          });
+        });
+        setColumns(newColumns);
         collapsedGroupsBeforeEdit.current.clear();
       }
     }
@@ -1082,6 +1100,8 @@ function App() {
                 group.widgetSettings.pictureHeight = parseInt(formData.get('pictureHeight') as string, 10) || 200;
                 group.widgetSettings.pictureFit = formData.get('pictureFit') as any;
                 group.widgetSettings.pictureBorderRadius = formData.has('pictureBorderRadius');
+                group.widgetSettings.pictureUpdateInterval = parseInt(formData.get('pictureUpdateInterval') as string, 10) || 0;
+                group.widgetSettings.pictureClickUrl = formData.get('pictureClickUrl') as string;
             } else if (group.widgetType === 'iframe') {
                 group.widgetSettings.iframeUrl = formData.get('iframeUrl') as string;
                 group.widgetSettings.iframeHeight = parseInt(formData.get('iframeHeight') as string, 10) || 400;
@@ -1249,10 +1269,8 @@ function App() {
         newWidget = { id: uuidv4(), name: "Network Info", items: [], type: 'widget', widgetType: 'network' };
     } else if (widgetType === 'solar') {
         newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false } };
-    } else if (widgetType === 'homey') {
-        newWidget = { id: uuidv4(), name: "Homey Pro Auto Zones", items: [], type: 'widget', widgetType: 'homey', widgetSettings: { homeySettings: { selectedCapabilities: [], selectedFlows: [], enableScroll: true, showOneRow: false } } };
     } else if (widgetType === 'radio') {
-        newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: [] } };
+        newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: DEFAULT_RADIO_STATIONS } };
     } else if (widgetType === 'favorites') {
         newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites', widgetSettings: { favoritesOrder: [] } };
     } else if (widgetType === 'picture') {
@@ -1498,6 +1516,9 @@ function App() {
         return (
             <form onSubmit={handleFormSubmit}>
                 <div className="space-y-4">
+                    <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md text-sm text-yellow-200">
+                        <strong>Note:</strong> The backup file is unencrypted and contains potentially sensitive data (like API keys). Please store it in a secure location.
+                    </div>
                     <p className={themeClasses.modalMutedText}>Enter a name for your backup file:</p>
                     <div>
                         <label htmlFor="filename" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Filename</label>

@@ -113,7 +113,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
     'green': 'bg-[#60B162]',
     'gray': 'bg-[#F2F2F2]',
     'black': 'bg-[#0a0a0a] text-slate-200',
-    'dark_blue': 'bg-[#172554] text-blue-100'
+    'dark_blue': 'bg-[#172554] text-blue-100',
+    'transparent': 'bg-transparent',
   }[group.colorVariant || 'default'] || themeClasses.groupBg;
   
   const accentBorderColor = themeClasses.ring.replace('ring-', 'border-');
@@ -294,7 +295,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           />
         ) : isRadioWidget ? (
           <Radio 
-            customStations={group.widgetSettings?.radioStations || []}
+            stations={group.widgetSettings?.radioStations || []}
             themeClasses={themeClasses}
           />
         ) : isFavoritesWidget ? (
@@ -312,6 +313,9 @@ const GroupItem: React.FC<GroupItemProps> = ({
             height={group.widgetSettings?.pictureHeight}
             fit={group.widgetSettings?.pictureFit}
             borderRadius={group.widgetSettings?.pictureBorderRadius}
+            updateInterval={group.widgetSettings?.pictureUpdateInterval}
+            pictureClickUrl={group.widgetSettings?.pictureClickUrl}
+            openLinksInNewTab={openLinksInNewTab}
             themeClasses={themeClasses}
           />
         ) : isIframeWidget ? (

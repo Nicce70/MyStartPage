@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import type { Group, Theme } from '../types';
 import { PhotoIcon, TrashIcon } from './Icons';
@@ -73,19 +74,39 @@ const PictureSettingsForm: React.FC<PictureSettingsFormProps> = ({ group, themeC
         </div>
 
         {/* Input Area */}
-        <div className={`p-4 rounded-lg border ${themeClasses.inputBg} ${themeClasses.dashedBorder}`}>
+        <div className={`p-4 rounded-lg border ${themeClasses.inputBg} ${themeClasses.dashedBorder} space-y-4`}>
             {sourceType === 'url' ? (
-                <div>
-                    <label htmlFor="pictureUrlInput" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Image Address</label>
-                    <input
-                        type="url"
-                        id="pictureUrlInput"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://example.com/image.jpg"
-                        className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                    />
-                </div>
+                <>
+                    <div>
+                        <label htmlFor="pictureUrlInput" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Image Address</label>
+                        <input
+                            type="url"
+                            id="pictureUrlInput"
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            placeholder="https://example.com/image.jpg"
+                            className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                        />
+                    </div>
+                     <div>
+                        <label htmlFor="pictureUpdateInterval" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Auto-Refresh Interval</label>
+                        <select
+                          id="pictureUpdateInterval"
+                          name="pictureUpdateInterval"
+                          defaultValue={group.widgetSettings?.pictureUpdateInterval || 0}
+                          className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                        >
+                          <option value="0">Off</option>
+                          <option value="1">Every 1 minute</option>
+                          <option value="5">Every 5 minutes</option>
+                          <option value="15">Every 15 minutes</option>
+                          <option value="60">Every 1 hour</option>
+                        </select>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Useful for dynamic images like weather maps or webcams. Forces a refresh to bypass browser cache.
+                        </p>
+                      </div>
+                </>
             ) : (
                 <div>
                     <label htmlFor="pictureUpload" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Image (Max 1MB)</label>
@@ -116,6 +137,19 @@ const PictureSettingsForm: React.FC<PictureSettingsFormProps> = ({ group, themeC
                     {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
                 </div>
             )}
+        </div>
+
+        <div>
+            <label htmlFor="pictureClickUrl" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Clickable Link (optional)</label>
+            <input
+                type="url"
+                id="pictureClickUrl"
+                name="pictureClickUrl"
+                defaultValue={group.widgetSettings?.pictureClickUrl || ''}
+                placeholder="https://example.com"
+                className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+            />
+            <p className="text-xs text-slate-500 mt-1">If set, the entire image will act as a link to this URL.</p>
         </div>
 
         {/* Appearance Settings */}

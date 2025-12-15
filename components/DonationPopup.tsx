@@ -25,7 +25,7 @@ const DonationPopup: React.FC<DonationPopupProps> = ({ themeClasses }) => {
       }
     }
 
-    // 2. Check first visit timestamp for the 24-hour delay
+    // 2. Check first visit timestamp
     const firstVisit = localStorage.getItem(FIRST_VISIT_KEY);
     if (!firstVisit) {
       // First time user is here. Mark the time, but don't show popup yet.
@@ -34,10 +34,10 @@ const DonationPopup: React.FC<DonationPopupProps> = ({ themeClasses }) => {
       return;
     }
 
-    // 3. Check if 24 hours have passed since first visit
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    if (now - parseInt(firstVisit, 10) < oneDayMs) {
-      // Less than 24 hours since first visit, keep hidden
+    // 3. Check if 7 days have passed since first visit
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    if (now - parseInt(firstVisit, 10) < sevenDaysMs) {
+      // Less than 7 days since first visit, keep hidden
       setIsVisible(false);
       return;
     }

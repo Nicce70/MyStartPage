@@ -1,43 +1,51 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import type { RadioStation } from '../types';
-import { PlayIcon, PauseIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from './Icons';
+import { PlayIcon, PauseIcon, SpeakerWaveIcon, SpeakerXMarkIcon, ChevronDownIcon } from './Icons';
 
 interface RadioProps {
-  customStations: RadioStation[];
+  stations: RadioStation[];
   themeClasses: typeof themes.default;
 }
 
-const DEFAULT_STATIONS: RadioStation[] = [
-  { id: 'sr-p1', name: 'Sveriges Radio P1', url: 'https://sverigesradio.se/topsy/direkt/srapi/132.mp3' },
-  { id: 'sr-p2', name: 'Sveriges Radio P2', url: 'https://sverigesradio.se/topsy/direkt/srapi/163.mp3' },
-  { id: 'sr-p3', name: 'Sveriges Radio P3', url: 'https://sverigesradio.se/topsy/direkt/srapi/164.mp3' },
-  { id: 'sr-p4-sthlm', name: 'SR P4 Stockholm', url: 'https://sverigesradio.se/topsy/direkt/srapi/701.mp3' },
-  { id: 'mix-megapol', name: 'Mix Megapol', url: 'https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3' },
-  { id: 'rockklassiker', name: 'Rockklassiker', url: 'https://live-bauerse-fm.sharp-stream.com/rockklassiker_instream_se_mp3' },
-  { id: 'bandit-metal', name: 'Bandit Metal', url: 'https://wr03-ice.stream.khz.se/wr03_mp3' },
-  { id: 'rix-fm', name: 'Rix FM', url: 'https://fm01-ice.stream.khz.se/fm01_mp3' },
-  { id: 'lugna-favoriter', name: 'Lugna Favoriter', url: 'https://fm03-ice.stream.khz.se/fm03_mp3' },
-  { id: 'star-fm', name: 'Star FM', url: 'https://fm05-ice.stream.khz.se/fm05_mp3' },
-];
-
-const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
+const Radio: React.FC<RadioProps> = ({ stations, themeClasses }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentStationId, setCurrentStationId] = useState(DEFAULT_STATIONS[2].id); // Default to P3
+  const [currentStationId, setCurrentStationId] = useState(stations?.[0]?.id || '');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const stations = [...DEFAULT_STATIONS, ...(customStations || [])];
   const currentStation = stations.find(s => s.id === currentStationId) || stations[0];
+
+  useEffect(() => {
+    // If stations are updated from settings, make sure we have a valid selection
+    if (stations && stations.length > 0 && !stations.find(s => s.id === currentStationId)) {
+      setCurrentStationId(stations[0].id);
+    }
+  }, [stations, currentStationId]);
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownRef]);
 
   // Helper to safely play audio and ignore interruption errors
   const safePlay = (audio: HTMLAudioElement) => {
       const playPromise = audio.play();
       if (playPromise !== undefined) {
           playPromise.catch(error => {
-              // Ignore AbortError (interrupted by pause/load) as it is expected during rapid interaction
               if (error.name !== 'AbortError' && error.name !== 'NotAllowedError') {
                   console.error("Playback failed:", error);
                   setIsPlaying(false);
@@ -49,10 +57,7 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
   // Initialize Audio Object on Mount
   useEffect(() => {
     audioRef.current = new Audio();
-    // Set initial volume
     audioRef.current.volume = volume;
-
-    // Cleanup on unmount
     return () => {
         if (audioRef.current) {
             audioRef.current.pause();
@@ -71,16 +76,15 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
   // Effect 2: Handle Station Changes
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !currentStation) return;
 
     if (audio.src !== currentStation.url) {
         audio.src = currentStation.url;
-        // If we are currently in a "playing" state, the new source should start playing
         if (isPlaying) {
             safePlay(audio);
         }
     }
-  }, [currentStation.url, isPlaying]);
+  }, [currentStation, isPlaying]);
 
   // Effect 3: Handle Play/Pause Toggle
   useEffect(() => {
@@ -99,6 +103,7 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
   }, [isPlaying]);
 
   const togglePlay = () => {
+      if (!currentStation) return;
       setIsPlaying(!isPlaying);
   };
 
@@ -106,31 +111,46 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
       setIsMuted(!isMuted);
   };
 
+  const handleStationSelect = (stationId: string) => {
+    setCurrentStationId(stationId);
+    setIsDropdownOpen(false);
+  };
+
+  if (!stations || stations.length === 0) {
+    return (
+      <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>
+        No stations configured. Add some in settings.
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3 p-2">
-      {/* Station Selector */}
-      <select
-        value={currentStationId}
-        onChange={(e) => {
-            setCurrentStationId(e.target.value);
-        }}
-        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} text-sm font-semibold`}
-      >
-        <optgroup label="Swedish Favorites">
-            {DEFAULT_STATIONS.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-        </optgroup>
-        {customStations && customStations.length > 0 && (
-            <optgroup label="My Stations">
-                {customStations.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-            </optgroup>
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className={`w-full flex items-center justify-between p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} text-sm font-semibold text-left`}
+        >
+          <span className="truncate">{currentStation?.name || 'Select Station'}</span>
+          <ChevronDownIcon className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isDropdownOpen && (
+          <div className={`absolute z-10 top-full mt-1 w-full rounded-md shadow-lg border max-h-96 overflow-y-auto ${themeClasses.modalBg} ${themeClasses.dashedBorder}`}>
+            <ul className="py-1">
+              {stations.map(station => (
+                <li
+                  key={station.id}
+                  onClick={() => handleStationSelect(station.id)}
+                  className={`px-3 py-2 text-sm cursor-pointer ${themeClasses.linkHoverBg} ${currentStationId === station.id ? themeClasses.header : ''}`}
+                >
+                  {station.name}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-      </select>
+      </div>
 
-      {/* Controls */}
       <div className="flex items-center gap-3">
         <button
             onClick={togglePlay}
@@ -166,7 +186,6 @@ const Radio: React.FC<RadioProps> = ({ customStations, themeClasses }) => {
         </div>
       </div>
 
-      {/* Visualizer / Status */}
       <div className="h-6 flex items-center justify-center gap-1 overflow-hidden">
           {isPlaying ? (
               <>

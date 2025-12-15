@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import type { Group, Theme, RadioStation } from '../types';
-import { PlusIcon, TrashIcon } from './Icons';
+import { PlusIcon, TrashIcon, ArrowPathIcon } from './Icons';
 
 // Simple UUID generator
 const uuidv4 = () => {
@@ -11,118 +12,116 @@ const uuidv4 = () => {
   });
 };
 
+const DEFAULT_STATIONS: RadioStation[] = [
+  { id: 'sr-p1', name: 'Sveriges Radio P1', url: 'https://sverigesradio.se/topsy/direkt/srapi/132.mp3' },
+  { id: 'sr-p2', name: 'Sveriges Radio P2', url: 'https://sverigesradio.se/topsy/direkt/srapi/163.mp3' },
+  { id: 'sr-p3', name: 'Sveriges Radio P3', url: 'https://sverigesradio.se/topsy/direkt/srapi/164.mp3' },
+  { id: 'sr-p4-sthlm', name: 'SR P4 Stockholm', url: 'https://sverigesradio.se/topsy/direkt/srapi/701.mp3' },
+  { id: 'mix-megapol', name: 'Mix Megapol', url: 'https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3' },
+  { id: 'rockklassiker', name: 'Rockklassiker', url: 'https://live-bauerse-fm.sharp-stream.com/rockklassiker_instream_se_mp3' },
+  { id: 'bandit-metal', name: 'Bandit Metal', url: 'https://wr03-ice.stream.khz.se/wr03_mp3' },
+  { id: 'rix-fm', name: 'Rix FM', url: 'https://fm01-ice.stream.khz.se/fm01_mp3' },
+  { id: 'lugna-favoriter', name: 'Lugna Favoriter', url: 'https://fm03-ice.stream.khz.se/fm03_mp3' },
+  { id: 'star-fm', name: 'Star FM', url: 'https://fm05-ice.stream.khz.se/fm05_mp3' },
+];
+
 interface RadioSettingsFormProps {
   group: Group;
   themeClasses: Theme;
 }
 
 const RadioSettingsForm: React.FC<RadioSettingsFormProps> = ({ group, themeClasses }) => {
-  // Initialize with existing custom stations or an empty array (we don't save default stations here)
   const [stations, setStations] = useState<RadioStation[]>(group.widgetSettings?.radioStations || []);
-  const [newName, setNewName] = useState('');
-  const [newUrl, setNewUrl] = useState('');
 
   const handleAddStation = () => {
-    if (!newName || !newUrl) return;
-    
-    // Ensure HTTPS
-    let secureUrl = newUrl;
-    if (secureUrl.startsWith('http:')) {
-        secureUrl = secureUrl.replace('http:', 'https:');
-    }
-
     const newStation: RadioStation = {
       id: uuidv4(),
-      name: newName,
-      url: secureUrl,
+      name: 'New Station',
+      url: 'https://',
     };
     setStations([...stations, newStation]);
-    setNewName('');
-    setNewUrl('');
+  };
+
+  const handleUpdateStation = (id: string, field: 'name' | 'url', value: string) => {
+    setStations(stations.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
   const handleDeleteStation = (id: string) => {
     setStations(stations.filter(s => s.id !== id));
   };
 
-  // Update the hidden input field for the parent form handler
-  useEffect(() => {
-      const hiddenInput = document.getElementById('radioStationsJSON') as HTMLInputElement;
-      if(hiddenInput) {
-          hiddenInput.value = JSON.stringify(stations);
-      }
-  }, [stations]);
+  const handleMoveStation = (index: number, direction: 'up' | 'down') => {
+    const newStations = [...stations];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex >= 0 && targetIndex < newStations.length) {
+      [newStations[index], newStations[targetIndex]] = [newStations[targetIndex], newStations[index]];
+      setStations(newStations);
+    }
+  };
 
-  // We need to render a hidden input to pass the data back to App.tsx's handleFormSubmit
-  // However, React state updates are async, so we use a key trick or just rely on the input being present.
-  // A better way in this architecture is to update the DOM element directly or use a ref if available, 
-  // but since we are inside a form managed by App.tsx, we'll use a hidden input.
+  const handleReset = () => {
+    setStations(DEFAULT_STATIONS);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Hidden input for form submission */}
-      <input type="hidden" id="radioStationsJSON" name="radioStationsJSON" value={JSON.stringify(stations)} />
-
-      {/* List Existing Custom Stations */}
-      <div>
-        <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-2`}>My Custom Stations</label>
-        {stations.length === 0 ? (
-            <div className={`text-sm ${themeClasses.textSubtle} italic mb-2`}>No custom stations added yet.</div>
-        ) : (
-            <ul className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-2">
-                {stations.map((station) => (
-                    <li key={station.id} className={`flex justify-between items-center p-2 rounded-md ${themeClasses.inputBg} border border-slate-600`}>
-                        <div className="truncate pr-2">
-                            <div className="font-semibold text-sm">{station.name}</div>
-                            <div className={`text-xs ${themeClasses.textSubtle} truncate`}>{station.url}</div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => handleDeleteStation(station.id)}
-                            className={`p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors`}
-                        >
-                            <TrashIcon className="w-4 h-4" />
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        )}
+    <div className="space-y-4">
+      <input type="hidden" name="radioStationsJSON" value={JSON.stringify(stations)} />
+      
+      <div className="flex justify-between items-center">
+        <label className={`block text-sm font-medium ${themeClasses.modalMutedText}`}>My Stations</label>
+        <button
+            type="button"
+            onClick={handleReset}
+            className={`flex items-center gap-2 text-xs font-semibold py-1 px-2 rounded-md transition-colors ${themeClasses.buttonSecondary}`}
+        >
+            <ArrowPathIcon className="w-3 h-3" />
+            Reset to Defaults
+        </button>
       </div>
 
-      {/* Add New Station */}
-      <div className={`p-3 rounded-lg border ${themeClasses.dashedBorder} bg-black/20`}>
-        <h4 className={`text-xs font-bold uppercase tracking-wider ${themeClasses.modalMutedText} mb-3`}>Add New Station</h4>
-        <div className="space-y-3">
-            <div>
+      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+        {stations.map((station, index) => (
+          <div key={station.id} className={`p-3 rounded-lg border ${themeClasses.inputBg} border-slate-600 flex flex-col gap-2`}>
+            <div className="flex items-center gap-2">
                 <input
                     type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Station Name (e.g. Cool FM)"
-                    className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    value={station.name}
+                    onChange={(e) => handleUpdateStation(station.id, 'name', e.target.value)}
+                    placeholder="Station Name"
+                    maxLength={40}
+                    className={`flex-1 p-1.5 rounded text-sm ${themeClasses.modalBg} border border-slate-500 focus:border-indigo-500 outline-none`}
                 />
+                <div className="flex items-center gap-1">
+                    <button type="button" onClick={() => handleMoveStation(index, 'up')} disabled={index === 0} className={`p-1 ${themeClasses.iconMuted} hover:text-white disabled:opacity-30`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                    </button>
+                    <button type="button" onClick={() => handleMoveStation(index, 'down')} disabled={index === stations.length - 1} className={`p-1 ${themeClasses.iconMuted} hover:text-white disabled:opacity-30`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                    </button>
+                    <button type="button" onClick={() => handleDeleteStation(station.id)} className={`p-1 text-red-400 hover:text-red-300`}>
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
-            <div>
-                <input
-                    type="url"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="Stream URL (https://...)"
-                    className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                />
-                <p className="text-xs text-slate-500 mt-1">Must be a direct stream link (mp3/aac) via HTTPS.</p>
-            </div>
-            <button
-                type="button"
-                onClick={handleAddStation}
-                disabled={!newName || !newUrl}
-                className={`w-full flex items-center justify-center gap-2 p-2 rounded-md font-semibold text-sm ${themeClasses.buttonSecondary} disabled:opacity-50`}
-            >
-                <PlusIcon className="w-4 h-4" />
-                Add Station
-            </button>
-        </div>
+            <input
+                type="url"
+                value={station.url}
+                onChange={(e) => handleUpdateStation(station.id, 'url', e.target.value)}
+                placeholder="https://... Stream URL"
+                className={`w-full p-1.5 rounded text-sm ${themeClasses.modalBg} border border-slate-500 focus:border-indigo-500 outline-none font-mono`}
+            />
+          </div>
+        ))}
       </div>
+
+      <button
+        type="button"
+        onClick={handleAddStation}
+        className={`w-full flex items-center justify-center gap-2 p-2 rounded-lg border-2 border-dashed ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300 transition-colors`}
+      >
+        <PlusIcon className="w-4 h-4" />
+        Add Station
+      </button>
     </div>
   );
 };

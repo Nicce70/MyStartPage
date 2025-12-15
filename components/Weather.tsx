@@ -231,18 +231,6 @@ const Weather: React.FC<WeatherProps> = ({ city, themeClasses, showForecast, sho
 
   const getDayName = (dateStr: string) => {
     const date = new Date(dateStr);
-    const today = new Date();
-    
-    // Reset times for accurate comparison
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
-    // Check for Tomorrow
-    const tomorrow = new Date(t);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    if (d.getTime() === tomorrow.getTime()) return "Tomorrow";
-    
     return date.toLocaleDateString('en-US', { weekday: 'long' });
   };
   

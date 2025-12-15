@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Column, Link, Theme, Group, GroupItemType } from '../types';
 import { GlobeIcon } from './Icons';
@@ -82,7 +83,7 @@ const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, 
   }
 
   return (
-    <div className={`grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-1`}>
+    <div className={`grid grid-cols-1 gap-2 max-h-72 overflow-y-auto pr-1`}>
       {favoriteLinks.map(link => (
             <a
                 key={link.id}

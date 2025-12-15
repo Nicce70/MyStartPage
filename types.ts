@@ -84,7 +84,7 @@ export interface Group {
   items: AnyItemType[];
   isCollapsed?: boolean;
   type?: 'links' | 'widget';
-  colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue';
+  colorVariant?: 'default' | 'secondary' | 'tertiary' | 'green' | 'gray' | 'black' | 'dark_blue' | 'transparent';
   widgetType?: 'weather' | 'calendar' | 'todo' | 'clock' | 'timer' | 'rss' | 'calculator' | 'scratchpad' | 'countdown' | 'currency' | 'webhook' | 'unit_converter' | 'network' | 'solar' | 'homey' | 'radio' | 'favorites' | 'picture' | 'iframe' | 'homey_custom' | 'homey_status';
   widgetSettings?: {
     city?: string;
@@ -131,6 +131,8 @@ export interface Group {
     pictureHeight?: number; // in pixels
     pictureFit?: 'cover' | 'contain' | 'fill';
     pictureBorderRadius?: boolean;
+    pictureUpdateInterval?: number; // in minutes
+    pictureClickUrl?: string;
     iframeUrl?: string;
     iframeHeight?: number;
     iframeViewMode?: 'desktop' | 'mobile';

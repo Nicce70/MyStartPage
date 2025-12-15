@@ -1,3 +1,5 @@
+![MyStartPage_Logo](https://github.com/user-attachments/assets/438e6684-84f1-489d-b1fa-3c4be132f981)
+
 # MyStartPage
 
 A lightweight personal start page written in **TypeScript**, built with **Vite**, and designed to be fast, clean, and fully customizable.  

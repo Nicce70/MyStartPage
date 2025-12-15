@@ -6,10 +6,14 @@
 A lightweight personal start page written in **TypeScript**, built with **Vite**, and designed to be fast, clean, and fully customizable.  
 Local preferences are stored directly in your browser, so no external database or backend is required.
 
+To start using it direct from GitHub, just enter:  
+👉 **https://nicce70.github.io/MyStartPage/**  
+
+...or you can run it locally on your NAS with, for example, the Apache web server or in developer mode in Vite on your computer. There are instructions in Swedish below on how to accomplish this.    
+
 The rest of this documentation is written in **Swedish**.
 
 ---
-
 
 # MyStartPage – Webbaserad start- och dashboardsida
 
@@ -20,7 +24,9 @@ Och det är en **öppen källkod**.
 
 Det är en kombination av **startpage och dashboard** där du kan samla länkar och olika widgets.  
 
-## Integration med Homey Pro 2023
+---
+
+## För dig som vill köra Integration med Homey Pro 2023:
 
 För att använda den mot Homey Pro 2023, använder du antingen webhooks eller kör appen lokalt på din dator eller på en NAS.  
 Du kan se status och styra enheter direkt från sidan (beroende på hur du kör appen).

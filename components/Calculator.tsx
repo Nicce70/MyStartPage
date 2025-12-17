@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { themes } from '../themes';
 import type { CalculatorState } from '../types';
@@ -6,39 +7,40 @@ interface CalculatorProps {
   themeClasses: typeof themes.default;
   state: CalculatorState;
   onStateChange: (newState: CalculatorState) => void;
+  isEditMode: boolean;
 }
 
-const CalculatorButtonGrid: React.FC<any> = ({ handleDigitClick, handleOperatorClick, handleClearClick, handleDecimalClick, handleEqualsClick, buttonClass, operatorButtonClass }) => (
+const CalculatorButtonGrid: React.FC<any> = ({ handleDigitClick, handleOperatorClick, handleClearClick, handleDecimalClick, handleEqualsClick, buttonClass, operatorButtonClass, isEditMode }) => (
     <div className="grid grid-cols-4 grid-rows-5 gap-2">
         {/* Row 1 */}
-        <button onClick={handleClearClick} className={`${buttonClass} col-span-2`}>C</button>
-        <button onClick={() => handleOperatorClick('/')} className={operatorButtonClass}>÷</button>
-        <button onClick={() => handleOperatorClick('*')} className={operatorButtonClass}>×</button>
+        <button onClick={handleClearClick} disabled={isEditMode} className={`${buttonClass} col-span-2`}>C</button>
+        <button onClick={() => handleOperatorClick('/')} disabled={isEditMode} className={operatorButtonClass}>÷</button>
+        <button onClick={() => handleOperatorClick('*')} disabled={isEditMode} className={operatorButtonClass}>×</button>
 
         {/* Row 2 */}
-        <button onClick={() => handleDigitClick('7')} className={buttonClass}>7</button>
-        <button onClick={() => handleDigitClick('8')} className={buttonClass}>8</button>
-        <button onClick={() => handleDigitClick('9')} className={buttonClass}>9</button>
-        <button onClick={() => handleOperatorClick('-')} className={operatorButtonClass}>-</button>
+        <button onClick={() => handleDigitClick('7')} disabled={isEditMode} className={buttonClass}>7</button>
+        <button onClick={() => handleDigitClick('8')} disabled={isEditMode} className={buttonClass}>8</button>
+        <button onClick={() => handleDigitClick('9')} disabled={isEditMode} className={buttonClass}>9</button>
+        <button onClick={() => handleOperatorClick('-')} disabled={isEditMode} className={operatorButtonClass}>-</button>
 
         {/* Row 3 */}
-        <button onClick={() => handleDigitClick('4')} className={buttonClass}>4</button>
-        <button onClick={() => handleDigitClick('5')} className={buttonClass}>5</button>
-        <button onClick={() => handleDigitClick('6')} className={buttonClass}>6</button>
-        <button onClick={() => handleOperatorClick('+')} className={operatorButtonClass}>+</button>
+        <button onClick={() => handleDigitClick('4')} disabled={isEditMode} className={buttonClass}>4</button>
+        <button onClick={() => handleDigitClick('5')} disabled={isEditMode} className={buttonClass}>5</button>
+        <button onClick={() => handleDigitClick('6')} disabled={isEditMode} className={buttonClass}>6</button>
+        <button onClick={() => handleOperatorClick('+')} disabled={isEditMode} className={operatorButtonClass}>+</button>
 
         {/* Row 4 & 5 */}
-        <button onClick={() => handleDigitClick('1')} className={buttonClass}>1</button>
-        <button onClick={() => handleDigitClick('2')} className={buttonClass}>2</button>
-        <button onClick={() => handleDigitClick('3')} className={buttonClass}>3</button>
-        <button onClick={handleEqualsClick} className={`${operatorButtonClass} row-span-2`}>=</button>
+        <button onClick={() => handleDigitClick('1')} disabled={isEditMode} className={buttonClass}>1</button>
+        <button onClick={() => handleDigitClick('2')} disabled={isEditMode} className={buttonClass}>2</button>
+        <button onClick={() => handleDigitClick('3')} disabled={isEditMode} className={buttonClass}>3</button>
+        <button onClick={handleEqualsClick} disabled={isEditMode} className={`${operatorButtonClass} row-span-2`}>=</button>
         
-        <button onClick={() => handleDigitClick('0')} className={`${buttonClass} col-span-2`}>0</button>
-        <button onClick={handleDecimalClick} className={buttonClass}>.</button>
+        <button onClick={() => handleDigitClick('0')} disabled={isEditMode} className={`${buttonClass} col-span-2`}>0</button>
+        <button onClick={handleDecimalClick} disabled={isEditMode} className={buttonClass}>.</button>
     </div>
 );
 
-const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateChange }) => {
+const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateChange, isEditMode }) => {
   const [isFocused, setIsFocused] = useState(false);
   const calculatorRef = useRef<HTMLDivElement>(null);
 
@@ -135,7 +137,7 @@ const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateCha
   // Effect for handling keyboard input when focused
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-        if (!isFocused) return;
+        if (!isFocused || isEditMode) return;
 
         const key = event.key;
 
@@ -161,11 +163,11 @@ const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateCha
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isFocused, handleDigitClick, handleOperatorClick, handleDecimalClick, handleEqualsClick, handleClearClick]);
+  }, [isFocused, isEditMode, handleDigitClick, handleOperatorClick, handleDecimalClick, handleEqualsClick, handleClearClick]);
 
   
-  const buttonClass = `${themeClasses.buttonSecondary} font-semibold py-2 rounded-lg transition-colors text-lg focus:outline-none focus:ring-1 ${themeClasses.ring.replace('ring-', 'ring-offset-')}`;
-  const operatorButtonClass = `${themeClasses.buttonPrimary} font-semibold py-2 rounded-lg transition-colors text-lg focus:outline-none focus:ring-1 ${themeClasses.ring.replace('ring-', 'ring-offset-')}`;
+  const buttonClass = `${themeClasses.buttonSecondary} font-semibold py-2 rounded-lg transition-colors text-lg focus:outline-none focus:ring-1 ${themeClasses.ring.replace('ring-', 'ring-offset-')} disabled:opacity-50 disabled:cursor-not-allowed`;
+  const operatorButtonClass = `${themeClasses.buttonPrimary} font-semibold py-2 rounded-lg transition-colors text-lg focus:outline-none focus:ring-1 ${themeClasses.ring.replace('ring-', 'ring-offset-')} disabled:opacity-50 disabled:cursor-not-allowed`;
 
   const displayValue = state.currentValue === 'Error' ? 'Error' : parseFloat(state.currentValue).toLocaleString('en-US', { maximumFractionDigits: 8, useGrouping: false });
   const displayFontSize = displayValue.length > 10 ? 'text-2xl' : 'text-3xl';
@@ -173,9 +175,9 @@ const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateCha
   return (
     <div
       ref={calculatorRef}
-      onClick={() => setIsFocused(true)}
+      onClick={() => { if (!isEditMode) setIsFocused(true); }}
       tabIndex={-1}
-      className={`p-1 space-y-2 rounded-lg transition-shadow outline-none ${isFocused ? `ring-2 ${themeClasses.ring}` : ''}`}
+      className={`p-1 space-y-2 rounded-lg transition-shadow outline-none ${isFocused && !isEditMode ? `ring-2 ${themeClasses.ring}` : ''}`}
     >
       <div className={`p-2 rounded-lg ${themeClasses.inputBg} text-right font-mono break-all overflow-hidden ${displayFontSize}`}>
         {displayValue}
@@ -188,6 +190,7 @@ const Calculator: React.FC<CalculatorProps> = ({ themeClasses, state, onStateCha
         handleEqualsClick={handleEqualsClick}
         buttonClass={buttonClass}
         operatorButtonClass={operatorButtonClass}
+        isEditMode={isEditMode}
       />
     </div>
   );

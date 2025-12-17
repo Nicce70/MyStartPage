@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
 
 interface CalendarProps {
   themeClasses: typeof themes.default;
   holidayCountry: string;
+  isEditMode: boolean;
 }
 
 interface Holiday {
@@ -11,7 +13,7 @@ interface Holiday {
   localName: string;
 }
 
-const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => {
+const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry, isEditMode }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [holidays, setHolidays] = useState<Map<string, string>>(new Map());
 
@@ -176,12 +178,15 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
                   target="_blank"
                   rel="noopener noreferrer"
                   title={holidayName}
-                  className={`flex items-center justify-center border text-sm font-bold cursor-pointer transition-colors 
+                  onClick={(e) => { if (isEditMode) e.preventDefault(); }}
+                  className={`flex items-center justify-center border text-sm font-bold transition-colors 
                     ${cellBorderClass}
                     ${isToday
                       ? `${todayBgClass} ${isSpecialDay ? dayTextColor : todayTextClass}`
                       : `${themeClasses.linkBg} ${dayTextColor} ${themeClasses.linkHoverBg}`
-                    }`}
+                    }
+                    ${isEditMode ? 'pointer-events-none' : 'cursor-pointer'}
+                  `}
                 >
                   <span>
                     {day}
@@ -210,9 +215,10 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
       <div className="flex justify-between mt-2">
         <button
           onClick={() => changeMonth(-1)}
-          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded disabled:opacity-50 disabled:cursor-not-allowed`}
           aria-label="Previous month"
           title="Previous month"
+          disabled={isEditMode}
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
@@ -220,9 +226,10 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
         </button>
         <button
           onClick={goToCurrentMonth}
-          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded disabled:opacity-50 disabled:cursor-not-allowed`}
           aria-label="Current month"
           title="Current month"
+          disabled={isEditMode}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
             <circle cx="12" cy="12" r="10" />
@@ -230,9 +237,10 @@ const Calendar: React.FC<CalendarProps> = ({ themeClasses, holidayCountry }) => 
         </button>
         <button
           onClick={() => changeMonth(1)}
-          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded`}
+          className={`${themeClasses.buttonSecondary} font-bold p-2 rounded disabled:opacity-50 disabled:cursor-not-allowed`}
           aria-label="Next month"
           title="Next month"
+          disabled={isEditMode}
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
             <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />

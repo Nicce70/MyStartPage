@@ -8,6 +8,7 @@ interface RSSProps {
   updateInterval: number; // in minutes
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
+  isEditMode: boolean;
 }
 
 interface RssItem {
@@ -23,7 +24,7 @@ interface RssFeed {
     }
 }
 
-const RSS: React.FC<RSSProps> = ({ rssUrl, itemCount, updateInterval, themeClasses, openLinksInNewTab }) => {
+const RSS: React.FC<RSSProps> = ({ rssUrl, itemCount, updateInterval, themeClasses, openLinksInNewTab, isEditMode }) => {
   const [feed, setFeed] = useState<RssFeed | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +124,8 @@ const RSS: React.FC<RSSProps> = ({ rssUrl, itemCount, updateInterval, themeClass
           href={item.link}
           target={openLinksInNewTab ? "_blank" : "_self"}
           rel="noopener noreferrer"
-          className={`block p-2 rounded-md transition-colors text-left ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}
+          onClick={(e) => { if (isEditMode) e.preventDefault(); }}
+          className={`block p-2 rounded-md transition-colors text-left ${themeClasses.linkBg} ${themeClasses.linkHoverBg} ${isEditMode ? 'pointer-events-none' : ''}`}
         >
           <p className={`text-xs ${themeClasses.textSubtle} mb-0.5`}>
             {new Date(item.pubDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}

@@ -9,6 +9,7 @@ interface IframeWidgetProps {
   height?: number;
   updateInterval?: number;
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
 const IframeWidget: React.FC<IframeWidgetProps> = ({ 
@@ -16,7 +17,8 @@ const IframeWidget: React.FC<IframeWidgetProps> = ({
   viewMode = 'desktop', 
   height = 400, 
   updateInterval = 0,
-  themeClasses 
+  themeClasses,
+  isEditMode
 }) => {
   const [iframeKey, setIframeKey] = useState(0);
 
@@ -56,7 +58,7 @@ const IframeWidget: React.FC<IframeWidgetProps> = ({
     : { width: '100%' };
 
   return (
-    <div className="w-full overflow-hidden flex justify-center bg-white" style={{ height: `${height}px`, borderRadius: '0.5rem' }}>
+    <div className={`w-full overflow-hidden flex justify-center bg-white ${isEditMode ? 'pointer-events-none' : ''}`} style={{ height: `${height}px`, borderRadius: '0.5rem' }}>
       <div style={{ ...containerStyle, height: '100%' }}>
         <iframe
             key={iframeKey}

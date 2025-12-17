@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
 import { PhotoIcon } from './Icons';
@@ -15,6 +14,7 @@ interface PictureWidgetProps {
   pictureClickUrl?: string;
   openLinksInNewTab?: boolean;
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
 const PictureWidget: React.FC<PictureWidgetProps> = ({ 
@@ -27,7 +27,8 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   updateInterval = 0,
   pictureClickUrl,
   openLinksInNewTab = true,
-  themeClasses 
+  themeClasses,
+  isEditMode
 }) => {
   const [cacheBust, setCacheBust] = useState(0);
 
@@ -77,7 +78,8 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
         href={pictureClickUrl}
         target={openLinksInNewTab ? "_blank" : "_self"}
         rel="noopener noreferrer"
-        className="block w-full overflow-hidden cursor-pointer"
+        onClick={(e) => { if (isEditMode) e.preventDefault(); }}
+        className={`block w-full overflow-hidden ${isEditMode ? '' : 'cursor-pointer'}`}
         style={{ height: `${height}px` }}
       >
         {imgElement}

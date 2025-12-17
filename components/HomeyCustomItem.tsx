@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import type { AnyItemType, DraggedItem, HomeyCustomItemType, ModalState, Settings, ButtonHolderItem, FlowButton } from '../types';
@@ -20,14 +21,12 @@ interface HomeyCustomItemProps {
     showOneRow?: boolean;
     onOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
     isFirstItem: boolean;
-    // FIX: Add onToggle and onTriggerFlow to props to match what is being passed from the parent.
     onToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
     onTriggerFlow: (flowId: string) => void;
 }
 
 const SPACER_ID = '---SPACER---';
 
-// FIX: Corrected multiple syntax errors, function nesting, and changed to a named export.
 export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     item, liveData, themeClasses, isEditMode, groupId, columnId,
     draggedItem, onPointerDown, dropTarget, openModal, homeyGlobalSettings, showOneRow, onOptimisticUpdate,
@@ -76,7 +75,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
         }
     }, [item.id, homeyGlobalSettings, item.type]);
 
-    // FIX: Use onTriggerFlow prop and handle UI state locally.
     const handleTriggerFlow = (flowId: string) => {
         setIsTriggered(flowId);
         setTimeout(() => setIsTriggered(null), 500);
@@ -93,6 +91,27 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
             case 'button_holder': return 'BUTTON HOLDER';
             default: return '';
         }
+    };
+
+    const formatSensorValue = (value: any, units?: string): React.ReactNode => {
+        if (value === null || value === undefined) return '-';
+
+        if (typeof value === 'boolean' || (typeof value === 'number' && (value === 0 || value === 1) && !units)) {
+            const isYes = !!value;
+            return (
+                <span className="flex items-center justify-end">
+                    <span className={`inline-block w-2.5 h-2.5 mr-2 rounded-full ${isYes ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    {isYes ? 'Yes' : 'No'}
+                </span>
+            );
+        }
+
+        if (typeof value === 'number') {
+            const rounded = Math.round(value * 10) / 10;
+            return `${rounded}${units || ''}`;
+        }
+
+        return String(value);
     };
 
     const renderContent = () => {
@@ -129,12 +148,13 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                             {item.capabilityId === 'onoff' ? (
                                 <button
                                     onClick={() => onToggle(item.deviceId, item.capabilityId, !!value)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? 'bg-green-500' : 'bg-slate-600'}`}
+                                    disabled={isEditMode}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? 'bg-green-500' : 'bg-slate-600'} ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             ) : (
-                                <span className="font-bold font-mono text-base">{value !== null && value !== undefined ? `${Math.round(value * 10) / 10}${liveData?.units || ''}` : '-'}</span>
+                                <span className="font-bold font-mono text-base">{formatSensorValue(value, liveData?.units)}</span>
                             )}
                         </div>
                     </div>
@@ -144,8 +164,9 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                  return (
                     <button
                         onClick={() => handleTriggerFlow(item.flowId)}
+                        disabled={isEditMode}
                         title={staticData.name}
-                        className={`w-full flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered === item.flowId ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered === item.flowId ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`} ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         <PlayIcon className="w-4 h-4 flex-shrink-0" />
                         <span className="truncate">{flowCustomName || staticData.name}</span>
@@ -161,7 +182,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                         <div 
                             className="flex flex-col gap-4"
                              onClick={(e) => {
-                                // Deselect if clicking the background of the holder
                                 if (e.target === e.currentTarget) {
                                     setSelectedButtonId(null);
                                 }
@@ -197,7 +217,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
 
                             {selectedButton && (
                                 <div className={`mt-2 p-2 rounded-lg border ${themeClasses.dashedBorder} bg-black/20 flex flex-col items-center gap-2 animate-fade-in-up`}>
-                                    {/* Row 1: Move Buttons */}
                                     <div className="flex justify-center gap-4">
                                         <button 
                                             onClick={() => openModal('moveFlowButton', { direction: 'left', button: selectedButton, holderId: holder.id, groupId, columnId })} 
@@ -217,7 +236,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                                         </button>
                                     </div>
                                     
-                                    {/* Row 2: Edit/Delete Buttons */}
                                     <div className="flex justify-center gap-4">
                                         <button onClick={() => openModal('editFlowButton', { button: selectedButton, holderId: holder.id, groupId, columnId })} className="p-2 rounded-md text-slate-300 hover:bg-slate-700" title="Edit">
                                             <PencilIcon className="w-5 h-5" />
@@ -227,7 +245,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                                         </button>
                                     </div>
 
-                                    {/* Separator and Done Button */}
                                     <div className="w-full border-t border-slate-700 my-1"></div>
                                     
                                     <button onClick={() => setSelectedButtonId(null)} className={`w-full flex items-center justify-center gap-2 py-1.5 rounded-md font-semibold text-sm ${themeClasses.buttonSecondary}`} title="Done">
@@ -281,7 +298,7 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                   <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>
               </div>
           );
-        } else { // separator
+        } else {
           return (
             <div className={isFirstAndSpecial ? 'pb-3' : 'py-3'}>
                 <hr className={`${themeClasses.dashedBorder}`} />
@@ -301,7 +318,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
       );
     }
 
-    // --- NEW EDIT MODE ---
     return (
         <div
             ref={itemRef}
@@ -314,7 +330,6 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
             style={{ touchAction: 'none', userSelect: 'none' }}
             className={`relative rounded-md transition-all ${isDraggingThis ? 'opacity-30' : ''} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''}`}
         >
-            {/* Overlay Controls */}
             <div 
                 className="absolute top-1 left-1 z-10 p-1.5 cursor-grab"
                 onMouseDown={(e) => onPointerDown(e, { type: 'groupItem', item: item as AnyItemType, sourceGroupId: groupId, sourceColumnId: columnId }, itemRef.current)}
@@ -343,12 +358,18 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
                         <PencilIcon className="w-4 h-4" />
                     </button>
                 )}
-                <button onClick={() => openModal('deleteItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-red-400 rounded-full bg-black/40 hover:bg-slate-600`}>
-                    <TrashIcon className="w-4 h-4" />
-                </button>
+                {item.type !== 'button_holder' && (
+                    <button onClick={() => openModal('deleteItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-red-400 rounded-full bg-black/40 hover:bg-slate-600`}>
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                )}
+                 {item.type === 'button_holder' && (
+                    <button onClick={() => openModal('deleteItem', { item, groupId, columnId })} className={`p-1.5 ${themeClasses.iconMuted} hover:text-red-400 rounded-full bg-black/40 hover:bg-slate-600`}>
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                )}
             </div>
             
-            {/* Content with padding to avoid being obscured */}
             <div className={`w-full min-h-[4rem] rounded ${themeClasses.inputBg} pt-8 pb-2 px-2`}>
                 {renderContent()}
             </div>

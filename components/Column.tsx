@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, AnyItemType } from '../types';
 import GroupItem from './GroupColumn';
@@ -38,12 +39,13 @@ interface ColumnProps {
   onHomeyToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
   onHomeyTriggerFlow: (flowId: string) => void;
   onHomeyOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
+  onRemoveFavorite: (linkId: string) => void;
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
   column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
   // Central Homey Engine Props
-  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate
+  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
   const columnRef = React.useRef<HTMLDivElement>(null);
   
@@ -119,6 +121,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onHomeyToggle={onHomeyToggle}
             onHomeyTriggerFlow={onHomeyTriggerFlow}
             onHomeyOptimisticUpdate={onHomeyOptimisticUpdate}
+            onRemoveFavorite={onRemoveFavorite}
           />
         ))}
          {column.groups.length === 0 && (

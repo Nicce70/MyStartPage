@@ -1,13 +1,15 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Column, Link, Theme, Group, GroupItemType } from '../types';
-import { GlobeIcon } from './Icons';
+import { GlobeIcon, XMarkIcon } from './Icons';
 
 interface FavoritesProps {
   group: Group;
   allColumns: Column[];
   themeClasses: Theme;
   openLinksInNewTab: boolean;
+  isEditMode: boolean;
+  onRemoveFavorite: (linkId: string) => void;
 }
 
 // A self-contained component for handling favicon loading with fallbacks.
@@ -41,7 +43,7 @@ const FaviconWithFallback: React.FC<{ url: string; className: string }> = ({ url
     return <img src={src} alt="" className={className} onError={handleError} />;
 };
 
-const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, openLinksInNewTab }) => {
+const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, openLinksInNewTab, isEditMode, onRemoveFavorite }) => {
   
   const favoriteLinks = useMemo(() => {
     const favs: Link[] = [];
@@ -83,24 +85,42 @@ const Favorites: React.FC<FavoritesProps> = ({ group, allColumns, themeClasses, 
   }
 
   return (
-    <div className={`grid grid-cols-1 gap-2 max-h-72 overflow-y-auto pr-1`}>
+    <div className={`grid grid-cols-1 gap-2 max-h-80 overflow-y-auto pr-1`}>
       {favoriteLinks.map(link => (
-            <a
-                key={link.id}
-                href={link.url}
-                target={openLinksInNewTab ? "_blank" : "_self"}
-                rel="noopener noreferrer"
-                className={`flex items-center gap-3 p-2 rounded-md transition-colors border ${themeClasses.dashedBorder} ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}
-                title={link.comment}
-            >
-                <FaviconWithFallback 
-                    url={link.url} 
-                    className={`w-6 h-6 object-contain flex-shrink-0 ${themeClasses.iconMuted}`} 
-                />
-                <span className={`truncate font-medium ${themeClasses.linkText} ${themeClasses.linkHoverText}`}>
-                    {link.name}
-                </span>
-            </a>
+            <div key={link.id} className="relative group/fav">
+                <a
+                    href={link.url}
+                    target={openLinksInNewTab ? "_blank" : "_self"}
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-3 p-2 rounded-md transition-colors border ${themeClasses.dashedBorder} ${themeClasses.linkBg} ${themeClasses.linkHoverBg}`}
+                    title={link.comment}
+                    onClick={(e) => {
+                        if (isEditMode) e.preventDefault();
+                    }}
+                >
+                    <FaviconWithFallback 
+                        url={link.url} 
+                        className={`w-6 h-6 object-contain flex-shrink-0 ${themeClasses.iconMuted}`} 
+                    />
+                    <span className={`truncate font-medium flex-1 ${themeClasses.linkText} ${themeClasses.linkHoverText}`}>
+                        {link.name}
+                    </span>
+                </a>
+                
+                {isEditMode && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            onRemoveFavorite(link.id);
+                        }}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-black/50 hover:bg-red-900/80 text-slate-300 hover:text-red-200 transition-colors z-10`}
+                        title="Remove from favorites"
+                    >
+                        <XMarkIcon className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
         )
       )}
     </div>

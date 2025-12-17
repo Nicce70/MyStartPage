@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { themes } from '../themes';
 import { PlayIcon } from './Icons';
@@ -14,6 +15,7 @@ interface HomeyProps {
   onToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
   onTriggerFlow: (flowId: string) => void;
   onOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
+  isEditMode: boolean;
 }
 
 const Homey: React.FC<HomeyProps> = ({ 
@@ -27,16 +29,19 @@ const Homey: React.FC<HomeyProps> = ({
     flows,
     onToggle,
     onTriggerFlow,
-    onOptimisticUpdate
+    onOptimisticUpdate,
+    isEditMode
 }) => {
   const [triggeredFlowId, setTriggeredFlowId] = useState<string | null>(null);
   
   const handleToggle = (deviceId: string, capabilityId: string, currentState: boolean) => {
+    if (isEditMode) return;
     onOptimisticUpdate(deviceId, capabilityId, !currentState);
     onToggle(deviceId, capabilityId, currentState);
   };
 
   const handleTriggerFlow = (flowId: string) => {
+    if (isEditMode) return;
     setTriggeredFlowId(flowId);
     setTimeout(() => setTriggeredFlowId(null), 500);
     onTriggerFlow(flowId);
@@ -83,13 +88,24 @@ const Homey: React.FC<HomeyProps> = ({
   }
   if (selectedCapabilities.length === 0 && selectedFlows.length === 0) return <div className={`text-sm text-center py-4 ${themeClasses.textSubtle}`}>No items selected. Add them in settings.</div>;
 
-  const formatValue = (value: any, units?: string) => {
-      if (typeof value === 'number') {
-        const rounded = Math.round(value * 10) / 10;
-        return `${rounded}${units || ''}`;
-      }
-      if (typeof value === 'boolean') return value ? 'On' : 'Off';
+  const formatValue = (value: any, units?: string): React.ReactNode => {
       if (value === null || value === undefined) return '-';
+
+      if (typeof value === 'boolean' || (typeof value === 'number' && (value === 0 || value === 1) && !units)) {
+          const isYes = !!value;
+          return (
+              <span className="flex items-center justify-end">
+                  <span className={`inline-block w-2.5 h-2.5 mr-2 rounded-full ${isYes ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {isYes ? 'Yes' : 'No'}
+              </span>
+          );
+      }
+
+      if (typeof value === 'number') {
+          const rounded = Math.round(value * 10) / 10;
+          return `${rounded}${units || ''}`;
+      }
+
       return String(value);
   };
 
@@ -118,9 +134,10 @@ const Homey: React.FC<HomeyProps> = ({
                                 {cap.capabilityId === 'onoff' ? (
                                     <button
                                         onClick={() => handleToggle(cap.deviceId, cap.capabilityId, !!cap.value)}
+                                        disabled={isEditMode}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
                                             cap.value ? 'bg-green-500' : 'bg-slate-600'
-                                        }`}
+                                        } ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${cap.value ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
@@ -145,8 +162,9 @@ const Homey: React.FC<HomeyProps> = ({
                             <button
                                 key={flow.id}
                                 onClick={() => handleTriggerFlow(flow.id)}
+                                disabled={isEditMode}
                                 title={flow.name}
-                                className={`flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`}`}
+                                className={`flex items-center gap-2 p-2 rounded-lg font-semibold text-sm transition-all duration-200 ${isTriggered ? 'bg-green-500 text-white scale-95 shadow-inner' : `${themeClasses.buttonSecondary} hover:brightness-110`} ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 <PlayIcon className="w-4 h-4 flex-shrink-0" />
                                 <span className="truncate">{flow.name}</span>

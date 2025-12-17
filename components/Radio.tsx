@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import type { RadioStation } from '../types';
@@ -8,9 +7,10 @@ import { PlayIcon, PauseIcon, SpeakerWaveIcon, SpeakerXMarkIcon, ChevronDownIcon
 interface RadioProps {
   stations: RadioStation[];
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
-const Radio: React.FC<RadioProps> = ({ stations, themeClasses }) => {
+const Radio: React.FC<RadioProps> = ({ stations, themeClasses, isEditMode }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
@@ -129,12 +129,13 @@ const Radio: React.FC<RadioProps> = ({ stations, themeClasses }) => {
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className={`w-full flex items-center justify-between p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} text-sm font-semibold text-left`}
+          disabled={isEditMode}
+          className={`w-full flex items-center justify-between p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} text-sm font-semibold text-left disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           <span className="truncate">{currentStation?.name || 'Select Station'}</span>
           <ChevronDownIcon className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
-        {isDropdownOpen && (
+        {isDropdownOpen && !isEditMode && (
           <div className={`absolute z-10 top-full mt-1 w-full rounded-md shadow-lg border max-h-96 overflow-y-auto ${themeClasses.modalBg} ${themeClasses.dashedBorder}`}>
             <ul className="py-1">
               {stations.map(station => (
@@ -154,15 +155,17 @@ const Radio: React.FC<RadioProps> = ({ stations, themeClasses }) => {
       <div className="flex items-center gap-3">
         <button
             onClick={togglePlay}
-            className={`p-3 rounded-full transition-all shadow-lg flex-shrink-0 ${isPlaying ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} hover:brightness-110`}
+            disabled={isEditMode}
+            className={`p-3 rounded-full transition-all shadow-lg flex-shrink-0 ${isPlaying ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed`}
         >
             {isPlaying ? <PauseIcon className="w-6 h-6" /> : <PlayIcon className="w-6 h-6" />}
         </button>
 
-        <div className="flex-1 flex items-center gap-2 bg-black/20 p-2 rounded-lg">
+        <div className={`flex-1 flex items-center gap-2 bg-black/20 p-2 rounded-lg ${isEditMode ? 'opacity-50' : ''}`}>
             <button 
                 onClick={toggleMute}
-                className={`p-1 rounded-md hover:bg-white/10 transition-colors focus:outline-none`}
+                disabled={isEditMode}
+                className={`p-1 rounded-md hover:bg-white/10 transition-colors focus:outline-none disabled:cursor-not-allowed`}
                 title={isMuted ? "Unmute" : "Mute"}
             >
                 {isMuted ? (
@@ -177,11 +180,12 @@ const Radio: React.FC<RadioProps> = ({ stations, themeClasses }) => {
                 max="1"
                 step="0.01"
                 value={volume}
+                disabled={isEditMode}
                 onChange={(e) => {
                     setVolume(parseFloat(e.target.value));
                     if (isMuted) setIsMuted(false);
                 }}
-                className="w-full h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="w-full h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed"
             />
         </div>
       </div>

@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import type { Column, Group, AnyItemType, Link, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
@@ -60,6 +59,7 @@ interface GroupItemProps {
   onHomeyToggle: (deviceId: string, capabilityId: string, currentState: boolean) => void;
   onHomeyTriggerFlow: (flowId: string) => void;
   onHomeyOptimisticUpdate: (deviceId: string, capabilityId: string, value: any) => void;
+  onRemoveFavorite: (linkId: string) => void;
 }
 
 const DEFAULT_CALCULATOR_STATE: CalculatorState = {
@@ -72,7 +72,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 const GroupItem: React.FC<GroupItemProps> = ({
   group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
   // Central Homey Engine Props
-  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate
+  homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
   const groupRef = React.useRef<HTMLDivElement>(null);
   
@@ -198,14 +198,15 @@ const GroupItem: React.FC<GroupItemProps> = ({
       </div>
       {!group.isCollapsed && (
         isCalendarWidget ? (
-          <Calendar themeClasses={themeClasses} holidayCountry={group.widgetSettings?.holidayCountry || 'SE'} />
+          <Calendar themeClasses={themeClasses} holidayCountry={group.widgetSettings?.holidayCountry || 'SE'} isEditMode={isEditMode} />
         ) : isTodoWidget ? (
-          <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} />
+          <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} isEditMode={isEditMode} />
         ) : isCalculatorWidget ? (
           <Calculator
             themeClasses={themeClasses}
             state={group.calculatorState || DEFAULT_CALCULATOR_STATE}
             onStateChange={onCalculatorStateChange}
+            isEditMode={isEditMode}
           />
         ) : isWeatherWidget ? (
           <Weather
@@ -240,6 +241,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             updateInterval={group.widgetSettings?.rssUpdateInterval ?? 60}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}
+            isEditMode={isEditMode}
           />
         ) : isScratchpadWidget ? (
           <Scratchpad
@@ -269,7 +271,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             themeClasses={themeClasses}
           />
         ) : isUnitConverterWidget ? (
-          <UnitConverter themeClasses={themeClasses} />
+          <UnitConverter themeClasses={themeClasses} isEditMode={isEditMode} />
         ) : isNetworkWidget ? (
           <Network themeClasses={themeClasses} />
         ) : isSolarWidget ? (
@@ -292,11 +294,13 @@ const GroupItem: React.FC<GroupItemProps> = ({
             onToggle={onHomeyToggle}
             onTriggerFlow={onHomeyTriggerFlow}
             onOptimisticUpdate={onHomeyOptimisticUpdate}
+            isEditMode={isEditMode}
           />
         ) : isRadioWidget ? (
           <Radio 
             stations={group.widgetSettings?.radioStations || []}
             themeClasses={themeClasses}
+            isEditMode={isEditMode}
           />
         ) : isFavoritesWidget ? (
           <Favorites
@@ -304,6 +308,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
             allColumns={allColumns}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}
+            isEditMode={isEditMode}
+            onRemoveFavorite={onRemoveFavorite}
           />
         ) : isPictureWidget ? (
           <PictureWidget
@@ -317,6 +323,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             pictureClickUrl={group.widgetSettings?.pictureClickUrl}
             openLinksInNewTab={openLinksInNewTab}
             themeClasses={themeClasses}
+            isEditMode={isEditMode}
           />
         ) : isIframeWidget ? (
           <IframeWidget
@@ -325,6 +332,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             height={group.widgetSettings?.iframeHeight}
             updateInterval={group.widgetSettings?.iframeUpdateInterval}
             themeClasses={themeClasses}
+            isEditMode={isEditMode}
           />
         ) : isHomeyCustomWidget ? (
           <HomeyCustomWidget

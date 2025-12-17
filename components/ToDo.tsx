@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { ToDoItem } from '../types';
 import type { themes } from '../themes';
@@ -16,9 +17,10 @@ interface ToDoProps {
   todos: ToDoItem[];
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
-const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses }) => {
+const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses, isEditMode }) => {
   const [newItemText, setNewItemText] = useState('');
 
   const handleAddItem = (e: React.FormEvent) => {
@@ -49,15 +51,27 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses }) => {
 
   return (
     <div>
+      <style>{`
+        @media (hover: none) {
+          .mobile-trash-visible {
+            opacity: 1 !important;
+          }
+        }
+      `}</style>
       <form onSubmit={handleAddItem} className="flex gap-2 mb-3">
         <input
           type="text"
           value={newItemText}
           onChange={e => setNewItemText(e.target.value)}
           placeholder="Add a new task..."
-          className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+          disabled={isEditMode}
+          className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing} disabled:opacity-50 disabled:cursor-not-allowed`}
         />
-        <button type="submit" className={`${themeClasses.buttonSecondary} font-semibold p-2 rounded-lg transition-colors`}>
+        <button 
+            type="submit" 
+            disabled={isEditMode}
+            className={`${themeClasses.buttonSecondary} font-semibold p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
           <PlusIcon className="w-4 h-4" />
         </button>
       </form>
@@ -70,7 +84,8 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses }) => {
                 type="checkbox"
                 checked={todo.completed}
                 onChange={() => handleToggleItem(todo.id)}
-                className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass} mt-1 flex-shrink-0`}
+                disabled={isEditMode}
+                className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass} mt-1 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
               />
               <span className={`transition-colors break-all ${todo.completed ? `line-through ${themeClasses.textSubtle}` : themeClasses.modalText}`}>
                 {todo.text}
@@ -78,7 +93,12 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses }) => {
             </div>
             <button
               onClick={() => handleDeleteItem(todo.id)}
-              className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full ${themeClasses.buttonIconHoverBg} transition-colors opacity-0 group-hover/todo:opacity-100 flex-shrink-0`}
+              disabled={isEditMode}
+              className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full ${themeClasses.buttonIconHoverBg} transition-colors flex-shrink-0 
+                ${isEditMode 
+                    ? 'opacity-0 cursor-not-allowed' 
+                    : 'opacity-0 group-hover/todo:opacity-100 mobile-trash-visible cursor-pointer'
+                }`}
             >
               <TrashIcon className="w-4 h-4" />
             </button>

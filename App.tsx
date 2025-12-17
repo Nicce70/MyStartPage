@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
@@ -36,15 +35,15 @@ const uuidv4 = () => {
 const DEFAULT_COLUMNS: Column[] = [
   {
     id: uuidv4(),
-    name: "Productivity",
+    name: "Entertainment",
     width: 3,
     groups: [
       {
         id: uuidv4(),
-        name: "Develop",
+        name: "Music",
         items: [
-          { id: uuidv4(), type: 'link', name: "GitHub", url: "https://github.com", comment: "GitHub" },
-          { id: uuidv4(), type: 'link', name: "Stack Overflow", url: "https://stackoverflow.com" },
+          { id: uuidv4(), type: 'link', name: "Spotify", url: "https://spotify.com", comment: "Spotify" },
+          { id: uuidv4(), type: 'link', name: "YouTube Music", url: "https://music.youtube.com/" },
         ],
         type: 'links',
       },
@@ -59,8 +58,8 @@ const DEFAULT_COLUMNS: Column[] = [
         id: uuidv4(),
         name: "General",
         items: [
-          { id: uuidv4(), type: 'link', name: "Reddit", url: "https://www.reddit.com" },
-          { id: uuidv4(), type: 'link', name: "Bluesky", url: "https://bsky.app/" },
+          { id: uuidv4(), type: 'link', name: "Reddit", url: "https://reddit.com" },
+          { id: uuidv4(), type: 'link', name: "Bluesky", url: "https://bsky.social/about" },
         ],
         type: 'links'
       },
@@ -398,7 +397,7 @@ const WeatherSettingsForm: React.FC<{
   );
 };
 
-const DragGhost = ({ children, x, y }: { children: React.ReactNode, x: number, y: number }) => {
+const DragGhost = ({ children, x, y }: { children?: React.ReactNode, x: number, y: number }) => {
   if (!children) return null;
   return (
     <div
@@ -452,6 +451,7 @@ function App() {
   const [themeClasses, setThemeClasses] = useState<Theme>(themes.default);
   const [importData, setImportData] = useState<BackupData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [urlInput, setUrlInput] = useState(''); // For link form validation
   
   const formRef = useRef<HTMLFormElement>(null);
   const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
@@ -706,6 +706,12 @@ function App() {
   
   useEffect(() => {
     if (modal) {
+        if (modal.type === 'addLink') {
+            setUrlInput('https://');
+        } else if (modal.type === 'editLink') {
+            setUrlInput(modal.data.link.url);
+        }
+
       setTimeout(() => {
         const input = formRef.current?.querySelector('input, select');
         if (input instanceof HTMLElement) {
@@ -777,7 +783,7 @@ function App() {
         collapsedGroupsBeforeEdit.current.clear();
       }
     }
-  }, [isEditMode]);
+  }, [isEditMode, columns, setColumns]);
 
   const handlePointerUp = useCallback(() => {
     if (isPendingDrag.current && longPressTimeout.current) {
@@ -945,6 +951,25 @@ function App() {
         })
       }))
     );
+  };
+
+  const handleRemoveFavorite = (linkId: string) => {
+    setColumns(prevColumns => {
+        const newColumns = JSON.parse(JSON.stringify(prevColumns));
+        for (const col of newColumns) {
+            for (const group of col.groups) {
+                if (group.items) {
+                    for (const item of group.items) {
+                        if (item.type === 'link' && item.id === linkId) {
+                            item.isFavorite = false;
+                            return newColumns; 
+                        }
+                    }
+                }
+            }
+        }
+        return newColumns;
+    });
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
@@ -1705,6 +1730,10 @@ function App() {
 
         const multiInstanceWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button onClick={() => setModal({ type: 'addGroup', data })} className={`sm:col-span-2 w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary} text-sm`}>
+                <LinkIcon className="w-5 h-5 flex-shrink-0" />
+                <span className="font-semibold">Link Group</span>
+            </button>
             <button onClick={() => handleAddWidget('weather', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><SunIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Weather</span></button>
             <button onClick={() => handleAddWidget('clock', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ClockIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Clock</span></button>
             <button onClick={() => handleAddWidget('timer', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><TimerIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Timer</span></button>
@@ -1716,6 +1745,7 @@ function App() {
             <button onClick={() => handleAddWidget('unit_converter', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ScaleIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Unit Converter</span></button>
             <button onClick={() => handleAddWidget('solar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><MoonIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Sunrise / Sunset</span></button>
             <button onClick={() => handleAddWidget('picture', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><PhotoIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Image</span></button>
+            <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Limited)</span></button>
           </div>
         );
 
@@ -1730,9 +1760,8 @@ function App() {
           </div>
         );
 
-        const advancedWidgets = (
+        const homeyProWidgets = (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Web)</span></button>
             <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Auto Zones</span></button>
             <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Custom</span></button>
             <button onClick={() => handleAddWidget('homey_status', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CpuChipIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Status</span></button>
@@ -1743,13 +1772,11 @@ function App() {
             <div>
                 <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to this column:</p>
                 <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                    <button onClick={() => setModal({ type: 'addGroup', data })} className={`w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}><LinkIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Link Group</span></button>
-                    <hr className={`border-slate-700`}/>
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Standard Widgets</h3>{multiInstanceWidgets}</div>
+                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Multi Instance Widgets</h3>{multiInstanceWidgets}</div>
                     <hr className={`border-slate-700`}/>
                     <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>{singleInstanceWidgets}</div>
                     <hr className={`border-slate-700`}/>
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold text-yellow-500/80 mb-2`}>Advanced / Experimental</h3>{advancedWidgets}</div>
+                    <div><h3 className={`text-xs uppercase tracking-wider font-bold text-yellow-500/80 mb-2`}>HOMEY PRO Widgets</h3>{homeyProWidgets}</div>
                 </div>
             </div>
         );
@@ -1930,10 +1957,10 @@ function App() {
     const isColumn = type === 'addColumn' || type === 'editColumn';
     
     const currentName = type.startsWith('edit') ? (data.group?.name || data.link?.name || data.name) : '';
-    const currentUrl = type === 'editLink' ? data.link.url : (type === 'addLink' ? 'https://' : '');
     const currentComment = type === 'editLink' ? data.link.comment : '';
     const currentColumnWidth = isColumn ? (data?.width || 3) : 3;
     const currentIsFavorite = type === 'editLink' ? (data.link.isFavorite ?? false) : false;
+    const isFileUrl = urlInput.trim().toLowerCase().startsWith('file:///');
 
     return (
       <form onSubmit={handleFormSubmit} ref={formRef}>
@@ -1963,7 +1990,20 @@ function App() {
             <>
               <div>
                 <label htmlFor="url" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>URL</label>
-                <input type="url" id="url" name="url" defaultValue={currentUrl} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                <input
+                  type="url"
+                  id="url"
+                  name="url"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  required
+                  className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                />
+                {isFileUrl && (
+                    <p className="text-xs text-red-400 mt-2">
+                        Local file links (`file:///`) are blocked by browsers for security reasons. Please use a web address (`http://` or `https://`).
+                    </p>
+                )}
               </div>
               <div>
                 <label htmlFor="comment" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Comment (optional) <span className="text-xs font-normal opacity-70">(max 150 chars)</span></label>
@@ -1991,7 +2031,7 @@ function App() {
         </div>
         <div className="flex justify-end gap-3 pt-6">
           <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-          <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+          <button type="submit" disabled={isLink && isFileUrl} className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}>Save</button>
         </div>
       </form>
     );
@@ -2112,8 +2152,8 @@ function App() {
       </DragGhost>
 
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
-        <header className="flex-shrink-0 grid grid-cols-[1fr_2fr_1fr] items-end gap-4 mb-6">
-          <div className="justify-self-start w-full min-w-0">
+        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[1fr_2fr_1fr] items-center md:items-end gap-4 mb-6">
+          <div className="justify-self-start w-full min-w-0 col-span-1 md:col-auto">
               {isEditMode ? (
                 <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} maxLength={30} className={`text-3xl font-bold bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none pl-2 w-full ${themeClasses.header}`} placeholder="Page Title" />
               ) : (
@@ -2121,7 +2161,7 @@ function App() {
               )}
           </div>
                     
-          <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative top-2">
+          <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative md:top-2 col-span-2 md:col-auto order-last md:order-none">
               {settings.showSearch && (
                   <form onSubmit={handleSearchSubmit} className="w-full relative">
                       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" /></div>
@@ -2130,7 +2170,7 @@ function App() {
               )}
           </div>
 
-          <div className="justify-self-end flex items-center gap-3">
+          <div className="justify-self-end flex items-center gap-3 col-span-1 md:col-auto">
             <button onClick={handleToggleEditMode} className={`${isEditMode ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors`}>
               <PencilIcon className="w-5 h-5" /><span>{isEditMode ? 'Done' : 'Edit'}</span>
             </button>
@@ -2178,6 +2218,7 @@ function App() {
                 onHomeyToggle={handleHomeyToggle}
                 onHomeyTriggerFlow={handleHomeyTriggerFlow}
                 onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
+                onRemoveFavorite={handleRemoveFavorite}
               />
             ))}
 

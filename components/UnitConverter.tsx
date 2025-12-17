@@ -4,6 +4,7 @@ import type { themes } from '../themes';
 
 interface UnitConverterProps {
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
 type Category = 'Length' | 'Weight' | 'Volume' | 'Temperature';
@@ -43,7 +44,7 @@ const CONVERSION_RATES: Record<string, number> = {
   'Fluid Ounce': 0.0295735,
 };
 
-const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
+const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses, isEditMode }) => {
   const [category, setCategory] = useState<Category>('Length');
   const [unit1, setUnit1] = useState(UNITS['Length'][0]); // Default Inch
   const [unit2, setUnit2] = useState(UNITS['Length'][1]); // Default CM
@@ -118,7 +119,8 @@ const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
         <select
           value={category}
           onChange={(e) => handleCategoryChange(e.target.value as Category)}
-          className={`w-full p-2 rounded-md border text-sm font-semibold ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+          disabled={isEditMode}
+          className={`w-full p-2 rounded-md border text-sm font-semibold ${themeClasses.inputBg} ${themeClasses.inputFocusRing} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -133,12 +135,14 @@ const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
               value={val1}
               onChange={handleVal1Change}
               placeholder="0"
-              className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} min-w-0`}
+              disabled={isEditMode}
+              className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} min-w-0 disabled:opacity-50 disabled:cursor-not-allowed`}
             />
             <select
               value={unit1}
               onChange={handleUnit1Change}
-              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+              disabled={isEditMode}
+              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {UNITS[category].map(u => <option key={u} value={u}>{u}</option>)}
             </select>
@@ -155,12 +159,14 @@ const UnitConverter: React.FC<UnitConverterProps> = ({ themeClasses }) => {
               value={val2}
               onChange={handleVal2Change}
               placeholder="0"
-              className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} min-w-0`}
+              disabled={isEditMode}
+              className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} min-w-0 disabled:opacity-50 disabled:cursor-not-allowed`}
             />
             <select
               value={unit2}
               onChange={handleUnit2Change}
-              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+              disabled={isEditMode}
+              className={`w-[45%] min-w-0 p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {UNITS[category].map(u => <option key={u} value={u}>{u}</option>)}
             </select>

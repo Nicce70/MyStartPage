@@ -28,6 +28,7 @@ interface ColumnProps {
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
   homeyGlobalSettings?: Settings['homey'];
+  onRequestDeleteTodo: (todoId: string) => void;
   // Central Homey Engine Props
   homeyDevices: any;
   homeyZones: any;
@@ -43,7 +44,7 @@ interface ColumnProps {
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
+  column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
   // Central Homey Engine Props
   homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
@@ -110,6 +111,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             onScratchpadChange={onScratchpadChange}
             showGroupToggles={showGroupToggles}
             homeyGlobalSettings={homeyGlobalSettings}
+            onRequestDeleteTodo={onRequestDeleteTodo}
             // Pass central homey props down
             homeyDevices={homeyDevices}
             homeyZones={homeyZones}

@@ -117,7 +117,7 @@ export const HomeyCustomItem: React.FC<HomeyCustomItemProps> = ({
     const renderContent = () => {
         switch (item.type) {
             case 'text':
-                return <h4 className={`font-bold text-xs uppercase tracking-wider ${themeClasses.header}`}>{item.content}</h4>;
+                return <h4 className="font-bold text-xs uppercase tracking-wider text-indigo-400">{item.content}</h4>;
             case 'separator':
                 return <hr className={themeClasses.dashedBorder} />;
             case 'homey_capability':

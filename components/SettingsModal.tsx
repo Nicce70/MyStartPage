@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import Modal from './Modal';
 import type { Settings, Group, Theme } from '../types';
@@ -15,7 +16,7 @@ interface SettingsModalProps {
   onReset: () => void;
 }
 
-const APP_VERSION = '3.9';
+const APP_VERSION = '4.0';
 
 const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSettings: Settings) => void, themeClasses: Theme }> = ({ settings, onSettingsChange, themeClasses }) => {
     const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -189,7 +190,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings" themeClasses={themeClasses}>
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title="Settings" 
+      themeClasses={themeClasses} 
+      hideOverlay={activeTab === 'theme' && settings.theme === 'custom'}
+    >
       <div className={`${themeClasses.modalMutedText}`}>
         <div className="border-b border-slate-700 mb-6">
           <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">

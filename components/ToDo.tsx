@@ -18,9 +18,11 @@ interface ToDoProps {
   setTodos: React.Dispatch<React.SetStateAction<ToDoItem[]>>;
   themeClasses: typeof themes.default;
   isEditMode: boolean;
+  confirmDelete: boolean;
+  onRequestDelete: (id: string) => void;
 }
 
-const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses, isEditMode }) => {
+const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses, isEditMode, confirmDelete, onRequestDelete }) => {
   const [newItemText, setNewItemText] = useState('');
 
   const handleAddItem = (e: React.FormEvent) => {
@@ -44,7 +46,11 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses, isEditMode }
   };
 
   const handleDeleteItem = (id: string) => {
-    setTodos(prev => prev.filter(todo => todo.id !== id));
+    if (confirmDelete) {
+        onRequestDelete(id);
+    } else {
+        setTodos(prev => prev.filter(todo => todo.id !== id));
+    }
   };
   
   const ringColorClass = themeClasses.inputFocusRing.split(' ').find(c => c.startsWith('focus:ring-'))?.replace('focus:', '') || 'ring-indigo-500';
@@ -77,33 +83,38 @@ const ToDo: React.FC<ToDoProps> = ({ todos, setTodos, themeClasses, isEditMode }
       </form>
 
       <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
-        {todos.map(todo => (
-          <li key={todo.id} className="group/todo flex items-center justify-between">
-            <div className="flex items-start gap-3 min-w-0">
-              <input
-                type="checkbox"
-                checked={todo.completed}
-                onChange={() => handleToggleItem(todo.id)}
-                disabled={isEditMode}
-                className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass} mt-1 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
-              />
-              <span className={`transition-colors break-all ${todo.completed ? `line-through ${themeClasses.textSubtle}` : themeClasses.modalText}`}>
-                {todo.text}
-              </span>
-            </div>
-            <button
-              onClick={() => handleDeleteItem(todo.id)}
-              disabled={isEditMode}
-              className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full ${themeClasses.buttonIconHoverBg} transition-colors flex-shrink-0 
-                ${isEditMode 
-                    ? 'opacity-0 cursor-not-allowed' 
-                    : 'opacity-0 group-hover/todo:opacity-100 mobile-trash-visible cursor-pointer'
-                }`}
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
-          </li>
-        ))}
+        {todos.map(todo => {
+          return (
+            <li key={todo.id} className="group/todo flex items-center justify-between">
+                <div className="flex items-start gap-3 min-w-0">
+                <input
+                    type="checkbox"
+                    checked={todo.completed}
+                    onChange={() => handleToggleItem(todo.id)}
+                    disabled={isEditMode}
+                    className={`w-4 h-4 rounded text-indigo-500 bg-slate-600 border-slate-500 focus:ring-offset-0 focus:ring-1 ${ringColorClass} mt-1 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed`}
+                />
+                <span className={`transition-colors break-all ${todo.completed ? `line-through ${themeClasses.textSubtle}` : themeClasses.modalText}`}>
+                    {todo.text}
+                </span>
+                </div>
+                <button
+                    onClick={() => handleDeleteItem(todo.id)}
+                    disabled={isEditMode}
+                    className={`p-1 rounded-full flex-shrink-0 transition-all
+                        ${isEditMode 
+                            ? 'opacity-0 cursor-not-allowed' 
+                            : 'opacity-0 group-hover/todo:opacity-100 mobile-trash-visible'
+                        }
+                        ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}
+                    `}
+                    title="Delete Item"
+                >
+                    <TrashIcon className="w-4 h-4" />
+                </button>
+            </li>
+          );
+        })}
         {todos.length === 0 && (
             <p className={`text-center py-4 text-sm ${themeClasses.textSubtle}`}>No tasks yet. Add one!</p>
         )}

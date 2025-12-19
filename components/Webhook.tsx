@@ -6,12 +6,14 @@ import type { WebhookItem } from '../types';
 interface WebhookProps {
   items: WebhookItem[];
   themeClasses: typeof themes.default;
+  isEditMode: boolean;
 }
 
-const Webhook: React.FC<WebhookProps> = ({ items, themeClasses }) => {
+const Webhook: React.FC<WebhookProps> = ({ items, themeClasses, isEditMode }) => {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const handleClick = (item: WebhookItem) => {
+    if (isEditMode) return;
     setActiveId(item.id);
     
     if (item.method === 'navigate') {
@@ -67,12 +69,14 @@ const Webhook: React.FC<WebhookProps> = ({ items, themeClasses }) => {
           <button
             key={item.id}
             onClick={() => handleClick(item)}
+            disabled={isEditMode}
             className={`
               p-3 rounded-lg font-semibold text-sm transition-all duration-200 truncate
               ${isActive 
                 ? 'bg-green-500 text-white scale-95 shadow-inner' 
                 : `${themeClasses.buttonSecondary} hover:brightness-110`
               }
+              ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}
             `}
             title={item.url}
           >

@@ -136,7 +136,7 @@ const Radio: React.FC<RadioProps> = ({ stations, themeClasses, isEditMode }) => 
           <ChevronDownIcon className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
         </button>
         {isDropdownOpen && !isEditMode && (
-          <div className={`absolute z-10 top-full mt-1 w-full rounded-md shadow-lg border max-h-96 overflow-y-auto ${themeClasses.modalBg} ${themeClasses.dashedBorder}`}>
+          <div className={`absolute z-30 top-full mt-1 w-full rounded-md shadow-lg border max-h-96 overflow-y-auto ${themeClasses.modalBg} ${themeClasses.dashedBorder}`}>
             <ul className="py-1">
               {stations.map(station => (
                 <li

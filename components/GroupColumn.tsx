@@ -48,6 +48,7 @@ interface GroupItemProps {
   onScratchpadChange: (groupId: string, newContent: string) => void;
   showGroupToggles: boolean;
   homeyGlobalSettings?: Settings['homey'];
+  onRequestDeleteTodo: (todoId: string) => void;
   // Central Homey Engine Props
   homeyDevices: any;
   homeyZones: any;
@@ -70,7 +71,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings,
+  group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
   // Central Homey Engine Props
   homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
@@ -105,6 +106,16 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const isIframeWidget = widgetType === 'iframe';
   const isHomeyCustomWidget = widgetType === 'homey_custom';
   const isHomeyStatusWidget = widgetType === 'homey_status';
+
+  // Determine if this widget has configurable settings
+  const hasSettings = isWidget && ![
+    'calculator', 
+    'scratchpad', 
+    'unit_converter', 
+    'network',
+    'homey_status'
+  ].includes(widgetType || '');
+  
 
   const bgClass = {
     'default': themeClasses.groupBg,
@@ -183,12 +194,14 @@ const GroupItem: React.FC<GroupItemProps> = ({
                   <PlusIcon className="w-5 h-5" />
                 </button>
               )}
-              <button 
-                onClick={() => openModal('editWidgetSettings', { group, columnId })} 
-                className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}
-              >
-                <CogIcon className="w-5 h-5" />
-              </button>
+              { (hasSettings || !isWidget) && (
+                <button 
+                  onClick={() => openModal('editWidgetSettings', { group, columnId })} 
+                  className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}
+                >
+                  <CogIcon className="w-5 h-5" />
+                </button>
+              )}
               <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
                   <TrashIcon className="w-4 h-4" />
               </button>
@@ -200,7 +213,14 @@ const GroupItem: React.FC<GroupItemProps> = ({
         isCalendarWidget ? (
           <Calendar themeClasses={themeClasses} holidayCountry={group.widgetSettings?.holidayCountry || 'SE'} isEditMode={isEditMode} />
         ) : isTodoWidget ? (
-          <ToDo todos={todos} setTodos={setTodos} themeClasses={themeClasses} isEditMode={isEditMode} />
+          <ToDo 
+            todos={todos} 
+            setTodos={setTodos} 
+            themeClasses={themeClasses} 
+            isEditMode={isEditMode}
+            confirmDelete={group.widgetSettings?.todoConfirmDelete ?? true}
+            onRequestDelete={onRequestDeleteTodo}
+          />
         ) : isCalculatorWidget ? (
           <Calculator
             themeClasses={themeClasses}
@@ -269,6 +289,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           <Webhook
             items={group.widgetSettings?.webhookItems || []}
             themeClasses={themeClasses}
+            isEditMode={isEditMode}
           />
         ) : isUnitConverterWidget ? (
           <UnitConverter themeClasses={themeClasses} isEditMode={isEditMode} />
@@ -280,6 +301,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             themeClasses={themeClasses} 
             use24HourFormat={group.widgetSettings?.solarUse24HourFormat}
             compactMode={group.widgetSettings?.solarCompactMode}
+            solarDynamicPath={group.widgetSettings?.solarDynamicPath}
           />
         ) : isHomeyWidget ? (
           <Homey
@@ -321,6 +343,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             borderRadius={group.widgetSettings?.pictureBorderRadius}
             updateInterval={group.widgetSettings?.pictureUpdateInterval}
             pictureClickUrl={group.widgetSettings?.pictureClickUrl}
+            pictureEnableZoom={group.widgetSettings?.pictureEnableZoom}
             openLinksInNewTab={openLinksInNewTab}
             themeClasses={themeClasses}
             isEditMode={isEditMode}
@@ -355,6 +378,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
                 themeClasses={themeClasses}
                 homeyGlobalSettings={homeyGlobalSettings}
                 connectionState={homeyConnectionState}
+                // FIX: Use the correct prop names for lastUpdate and countdown.
                 lastUpdate={homeyLastUpdate}
                 countdown={homeyCountdown}
                 log={homeyLog}
@@ -396,7 +420,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
             )}
             {group.items.length === 0 && (
                <div className="text-center py-4 text-slate-500 text-sm">
-                 {isEditMode ? "Drop items here or click '+' to add." : "No links in this group."}
+                 {isEditMode ? "Drop items here or click '+' to add one." : "No links in this group."}
                </div>
             )}
           </div>

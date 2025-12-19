@@ -8,6 +8,7 @@ interface SolarProps {
   themeClasses: typeof themes.default;
   use24HourFormat?: boolean;
   compactMode?: boolean;
+  solarDynamicPath?: boolean;
 }
 
 interface AstronomyData {
@@ -16,7 +17,7 @@ interface AstronomyData {
   moon_phase: string;
 }
 
-const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = false, compactMode = false }) => {
+const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = false, compactMode = false, solarDynamicPath = true }) => {
   const [astroData, setAstroData] = useState<AstronomyData | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,8 +156,8 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
     const starArray = [];
     for(let i=0; i<20; i++) {
         const x = Math.random() * 200; 
-        const y = Math.random() * 85;
-        const dist = Math.sqrt(Math.pow(x - 100, 2) + Math.pow(y - 90, 2));
+        const y = Math.random() * 95;
+        const dist = Math.sqrt(Math.pow(x - 100, 2) + Math.pow(y - 100, 2));
 
         if (dist < 95) {
             starArray.push({
@@ -264,6 +265,21 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
   const dayLengthHours = Math.floor(dayLengthMins / 60);
   const dayLengthMinutesRemaining = dayLengthMins % 60;
 
+  let sunPathRadiusY: number;
+  if (solarDynamicPath) {
+    if (dayLengthHours < 8) {
+      sunPathRadiusY = 35; // Lowest path for short winter days
+    } else if (dayLengthHours < 12) {
+      sunPathRadiusY = 50;
+    } else if (dayLengthHours < 16) {
+      sunPathRadiusY = 65;
+    } else {
+      sunPathRadiusY = 80; // Highest path for long summer days
+    }
+  } else {
+    sunPathRadiusY = 80; // Always use the highest path if dynamic is off
+  }
+
   let sunPercent = 0;
   let isDaytime = false;
 
@@ -276,20 +292,21 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
       sunPercent = 0;
   }
 
-  const r = 80;
+  const rx = 80;
+  const ry = sunPathRadiusY;
   const cx = 100;
-  const cy = 90;
+  const cy = 100;
   const angleRad = (180 - (sunPercent * 1.8)) * (Math.PI / 180); 
-  const sunX = cx + r * Math.cos(angleRad);
-  const sunY = cy - r * Math.sin(angleRad);
+  const sunX = cx + rx * Math.cos(angleRad);
+  const sunY = cy - ry * Math.sin(angleRad);
 
   return (
     <div className="flex flex-col items-center p-3">
         <div className={`text-lg font-bold mb-3 ${themeClasses.header}`}>{city}</div>
         
         {!compactMode && (
-            <div className="relative w-48 h-24 mb-2 overflow-hidden">
-                <svg viewBox="0 0 200 100" className="w-full h-full overflow-visible">
+            <div className="relative w-48 h-28 mb-2 overflow-hidden">
+                <svg viewBox="0 0 200 110" className="w-full h-full overflow-visible">
                     <style>{`
                         @keyframes twinkle {
                             0%, 100% { opacity: 0.3; transform: scale(0.8); }
@@ -297,7 +314,7 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
                         }
                     `}</style>
                     <path 
-                        d="M 20 90 A 80 80 0 0 1 180 90" 
+                        d={`M 20 100 A 80 ${sunPathRadiusY} 0 0 1 180 100`}
                         fill="none" 
                         stroke={themeClasses.dashedBorder.replace('border-', 'rgba(128,128,128,0.3)')} 
                         strokeWidth="4" 
@@ -318,12 +335,12 @@ const Solar: React.FC<SolarProps> = ({ city, themeClasses, use24HourFormat = fal
                         />
                     ))}
 
-                    <line x1="10" y1="90" x2="190" y2="90" stroke="currentColor" strokeWidth="3" className="opacity-30" />
-                    <line x1="10" y1="90" x2="190" y2="90" stroke="currentColor" strokeWidth="3" strokeDasharray="4 4" className="opacity-80" />
+                    <line x1="10" y1="100" x2="190" y2="100" stroke="currentColor" strokeWidth="3" className="opacity-30" />
+                    <line x1="10" y1="100" x2="190" y2="100" stroke="currentColor" strokeWidth="3" strokeDasharray="4 4" className="opacity-80" />
                     
                     {isDaytime && (
                         <foreignObject x={sunX - 14} y={sunY - 14} width="28" height="28">
-                            <SunIcon className="w-7 h-7 text-yellow-400 animate-pulse" />
+                            <SunIcon className="w-7 h-7 text-yellow-400 animate-pulse [filter:drop-shadow(0_1px_0_#7c2d12)_drop-shadow(0_-1px_0_#7c2d12)_drop-shadow(1px_0_0_#7c2d12)_drop-shadow(-1px_0_0_#7c2d12)]" />
                         </foreignObject>
                     )}
                 </svg>

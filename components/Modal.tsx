@@ -8,9 +8,10 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   themeClasses: typeof themes.default;
+  hideOverlay?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeClasses }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeClasses, hideOverlay = false }) => {
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -28,7 +29,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeCl
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"
+      className={`fixed inset-0 z-50 flex justify-center items-center p-4 ${!hideOverlay ? 'bg-black bg-opacity-70' : ''}`}
     >
       <div 
         className={`${themeClasses.modalBg} rounded-lg shadow-xl w-full max-w-xl p-6`}

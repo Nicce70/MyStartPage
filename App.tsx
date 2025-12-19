@@ -752,39 +752,6 @@ function App() {
     }
 }, [modal]);
 
-  useEffect(() => {
-    if (isEditMode) {
-      collapsedGroupsBeforeEdit.current.clear();
-      const newColumns = JSON.parse(JSON.stringify(columns));
-      let hadCollapsed = false;
-      newColumns.forEach((c: Column) => {
-        c.groups.forEach((g: Group) => {
-          if (g.isCollapsed) {
-            collapsedGroupsBeforeEdit.current.add(g.id);
-            g.isCollapsed = false;
-            hadCollapsed = true;
-          }
-        });
-      });
-      if (hadCollapsed) {
-        setColumns(newColumns);
-      }
-    } else {
-      if (collapsedGroupsBeforeEdit.current.size > 0) {
-        const newColumns = JSON.parse(JSON.stringify(columns));
-        newColumns.forEach((c: Column) => {
-          c.groups.forEach((g: Group) => {
-            if (collapsedGroupsBeforeEdit.current.has(g.id)) {
-              g.isCollapsed = true;
-            }
-          });
-        });
-        setColumns(newColumns);
-        collapsedGroupsBeforeEdit.current.clear();
-      }
-    }
-  }, [isEditMode, columns, setColumns]);
-
   const handlePointerUp = useCallback(() => {
     if (isPendingDrag.current && longPressTimeout.current) {
         clearTimeout(longPressTimeout.current);
@@ -1086,6 +1053,8 @@ function App() {
                 group.widgetSettings.countdownPlaySound = formData.has('countdownPlaySound');
             } else if (group.widgetType === 'calendar') {
                 group.widgetSettings.holidayCountry = formData.get('holidayCountry') as string;
+            } else if (group.widgetType === 'todo') {
+                group.widgetSettings.todoConfirmDelete = formData.has('todoConfirmDelete');
             } else if (group.widgetType === 'currency') {
                 group.widgetSettings.currencyBase = formData.get('currencyBase') as string;
                 group.widgetSettings.currencyTargets = formData.getAll('currencyTargets') as string[];
@@ -1095,6 +1064,7 @@ function App() {
                 group.widgetSettings.solarCity = formData.get('solarCity') as string;
                 group.widgetSettings.solarUse24HourFormat = formData.has('solarUse24HourFormat');
                 group.widgetSettings.solarCompactMode = formData.has('solarCompactMode');
+                group.widgetSettings.solarDynamicPath = formData.has('solarDynamicPath');
             } else if (group.widgetType === 'homey') {
                  if (!group.widgetSettings.homeySettings) group.widgetSettings.homeySettings = {};
                  group.widgetSettings.homeySettings.enableScroll = formData.has('enableScroll');
@@ -1127,6 +1097,7 @@ function App() {
                 group.widgetSettings.pictureBorderRadius = formData.has('pictureBorderRadius');
                 group.widgetSettings.pictureUpdateInterval = parseInt(formData.get('pictureUpdateInterval') as string, 10) || 0;
                 group.widgetSettings.pictureClickUrl = formData.get('pictureClickUrl') as string;
+                group.widgetSettings.pictureEnableZoom = formData.has('pictureEnableZoom');
             } else if (group.widgetType === 'iframe') {
                 group.widgetSettings.iframeUrl = formData.get('iframeUrl') as string;
                 group.widgetSettings.iframeHeight = parseInt(formData.get('iframeHeight') as string, 10) || 400;
@@ -1135,6 +1106,7 @@ function App() {
             } else if (group.widgetType === 'homey_custom') {
                 if (!group.widgetSettings.homeyCustomSettings) group.widgetSettings.homeyCustomSettings = {};
                 group.widgetSettings.homeyCustomSettings.showOneRow = formData.has('homeyCustomShowOneRow');
+                group.widgetSettings.homeyCustomSettings.flowsInTwoColumns = formData.has('homeyCustomFlowsInTwoColumns');
             }
         }
         setColumns(newColumns);
@@ -1257,7 +1229,7 @@ function App() {
         return col;
     }));
     closeModal();
-};
+  };
 
   const handleAddWidget = (widgetType: string, columnId: string) => {
     const newColumns = JSON.parse(JSON.stringify(columns));
@@ -1275,7 +1247,7 @@ function App() {
     } else if (widgetType === 'rss') {
         newWidget = { id: uuidv4(), name: "RSS Feed", items: [], type: 'widget', widgetType: 'rss', widgetSettings: { rssUrl: '', rssItemCount: 5, rssUpdateInterval: 60 } };
     } else if (widgetType === 'todo') {
-        newWidget = { id: TODO_WIDGET_ID, name: 'To-Do List', items: [], isCollapsed: false, type: 'widget', widgetType: 'todo' };
+        newWidget = { id: TODO_WIDGET_ID, name: 'To-Do List', items: [], isCollapsed: false, type: 'widget', widgetType: 'todo', widgetSettings: { todoConfirmDelete: true } };
     } else if (widgetType === 'calculator') {
         newWidget = { id: CALCULATOR_WIDGET_ID, name: 'Calculator', items: [], isCollapsed: false, type: 'widget', widgetType: 'calculator', calculatorState: { currentValue: '0', previousValue: null, operator: null, isNewEntry: true } };
     } else if (widgetType === 'scratchpad') {
@@ -1293,7 +1265,7 @@ function App() {
     } else if (widgetType === 'network') {
         newWidget = { id: uuidv4(), name: "Network Info", items: [], type: 'widget', widgetType: 'network' };
     } else if (widgetType === 'solar') {
-        newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false } };
+        newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false, solarDynamicPath: true } };
     } else if (widgetType === 'radio') {
         newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: DEFAULT_RADIO_STATIONS } };
     } else if (widgetType === 'favorites') {
@@ -1316,12 +1288,59 @@ function App() {
   };
 
   const handleToggleEditMode = () => {
-    setIsEditMode(!isEditMode);
+    if (!isEditMode) {
+      // Entering edit mode: store collapsed state and expand all
+      const newColumns = JSON.parse(JSON.stringify(columns));
+      const collapsedIds = new Set<string>();
+      let hasChanges = false;
+      
+      newColumns.forEach((c: Column) => {
+        c.groups.forEach((g: Group) => {
+          if (g.isCollapsed) {
+            collapsedIds.add(g.id);
+            g.isCollapsed = false;
+            hasChanges = true;
+          }
+        });
+      });
+      
+      collapsedGroupsBeforeEdit.current = collapsedIds;
+      if (hasChanges) {
+        setColumns(newColumns);
+      }
+      setIsEditMode(true);
+    } else {
+      // Exiting edit mode: restore collapsed state
+      if (collapsedGroupsBeforeEdit.current.size > 0) {
+        const newColumns = JSON.parse(JSON.stringify(columns));
+        newColumns.forEach((c: Column) => {
+          c.groups.forEach((g: Group) => {
+            if (collapsedGroupsBeforeEdit.current.has(g.id)) {
+              g.isCollapsed = true;
+            }
+          });
+        });
+        setColumns(newColumns);
+      }
+      collapsedGroupsBeforeEdit.current.clear();
+      setIsEditMode(false);
+    }
+  };
+
+  const handleRequestDeleteTodo = (todoId: string) => {
+    openModal('deleteTodoItem', { todoId });
   };
 
   const handleDelete = () => {
     if (!modal) return;
     const { type, data } = modal;
+
+    // Handle ToDo deletion separately as it uses a different state
+    if (type === 'deleteTodoItem') {
+      setTodos(prev => prev.filter(t => t.id !== data.todoId));
+      closeModal();
+      return;
+    }
     
     const newColumns = JSON.parse(JSON.stringify(columns));
 
@@ -1813,9 +1832,14 @@ function App() {
         if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this item';
         if (type === 'deleteFlowButton') itemName = `button "${data.button.symbol}"`;
 
+        let message = `Are you sure you want to delete "${itemName}"?`;
+        if (type === 'deleteTodoItem') {
+            message = 'Are you sure you want to delete this task?';
+        }
+
         return (
           <div>
-            <p className={themeClasses.modalMutedText}>Are you sure you want to delete "{itemName}"?</p>
+            <p className={themeClasses.modalMutedText}>{message}</p>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
               <button onClick={handleDelete} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Delete</button>
@@ -1893,6 +1917,22 @@ function App() {
             );
         } else if (group.widgetType === 'calendar') {
             widgetContent = (<div><label htmlFor="holidayCountry" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Country for Holidays</label><select id="holidayCountry" name="holidayCountry" defaultValue={group.widgetSettings?.holidayCountry || 'SE'} className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div>);
+        } else if (group.widgetType === 'todo') {
+            widgetContent = (
+              <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700">
+                <label htmlFor="todoConfirmDelete" className="text-sm font-medium">Confirm before deleting</label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="todoConfirmDelete"
+                    name="todoConfirmDelete"
+                    defaultChecked={group.widgetSettings?.todoConfirmDelete ?? true}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+            );
         } else if (group.widgetType === 'currency') {
             widgetContent = <CurrencySettingsForm group={group} themeClasses={themeClasses} />;
         } else if (group.widgetType === 'webhook') {
@@ -1905,6 +1945,7 @@ function App() {
                     <div><label htmlFor="solarCity" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label><input type="text" id="solarCity" name="solarCity" defaultValue={group.widgetSettings?.solarCity || ''} required placeholder="e.g., Stockholm" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
                     <div className="flex items-center justify-between pt-2"><label htmlFor="solarUse24HourFormat" className="text-sm font-medium">Use 24-hour format</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarUse24HourFormat" name="solarUse24HourFormat" defaultChecked={group.widgetSettings?.solarUse24HourFormat} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
                     <div className="flex items-center justify-between"><label htmlFor="solarCompactMode" className="text-sm font-medium">Compact Mode</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarCompactMode" name="solarCompactMode" defaultChecked={group.widgetSettings?.solarCompactMode} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-700"><label htmlFor="solarDynamicPath" className="text-sm font-medium">Dynamic Sun Path</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarDynamicPath" name="solarDynamicPath" defaultChecked={group.widgetSettings?.solarDynamicPath ?? true} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
                 </div>
             );
         } else if (group.widgetType === 'radio') {
@@ -2049,6 +2090,7 @@ function App() {
       case 'deleteColumn': return 'Delete Column';
       case 'deleteGroup': return 'Delete Group';
       case 'deleteItem': return `Delete ${modal.data.item.type === 'link' ? 'Link' : 'this item'}`;
+      case 'deleteTodoItem': return 'Delete Task';
       case 'importConfirm': return 'Confirm Import';
       case 'resetConfirm': return 'Confirm Reset';
       case 'addWidget': return 'Add to Column';
@@ -2152,7 +2194,7 @@ function App() {
       </DragGhost>
 
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
-        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[1fr_2fr_1fr] items-center md:items-end gap-4 mb-6">
+        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[1fr_auto_1fr] items-center md:items-end gap-4 mb-6">
           <div className="justify-self-start w-full min-w-0 col-span-1 md:col-auto">
               {isEditMode ? (
                 <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} maxLength={30} className={`text-3xl font-bold bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none pl-2 w-full ${themeClasses.header}`} placeholder="Page Title" />
@@ -2160,15 +2202,17 @@ function App() {
                 <h1 className={`text-3xl font-bold ${themeClasses.header} pl-2 truncate`}>{pageTitle}</h1>
               )}
           </div>
-                    
-          <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative md:top-2 col-span-2 md:col-auto order-last md:order-none">
-              {settings.showSearch && (
-                  <form onSubmit={handleSearchSubmit} className="w-full relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" /></div>
-                      <input type="search" name="search" id="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={`Search with ${searchEngines[settings.searchEngine]?.name || 'Google'}...`} className={`block w-full rounded-md border-0 py-2 pl-10 pr-3 ${themeClasses.inputBg} ${themeClasses.inputFocusRing} placeholder:text-slate-400 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed`} disabled={isEditMode} />
-                  </form>
-              )}
-          </div>
+          
+          {settings.showSearch ? (
+            <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative md:top-2 col-span-2 md:col-auto order-last md:order-none">
+                <form onSubmit={handleSearchSubmit} className="w-full relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" /></div>
+                    <input type="search" name="search" id="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={`Search with ${searchEngines[settings.searchEngine]?.name || 'Google'}...`} className={`block w-full rounded-md border-0 py-2 pl-10 pr-3 ${themeClasses.inputBg} ${themeClasses.inputFocusRing} placeholder:text-slate-400 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed`} disabled={isEditMode} />
+                </form>
+            </div>
+          ) : (
+            <div className="hidden md:block"></div>
+          )}
 
           <div className="justify-self-end flex items-center gap-3 col-span-1 md:col-auto">
             <button onClick={handleToggleEditMode} className={`${isEditMode ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors`}>
@@ -2183,8 +2227,8 @@ function App() {
           </div>
         </header>
 
-        <div className={`flex-grow overflow-x-auto pb-4 ${settings.centerContent ? 'text-center' : ''}`}>
-           <div className={`inline-flex items-start h-full text-left ${settings.centerContent ? 'mx-auto' : ''}`} style={{ gap: `${settings.columnGap * 0.25}rem` }}>
+        <div className={`flex-grow overflow-x-auto pb-4 ${settings.centerContent ? 'flex justify-center' : ''}`}>
+           <div className="flex items-start h-full text-left" style={{ gap: `${settings.columnGap * 0.25}rem` }}>
             {columns.map(col => (
               <ColumnComponent
                 key={col.id}
@@ -2208,6 +2252,7 @@ function App() {
                 onScratchpadChange={handleScratchpadChange}
                 showGroupToggles={settings.showGroupToggles}
                 homeyGlobalSettings={settings.homey}
+                onRequestDeleteTodo={handleRequestDeleteTodo}
                 homeyDevices={homeyDevices}
                 homeyZones={homeyZones}
                 homeyFlows={homeyFlows}

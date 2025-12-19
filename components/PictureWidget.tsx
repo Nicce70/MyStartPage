@@ -1,7 +1,41 @@
 
 import React, { useState, useEffect } from 'react';
 import type { themes } from '../themes';
-import { PhotoIcon } from './Icons';
+import { PhotoIcon, MagnifyingGlassPlusIcon, ArrowTopRightOnSquareIcon, XMarkIcon } from './Icons';
+
+interface LightboxProps {
+  src: string;
+  onClose: () => void;
+}
+
+const Lightbox: React.FC<LightboxProps> = ({ src, onClose }) => {
+    useEffect(() => {
+        const handleEsc = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
+    return (
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 animate-fade-in"
+            onClick={onClose}
+        >
+            <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-opacity">
+                <XMarkIcon className="w-8 h-8" />
+            </button>
+            <img 
+                src={src} 
+                alt="Enlarged view" 
+                className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image
+            />
+        </div>
+    );
+};
 
 interface PictureWidgetProps {
   url?: string;
@@ -12,6 +46,7 @@ interface PictureWidgetProps {
   borderRadius?: boolean;
   updateInterval?: number; // in minutes
   pictureClickUrl?: string;
+  pictureEnableZoom?: boolean;
   openLinksInNewTab?: boolean;
   themeClasses: typeof themes.default;
   isEditMode: boolean;
@@ -26,11 +61,14 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   borderRadius = true,
   updateInterval = 0,
   pictureClickUrl,
+  pictureEnableZoom,
   openLinksInNewTab = true,
   themeClasses,
   isEditMode
 }) => {
   const [cacheBust, setCacheBust] = useState(0);
+  const [showOptions, setShowOptions] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   useEffect(() => {
     if (updateInterval > 0 && sourceType === 'url' && url) {
@@ -44,7 +82,6 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   let imgSrc = sourceType === 'upload' ? base64 : url;
 
   if (sourceType === 'url' && url && updateInterval > 0 && cacheBust > 0) {
-    // Add a cache-busting query parameter.
     imgSrc = `${url}${url.includes('?') ? '&' : '?'}refresh=${cacheBust}`;
   }
 
@@ -60,37 +97,80 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
     );
   }
 
-  const imgElement = (
-    <img 
-      src={imgSrc} 
-      alt="Widget" 
-      className={`w-full h-full ${borderRadius ? 'rounded-lg' : ''}`}
-      style={{ objectFit: fit }}
-      onError={(e) => {
-          (e.target as HTMLImageElement).style.display = 'none';
-      }}
-    />
-  );
+  const hasLink = !!pictureClickUrl;
+  const hasZoom = !!pictureEnableZoom;
 
-  if (pictureClickUrl) {
-    return (
-      <a
-        href={pictureClickUrl}
-        target={openLinksInNewTab ? "_blank" : "_self"}
-        rel="noopener noreferrer"
-        onClick={(e) => { if (isEditMode) e.preventDefault(); }}
-        className={`block w-full overflow-hidden ${isEditMode ? '' : 'cursor-pointer'}`}
-        style={{ height: `${height}px` }}
-      >
-        {imgElement}
-      </a>
-    );
+  let clickMode: 'options' | 'link' | 'zoom' | 'none' = 'none';
+  if (hasLink && hasZoom) {
+    clickMode = 'options';
+  } else if (hasLink) {
+    clickMode = 'link';
+  } else if (hasZoom) {
+    clickMode = 'zoom';
   }
+  
+  const handleWrapperClick = () => {
+    if (isEditMode) return;
+
+    switch (clickMode) {
+        case 'link':
+            window.open(pictureClickUrl, openLinksInNewTab ? "_blank" : "_self", "noopener,noreferrer");
+            break;
+        case 'zoom':
+            setIsLightboxOpen(true);
+            break;
+        case 'options':
+            setShowOptions(true);
+            break;
+    }
+  };
+  
+  const handleZoomClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsLightboxOpen(true);
+      setShowOptions(false);
+  };
+
+  const handleLinkClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      window.open(pictureClickUrl, openLinksInNewTab ? "_blank" : "_self", "noopener,noreferrer");
+      setShowOptions(false);
+  };
+  
+  const cursorClass = isEditMode || clickMode === 'none' ? 'cursor-default' : 'cursor-pointer';
 
   return (
-    <div className="w-full overflow-hidden" style={{ height: `${height}px` }}>
-      {imgElement}
-    </div>
+    <>
+        <div 
+            className={`relative w-full overflow-hidden ${cursorClass}`} 
+            style={{ height: `${height}px` }}
+            onClick={handleWrapperClick}
+        >
+            <img 
+              src={imgSrc} 
+              alt="Widget" 
+              className={`w-full h-full ${borderRadius ? 'rounded-lg' : ''}`}
+              style={{ objectFit: fit }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            
+            {showOptions && !isEditMode && (
+                <div 
+                    className="absolute inset-0 bg-black/60 flex items-center justify-center gap-8 animate-fade-in"
+                    onClick={(e) => { e.stopPropagation(); setShowOptions(false); }}
+                >
+                    <button onClick={handleZoomClick} className="text-white/80 hover:text-white hover:scale-110 transition-transform p-3 rounded-full bg-black/40" title="Zoom In">
+                        <MagnifyingGlassPlusIcon className="w-8 h-8" />
+                    </button>
+                    <button onClick={handleLinkClick} className="text-white/80 hover:text-white hover:scale-110 transition-transform p-3 rounded-full bg-black/40" title="Open Link">
+                        <ArrowTopRightOnSquareIcon className="w-8 h-8" />
+                    </button>
+                </div>
+            )}
+        </div>
+
+        {isLightboxOpen && imgSrc && <Lightbox src={imgSrc} onClose={() => setIsLightboxOpen(false)} />}
+    </>
   );
 };
 

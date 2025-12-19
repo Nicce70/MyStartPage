@@ -1,5 +1,4 @@
 
-
 export interface Link {
   id: string;
   type: 'link';
@@ -114,6 +113,7 @@ export interface Group {
     solarCity?: string;
     solarUse24HourFormat?: boolean;
     solarCompactMode?: boolean;
+    solarDynamicPath?: boolean;
     homeySettings?: {
         selectedCapabilities?: { deviceId: string; capabilityId: string; }[];
         selectedFlows?: { flowId: string; }[];
@@ -122,6 +122,7 @@ export interface Group {
     };
     homeyCustomSettings?: {
         showOneRow?: boolean;
+        flowsInTwoColumns?: boolean;
     };
     radioStations?: RadioStation[];
     favoritesOrder?: string[]; // For custom sorting of favorites
@@ -133,11 +134,13 @@ export interface Group {
     pictureBorderRadius?: boolean;
     pictureUpdateInterval?: number; // in minutes
     pictureClickUrl?: string;
+    pictureEnableZoom?: boolean;
     iframeUrl?: string;
     iframeHeight?: number;
     iframeViewMode?: 'desktop' | 'mobile';
     iframeUpdateInterval?: number; // in minutes
     compactMode?: boolean; // For link groups
+    todoConfirmDelete?: boolean; // New setting for To-Do widget
   };
   calculatorState?: CalculatorState;
   links?: Link[]; // For data migration
@@ -238,7 +241,7 @@ export interface BackupData {
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName' | 'addFlowButton' | 'editFlowButton' | 'deleteFlowButton' | 'moveFlowButton';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName' | 'addFlowButton' | 'editFlowButton' | 'deleteFlowButton' | 'moveFlowButton' | 'deleteTodoItem';
 
 export interface ModalState {
   type: ModalType;

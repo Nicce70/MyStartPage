@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import type { Group, Theme } from '../types';
 import { PhotoIcon, TrashIcon } from './Icons';
@@ -149,8 +148,24 @@ const PictureSettingsForm: React.FC<PictureSettingsFormProps> = ({ group, themeC
                 placeholder="https://example.com"
                 className={`w-full p-2 rounded-md border text-sm ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
             />
-            <p className="text-xs text-slate-500 mt-1">If set, the entire image will act as a link to this URL.</p>
+            <p className="text-xs text-slate-500 mt-1">If both Link and Enlarge are enabled, a menu will appear on click.</p>
         </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+            <label htmlFor="pictureEnableZoom" className="text-sm font-medium">Enlarge on click</label>
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                    type="checkbox"
+                    id="pictureEnableZoom"
+                    name="pictureEnableZoom"
+                    defaultChecked={group.widgetSettings?.pictureEnableZoom ?? false}
+                    className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+        </div>
+        <p className="text-xs text-slate-500 -mt-3">Allows viewing a larger version of the image.</p>
+
 
         {/* Appearance Settings */}
         <div className="grid grid-cols-2 gap-4">

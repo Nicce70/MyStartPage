@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { DraggedItem, Link } from '../types';
 import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
@@ -18,10 +19,11 @@ interface LinkItemProps {
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
   compact: boolean;
+  onLinkClick?: () => void;
 }
 
 const LinkItem: React.FC<LinkItemProps> = ({ 
-  link, groupId, columnId, isEditMode, onEdit, onDelete, onPointerDown, draggedItem, dropTarget, themeClasses, openLinksInNewTab, compact 
+  link, groupId, columnId, isEditMode, onEdit, onDelete, onPointerDown, draggedItem, dropTarget, themeClasses, openLinksInNewTab, compact, onLinkClick
 }) => {
   const [errorCount, setErrorCount] = useState(0);
   const itemRef = useRef<HTMLDivElement>(null);
@@ -41,6 +43,7 @@ const LinkItem: React.FC<LinkItemProps> = ({
       } else {
         window.location.href = link.url;
       }
+      onLinkClick?.();
     }
   };
 

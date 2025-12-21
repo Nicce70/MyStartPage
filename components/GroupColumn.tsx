@@ -4,7 +4,7 @@ import type { Column, Group, AnyItemType, Link, ModalState, ToDoItem, Calculator
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
 import LinkItem from './LinkItem';
 import SeparatorItem from './SeparatorItem';
-import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon, SquaresPlusIcon, CpuChipIcon } from './Icons';
+import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon, ChevronDownIcon, CalendarDaysIcon, ClipboardDocumentCheckIcon, SunIcon, CogIcon, ClockIcon, TimerIcon, StopwatchIcon, RssIcon, CalculatorIcon, DocumentTextIcon, PartyPopperIcon, BanknotesIcon, BoltIcon, ScaleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, PhotoIcon, WindowIcon, SquaresPlusIcon, CpuChipIcon, ArrowTopRightOnSquareIcon } from './Icons';
 import type { themes } from '../themes';
 import Calendar from './Calendar';
 import ToDo from './ToDo';
@@ -39,6 +39,7 @@ interface GroupItemProps {
   draggedItem: DraggedItem;
   dropTarget: DropTarget;
   openModal: (type: ModalState['type'], data?: any) => void;
+  openLinkGroupPopup: (group: Group, columnId: string) => void;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
   themeClasses: typeof themes.default;
   openLinksInNewTab: boolean;
@@ -71,7 +72,7 @@ const DEFAULT_CALCULATOR_STATE: CalculatorState = {
 };
 
 const GroupItem: React.FC<GroupItemProps> = ({
-  group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
+  group, allColumns, columnId, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, openLinkGroupPopup, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
   // Central Homey Engine Props
   homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
@@ -83,6 +84,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
   const groupType = group.type || 'links';
   const widgetType = group.widgetType;
   const isWidget = groupType === 'widget';
+  const isPopup = !isWidget && group.widgetSettings?.displayAsPopup;
+  const isEffectivelyCollapsed = (group.isCollapsed || isPopup) && !isEditMode;
   const compact = !!group.widgetSettings?.compactMode && !isEditMode;
 
   const isCalendarWidget = widgetType === 'calendar';
@@ -140,8 +143,8 @@ const GroupItem: React.FC<GroupItemProps> = ({
       className={`rounded-lg p-3 transition-all duration-200 ${bgClass} ${isDraggingThis ? 'opacity-30' : 'opacity-100'} ${isDropTarget ? `ring-2 ${themeClasses.ring}` : ''} ${isFavoritesWidget ? `border ${accentBorderColor}` : ''}`}
     >
       <div 
-        className={`flex justify-between items-start group/header ${!group.isCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
-        onClick={!isEditMode ? () => onToggleGroupCollapsed(columnId, group.id) : undefined}
+        className={`flex justify-between items-start group/header ${!isEffectivelyCollapsed ? 'mb-4' : ''} ${!isEditMode ? 'cursor-pointer' : ''}`}
+        onClick={!isEditMode ? (isPopup ? () => openLinkGroupPopup(group, columnId) : () => onToggleGroupCollapsed(columnId, group.id)) : undefined}
       >
         <div 
           className="flex items-start gap-2 min-w-0"
@@ -150,8 +153,10 @@ const GroupItem: React.FC<GroupItemProps> = ({
           onTouchStart={(e) => onPointerDown(e, { type: 'group', group, sourceColumnId: columnId }, groupRef.current)}
         >
           {isEditMode && <DragHandleIcon className={`w-5 h-5 text-slate-500 flex-shrink-0 cursor-grab mt-1`} />}
-          {!isEditMode && showGroupToggles && (
-            <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'} mt-1`} />
+          {!isEditMode && (isPopup || showGroupToggles) && (
+            isPopup
+              ? <ArrowTopRightOnSquareIcon className={`w-5 h-5 ${themeClasses.iconMuted} mt-1`} />
+              : <ChevronDownIcon className={`w-5 h-5 ${themeClasses.iconMuted} transition-transform duration-200 ${group.isCollapsed ? '-rotate-90' : 'rotate-0'} mt-1`} />
           )}
           
           <div className="flex items-start gap-2 min-w-0">
@@ -209,7 +214,7 @@ const GroupItem: React.FC<GroupItemProps> = ({
           )}
         </div>
       </div>
-      {!group.isCollapsed && (
+      {!isEffectivelyCollapsed && (
         isCalendarWidget ? (
           <Calendar themeClasses={themeClasses} holidayCountry={group.widgetSettings?.holidayCountry || 'SE'} isEditMode={isEditMode} />
         ) : isTodoWidget ? (

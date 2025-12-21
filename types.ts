@@ -140,6 +140,7 @@ export interface Group {
     iframeViewMode?: 'desktop' | 'mobile';
     iframeUpdateInterval?: number; // in minutes
     compactMode?: boolean; // For link groups
+    displayAsPopup?: boolean; // For link groups
     todoConfirmDelete?: boolean; // New setting for To-Do widget
   };
   calculatorState?: CalculatorState;

@@ -15,6 +15,7 @@ import DonationPopup from './components/DonationPopup';
 import QuotePopup from './components/QuotePopup';
 import HomeyItemSelector from './components/HomeyItemSelector';
 import HomeyCustomSettingsForm from './components/HomeyCustomSettingsForm';
+import LinkGroupPopup from './components/LinkGroupPopup';
 import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon, CpuChipIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
@@ -205,6 +206,9 @@ const countries = [
   { code: 'IN', name: 'India' },
   { code: 'BR', name: 'Brazil' },
 ];
+
+const baseWidthsInRem: { [key: number]: number } = { 1: 15, 2: 18, 3: 20, 4: 24, 5: 28 };
+const globalMultipliers: { [key: number]: number } = { 1: 0.8, 2: 0.85, 3: 0.9, 4: 1.0, 5: 1.1, 6: 1.2, 7: 1.3, 8: 1.4, 9: 1.5 };
 
 const TimerSettingsForm: React.FC<{
   group: Group;
@@ -429,6 +433,7 @@ function App() {
   const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
   const [lastBackupDate, setLastBackupDate] = useLocalStorage<string>('startpage-last-backup', '');
   const [installDate, setInstallDate] = useLocalStorage<string>('startpage-install-date', '');
+  const [linkGroupPopupData, setLinkGroupPopupData] = useState<{ group: Group; columnId: string } | null>(null);
 
   const columns = useMemo(() => runDataMigrationAndValidation(rawColumns), [rawColumns]);
   const settings = useMemo(() => sanitizeSettings(rawSettings), [rawSettings]);
@@ -455,6 +460,39 @@ function App() {
   
   const formRef = useRef<HTMLFormElement>(null);
   const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
+
+  // Centering & Firefox-specific logic
+  const isFirefox = useMemo(() => navigator.userAgent.toLowerCase().includes('firefox'), []);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const calculatedContentWidth = useMemo(() => {
+    if (!isFirefox || !settings.centerContent || isEditMode) {
+        return null;
+    }
+
+    const rootFontSizePx = parseFloat(scaleMap[settings.scale] || '12.5px');
+
+    const totalColumnsWidthPx = columns.reduce((acc, col) => {
+        const individualWidth = col.width || 3;
+        const baseWidth = baseWidthsInRem[individualWidth];
+        const multiplier = globalMultipliers[settings.columnWidth];
+        const columnWidthRem = baseWidth * multiplier;
+        return acc + (columnWidthRem * rootFontSizePx);
+    }, 0);
+
+    const totalGaps = columns.length > 0 ? columns.length - 1 : 0;
+    const gapWidthRem = settings.columnGap * 0.25;
+    const totalGapsWidthPx = totalGaps * gapWidthRem * rootFontSizePx;
+
+    return totalColumnsWidthPx + totalGapsWidthPx;
+  }, [columns, settings.scale, settings.columnWidth, settings.columnGap, isFirefox, settings.centerContent, isEditMode]);
+
 
   // --- START OF CENTRAL HOMEY ENGINE ---
   const [homeyDevices, setHomeyDevices] = useState<any>({});
@@ -886,6 +924,13 @@ function App() {
     }
   };
 
+  const openLinkGroupPopup = (group: Group, columnId: string) => {
+    setLinkGroupPopupData({ group, columnId });
+  };
+  const closeLinkGroupPopup = () => {
+    setLinkGroupPopupData(null);
+  };
+
   const handleCalculatorStateChange = (newState: CalculatorState) => {
     setColumns(prevColumns => 
       prevColumns.map(column => ({
@@ -1015,6 +1060,7 @@ function App() {
             
             if (group.type !== 'widget') {
               group.widgetSettings.compactMode = formData.has('compactMode');
+              group.widgetSettings.displayAsPopup = formData.has('displayAsPopup');
             }
 
             if (group.widgetType === 'weather') {
@@ -1748,8 +1794,8 @@ function App() {
         const networkExists = columns.some(col => col.groups.some(g => g.widgetType === 'network'));
 
         const multiInstanceWidgets = (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button onClick={() => setModal({ type: 'addGroup', data })} className={`sm:col-span-2 w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary} text-sm`}>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setModal({ type: 'addGroup', data })} className={`col-span-2 w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary} text-sm`}>
                 <LinkIcon className="w-5 h-5 flex-shrink-0" />
                 <span className="font-semibold">Link Group</span>
             </button>
@@ -1769,7 +1815,7 @@ function App() {
         );
 
         const singleInstanceWidgets = (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {!calendarExists && <button onClick={() => handleAddWidget('calendar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalendarDaysIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calendar</span></button>}
             {!todoExists && <button onClick={() => handleAddWidget('todo', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ClipboardDocumentCheckIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">To-Do List</span></button>}
             {!calculatorExists && <button onClick={() => handleAddWidget('calculator', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalculatorIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calculator</span></button>}
@@ -1780,7 +1826,7 @@ function App() {
         );
 
         const homeyProWidgets = (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Auto Zones</span></button>
             <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Custom</span></button>
             <button onClick={() => handleAddWidget('homey_status', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CpuChipIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Status</span></button>
@@ -1973,18 +2019,34 @@ function App() {
                 )}
                 
                 {group.type !== 'widget' && (
-                  <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700">
-                    <label htmlFor="compactMode" className="text-sm font-medium">Compact Mode</label>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        id="compactMode" 
-                        name="compactMode" 
-                        defaultChecked={group.widgetSettings?.compactMode} 
-                        className="sr-only peer" 
-                      />
-                      <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
+                  <div className="pt-4 mt-4 border-t border-slate-700 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <label htmlFor="compactMode" className="text-sm font-medium">Compact Mode</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            id="compactMode" 
+                            name="compactMode" 
+                            defaultChecked={group.widgetSettings?.compactMode} 
+                            className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <label htmlFor="displayAsPopup" className="text-sm font-medium">Display as Pop-up</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            id="displayAsPopup" 
+                            name="displayAsPopup" 
+                            defaultChecked={group.widgetSettings?.displayAsPopup} 
+                            className="sr-only peer" 
+                        />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <p className="text-xs text-slate-500 -mt-2">Instead of unfolding, the group will open in a centered window.</p>
                   </div>
                 )}
 
@@ -2109,9 +2171,6 @@ function App() {
     }
   };
 
-  const baseWidthsInRem: { [key: number]: number } = { 1: 15, 2: 18, 3: 20, 4: 24, 5: 28 };
-  const globalMultipliers: { [key: number]: number } = { 1: 0.8, 2: 0.85, 3: 0.9, 4: 1.0, 5: 1.1, 6: 1.2, 7: 1.3, 8: 1.4, 9: 1.5 };
-
   const getColumnStyle = (columnWidth: number | undefined) => {
     const individualWidth = columnWidth || 3;
     const baseWidth = baseWidthsInRem[individualWidth];
@@ -2185,6 +2244,8 @@ function App() {
       );
   };
 
+  const shouldUsePaddingFix = calculatedContentWidth !== null;
+
   return (
     <>
       <ThemeStyles theme={themeClasses} />
@@ -2193,8 +2254,33 @@ function App() {
         {dragGhost}
       </DragGhost>
 
+      {false && shouldUsePaddingFix && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '20px',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          border: '1px solid #fff',
+          padding: '1rem',
+          borderRadius: '8px',
+          zIndex: 9999,
+          fontFamily: 'monospace',
+          color: 'white',
+          fontSize: '14px',
+          lineHeight: '1.5',
+          boxShadow: '0 0 15px rgba(0,0,0,0.5)'
+        }}>
+          <h4 style={{ margin: 0, paddingBottom: '0.5rem', borderBottom: '1px solid #555', fontSize: '16px', fontWeight: 'bold' }}>Centering Debug Info</h4>
+          <div style={{ paddingTop: '0.5rem' }}>
+            <p style={{ margin: 0 }}>Screen Width: <strong>{windowWidth}px</strong></p>
+            <p style={{ margin: 0 }}>Content Width: <strong>{calculatedContentWidth}px</strong></p>
+            {calculatedContentWidth && <p style={{ margin: 0 }}>Calculated Padding: <strong>{((windowWidth - calculatedContentWidth) / 2).toFixed(2)}px</strong></p>}
+          </div>
+        </div>
+      )}
+
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
-        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[1fr_auto_1fr] items-center md:items-end gap-4 mb-6">
+        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[auto_1fr_auto] items-center md:items-end gap-4 mb-6">
           <div className="justify-self-start w-full min-w-0 col-span-1 md:col-auto">
               {isEditMode ? (
                 <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} maxLength={30} className={`text-3xl font-bold bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none pl-2 w-full ${themeClasses.header}`} placeholder="Page Title" />
@@ -2204,10 +2290,15 @@ function App() {
           </div>
           
           {settings.showSearch ? (
-            <div className="w-full max-w-xl justify-self-center h-10 flex items-center relative md:top-2 col-span-2 md:col-auto order-last md:order-none">
-                <form onSubmit={handleSearchSubmit} className="w-full relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" /></div>
-                    <input type="search" name="search" id="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={`Search with ${searchEngines[settings.searchEngine]?.name || 'Google'}...`} className={`block w-full rounded-md border-0 py-2 pl-10 pr-3 ${themeClasses.inputBg} ${themeClasses.inputFocusRing} placeholder:text-slate-400 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed`} disabled={isEditMode} />
+            <div className={`w-full max-w-3xl justify-self-center h-10 flex items-center relative col-span-2 md:col-auto order-last md:order-none ${!isFirefox ? 'md:top-2' : 'md:-top-1'}`}>
+                <form onSubmit={handleSearchSubmit} className="w-full">
+                    <div className="flex w-full">
+                        <div className="relative flex-grow">
+                           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><MagnifyingGlassIcon className={`h-5 w-5 ${themeClasses.iconMuted}`} aria-hidden="true" /></div>
+                           <input type="search" name="search" id="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={`Search with ${searchEngines[settings.searchEngine]?.name || 'Google'}...`} className={`block w-full rounded-l-md rounded-r-none border-0 py-2 pl-10 pr-3 ${themeClasses.inputBg} ${themeClasses.inputFocusRing} placeholder:text-slate-400 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed`} disabled={isEditMode} />
+                        </div>
+                        <button type="submit" className={`${themeClasses.buttonSecondary} rounded-l-none rounded-r-md px-4 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed`} disabled={isEditMode}>Go</button>
+                    </div>
                 </form>
             </div>
           ) : (
@@ -2227,59 +2318,80 @@ function App() {
           </div>
         </header>
 
-        <div className={`flex-grow overflow-x-auto pb-4 ${settings.centerContent ? 'flex justify-center' : ''}`}>
-           <div className="flex items-start h-full text-left" style={{ gap: `${settings.columnGap * 0.25}rem` }}>
-            {columns.map(col => (
-              <ColumnComponent
-                key={col.id}
-                column={col}
-                allColumns={columns}
-                isEditMode={isEditMode}
-                onPointerDown={handlePointerDown}
-                draggedItem={draggedItem}
-                dropTarget={currentDropTarget}
-                openModal={openModal}
-                groupGap={settings.groupGap}
-                showColumnTitles={isEditMode || settings.showColumnTitles}
-                onToggleGroupCollapsed={handleToggleGroupCollapsed}
-                themeClasses={themeClasses}
-                openLinksInNewTab={settings.openLinksInNewTab}
-                widthStyle={getColumnStyle(col.width)}
-                isDeletable={columns.length > 0}
-                todos={todos}
-                setTodos={setTodos}
-                onCalculatorStateChange={handleCalculatorStateChange}
-                onScratchpadChange={handleScratchpadChange}
-                showGroupToggles={settings.showGroupToggles}
-                homeyGlobalSettings={settings.homey}
-                onRequestDeleteTodo={handleRequestDeleteTodo}
-                homeyDevices={homeyDevices}
-                homeyZones={homeyZones}
-                homeyFlows={homeyFlows}
-                homeyConnectionState={homeyConnectionState}
-                homeyLastUpdate={homeyLastUpdate}
-                homeyCountdown={homeyCountdown}
-                homeyLog={homeyLog}
-                onHomeyToggle={handleHomeyToggle}
-                onHomeyTriggerFlow={handleHomeyTriggerFlow}
-                onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
-                onRemoveFavorite={handleRemoveFavorite}
-              />
-            ))}
+        <div className={`flex-grow overflow-x-auto pb-4`}>
+           <div 
+             className={`h-full ${settings.centerContent && !shouldUsePaddingFix ? 'text-center' : ''}`}
+             style={shouldUsePaddingFix && calculatedContentWidth ? { 
+                 paddingLeft: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`,
+                 paddingRight: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`
+             } : {}}
+           >
+             <div 
+               className={`inline-flex items-start h-full text-left ${settings.centerContent && !shouldUsePaddingFix ? 'mx-auto' : ''}`}
+               style={{ gap: `${settings.columnGap * 0.25}rem` }}
+             >
+                {columns.map(col => (
+                  <ColumnComponent
+                    key={col.id}
+                    column={col}
+                    allColumns={columns}
+                    isEditMode={isEditMode}
+                    onPointerDown={handlePointerDown}
+                    draggedItem={draggedItem}
+                    dropTarget={currentDropTarget}
+                    openModal={openModal}
+                    openLinkGroupPopup={openLinkGroupPopup}
+                    groupGap={settings.groupGap}
+                    showColumnTitles={isEditMode || settings.showColumnTitles}
+                    onToggleGroupCollapsed={handleToggleGroupCollapsed}
+                    themeClasses={themeClasses}
+                    openLinksInNewTab={settings.openLinksInNewTab}
+                    widthStyle={getColumnStyle(col.width)}
+                    isDeletable={columns.length > 0}
+                    todos={todos}
+                    setTodos={setTodos}
+                    onCalculatorStateChange={handleCalculatorStateChange}
+                    onScratchpadChange={handleScratchpadChange}
+                    showGroupToggles={settings.showGroupToggles}
+                    homeyGlobalSettings={settings.homey}
+                    onRequestDeleteTodo={handleRequestDeleteTodo}
+                    homeyDevices={homeyDevices}
+                    homeyZones={homeyZones}
+                    homeyFlows={homeyFlows}
+                    homeyConnectionState={homeyConnectionState}
+                    homeyLastUpdate={homeyLastUpdate}
+                    homeyCountdown={homeyCountdown}
+                    homeyLog={homeyLog}
+                    onHomeyToggle={handleHomeyToggle}
+                    onHomeyTriggerFlow={handleHomeyTriggerFlow}
+                    onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
+                    onRemoveFavorite={handleRemoveFavorite}
+                  />
+                ))}
 
-            {isEditMode && (
-              <div className={`flex-shrink-0`} style={getColumnStyle(3)}>
-                <button onClick={() => openModal('addColumn')} className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}>
-                  <PlusIcon /> Add Column
-                </button>
+                {isEditMode && (
+                  <div className={`flex-shrink-0`} style={getColumnStyle(3)}>
+                    <button onClick={() => openModal('addColumn')} className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}>
+                      <PlusIcon /> Add Column
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
         </div>
       </main>
       
       <QuotePopup settings={settings} themeClasses={themeClasses} />
       <DonationPopup themeClasses={themeClasses} />
+
+      {linkGroupPopupData && (
+        <LinkGroupPopup
+          group={linkGroupPopupData.group}
+          onClose={closeLinkGroupPopup}
+          themeClasses={themeClasses}
+          openLinksInNewTab={settings.openLinksInNewTab}
+        />
+      )}
 
       <SettingsModal
         isOpen={isSettingsModalOpen}

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, AnyItemType } from '../types';
+import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, AnyItemType, Group } from '../types';
 import GroupItem from './GroupColumn';
 import { PencilIcon, TrashIcon, PlusIcon, DragHandleIcon } from './Icons';
 import type { themes } from '../themes';
@@ -15,6 +15,7 @@ interface ColumnProps {
   draggedItem: DraggedItem;
   dropTarget: DropTarget;
   openModal: (type: ModalState['type'], data?: any) => void;
+  openLinkGroupPopup: (group: Group, columnId: string) => void;
   groupGap: number;
   showColumnTitles: boolean;
   onToggleGroupCollapsed: (columnId: string, groupId: string) => void;
@@ -44,7 +45,7 @@ interface ColumnProps {
 }
 
 const ColumnComponent: React.FC<ColumnProps> = ({ 
-  column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
+  column, allColumns, isEditMode, onPointerDown, draggedItem, dropTarget, openModal, openLinkGroupPopup, groupGap, showColumnTitles, onToggleGroupCollapsed, themeClasses, openLinksInNewTab, widthStyle, isDeletable, todos, setTodos, onCalculatorStateChange, onScratchpadChange, showGroupToggles, homeyGlobalSettings, onRequestDeleteTodo,
   // Central Homey Engine Props
   homeyDevices, homeyZones, homeyFlows, homeyConnectionState, homeyLastUpdate, homeyCountdown, homeyLog, onHomeyToggle, onHomeyTriggerFlow, onHomeyOptimisticUpdate, onRemoveFavorite
 }) => {
@@ -102,6 +103,7 @@ const ColumnComponent: React.FC<ColumnProps> = ({
             draggedItem={draggedItem}
             dropTarget={dropTarget}
             openModal={openModal}
+            openLinkGroupPopup={openLinkGroupPopup}
             onToggleGroupCollapsed={onToggleGroupCollapsed}
             themeClasses={themeClasses}
             openLinksInNewTab={openLinksInNewTab}

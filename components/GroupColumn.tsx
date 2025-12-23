@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Column, Group, AnyItemType, Link, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem } from '../types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID } from '../types';
@@ -195,19 +194,19 @@ const GroupItem: React.FC<GroupItemProps> = ({
           {isEditMode && (
             <div className="flex items-center gap-2 transition-opacity">
               {!isWidget && (
-                <button onClick={() => openModal('addLinkOrSeparator', { groupId: group.id, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+                <button onClick={() => openModal('addLinkOrSeparator', { groupId: group.id, columnId })} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}>
                   <PlusIcon className="w-5 h-5" />
                 </button>
               )}
               { (hasSettings || !isWidget) && (
                 <button 
                   onClick={() => openModal('editWidgetSettings', { group, columnId })} 
-                  className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}
+                  className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}
                 >
                   <CogIcon className="w-5 h-5" />
                 </button>
               )}
-              <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
+              <button onClick={() => openModal('deleteGroup', { group, columnId })} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}`}>
                   <TrashIcon className="w-4 h-4" />
               </button>
             </div>

@@ -1,22 +1,35 @@
-
 import React, { useRef, useState } from 'react';
 import Modal from './Modal';
-import type { Settings, Group, Theme } from '../types';
+import type { Settings, Theme, Dashboard, CustomThemeColors } from '../types';
 import { themes } from '../themes';
-import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon, HeartIcon, ArrowPathIcon, CheckIcon, ExclamationCircleIcon } from './Icons';
+import { ArrowDownTrayIcon, ArrowUpTrayIcon, SwatchIcon, HeartIcon, ArrowPathIcon, CheckIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, PencilIcon, ChevronDownIcon, ChevronLeftIcon, CogIcon, XMarkIcon } from './Icons';
+
+// Simple UUID generator
+const uuidv4 = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: Settings;
   onSettingsChange: (newSettings: Settings) => void;
+  pageTitle: string;
+  onPageTitleChange: (newTitle: string) => void;
   themeClasses: typeof themes.default;
   onExport: () => void;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onReset: () => void;
+  dashboards: Dashboard[];
+  onDashboardsChange: (newDashboards: Dashboard[]) => void;
+  activeDashboardId: string;
+  setActiveDashboardId: (id: string) => void;
 }
 
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.3d';
 
 const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSettings: Settings) => void, themeClasses: Theme }> = ({ settings, onSettingsChange, themeClasses }) => {
     const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -137,10 +150,254 @@ const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSet
     );
 };
 
+interface DashboardsTabProps {
+    dashboards: Dashboard[],
+    onDashboardsChange: (d: Dashboard[]) => void,
+    activeDashboardId: string,
+    setActiveDashboardId: (id: string) => void,
+    themeClasses: Theme,
+    settings: Settings,
+    onSettingsChange: (s: Settings) => void,
+    editingDashboardId: string | null;
+    setEditingDashboardId: (id: string | null) => void;
+}
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange, themeClasses, onExport, onImport, onReset }) => {
+
+const DashboardsTab: React.FC<DashboardsTabProps> = ({ 
+    dashboards, 
+    onDashboardsChange, 
+    activeDashboardId, 
+    setActiveDashboardId, 
+    themeClasses, 
+    settings, 
+    onSettingsChange,
+    editingDashboardId,
+    setEditingDashboardId
+}) => {
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    
+    // Edit form state
+    const [editName, setEditName] = useState('');
+    const [editBgImage, setEditBgImage] = useState('');
+    const [editBgColor, setEditBgColor] = useState('');
+
+    const handleAddDashboard = () => {
+        const newDashboard: Dashboard = {
+            id: uuidv4(),
+            name: `Dashboard ${dashboards.length + 1}`,
+            columns: [],
+        };
+        onDashboardsChange([...dashboards, newDashboard]);
+        if (dashboards.length === 0) {
+            setActiveDashboardId(newDashboard.id);
+        }
+    };
+
+    const handleMove = (index: number, direction: 'up' | 'down') => {
+        const newDashboards = [...dashboards];
+        if (direction === 'up' && index > 0) {
+            [newDashboards[index - 1], newDashboards[index]] = [newDashboards[index], newDashboards[index - 1]];
+        } else if (direction === 'down' && index < newDashboards.length - 1) {
+            [newDashboards[index], newDashboards[index + 1]] = [newDashboards[index + 1], newDashboards[index]];
+        }
+        onDashboardsChange(newDashboards);
+    };
+
+    const startEditing = (dashboard: Dashboard) => {
+        setEditingDashboardId(dashboard.id);
+        setEditName(dashboard.name);
+        setEditBgImage(dashboard.backgroundImage || '');
+        setEditBgColor(dashboard.customBackgroundColor || '');
+    };
+
+    const saveEditing = () => {
+        if (!editingDashboardId) return;
+        
+        onDashboardsChange(dashboards.map(d => {
+            if (d.id === editingDashboardId) {
+                return {
+                    ...d,
+                    name: editName,
+                    backgroundImage: editBgImage,
+                    customBackgroundColor: editBgColor
+                };
+            }
+            return d;
+        }));
+        setEditingDashboardId(null);
+    };
+
+    const handleViewChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        onSettingsChange({ ...settings, dashboardView: e.target.value as 'dropdown' | 'tabs' });
+    };
+
+    // Sub-screen for editing specific dashboard settings
+    if (editingDashboardId) {
+        return (
+            <div className="space-y-4">
+                <button onClick={() => setEditingDashboardId(null)} className={`flex items-center gap-1 text-sm ${themeClasses.modalMutedText} ${themeClasses.buttonIconHoverText} mb-2`}>
+                    <ChevronLeftIcon className="w-4 h-4" /> Back to List
+                </button>
+                <h3 className={`font-bold ${themeClasses.modalText}`}>Edit Dashboard</h3>
+                
+                <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+                    <input 
+                        type="text" 
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)} 
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    />
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Background Image URL</label>
+                    <input 
+                        type="text" 
+                        value={editBgImage} 
+                        onChange={(e) => setEditBgImage(e.target.value)} 
+                        placeholder="https://..."
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    />
+                </div>
+                <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Background Color</label>
+                    <div className="flex gap-2">
+                        <input 
+                            type="color" 
+                            value={editBgColor || '#000000'} 
+                            onChange={(e) => setEditBgColor(e.target.value)} 
+                            className="h-10 w-12 bg-transparent border-0 p-0 cursor-pointer rounded"
+                        />
+                        <input 
+                            type="text" 
+                            value={editBgColor} 
+                            onChange={(e) => setEditBgColor(e.target.value)} 
+                            placeholder="#..."
+                            className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                        />
+                    </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700 flex justify-end">
+                    <button onClick={saveEditing} className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg`}>Save Changes</button>
+                </div>
+            </div>
+        );
+    }
+
+    // Main list view
+    return (
+        <div className="space-y-6">
+            <div>
+                <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Navigation Style</label>
+                <select 
+                    value={settings.dashboardView} 
+                    onChange={handleViewChange} 
+                    className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                >
+                    <option value="dropdown">Dropdown Menu</option>
+                    <option value="tabs">Tabs</option>
+                </select>
+            </div>
+
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                {dashboards.map((d, index) => (
+                    <div key={d.id} className={`flex items-center gap-2 p-2 rounded-md ${themeClasses.inputBg} border border-transparent hover:border-slate-600`}>
+                        {confirmDeleteId === d.id ? (
+                            <div className="flex-1 flex items-center justify-between animate-fade-in px-1">
+                                <span className="text-sm text-red-400 font-semibold truncate">Delete "{d.name}"?</span>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => {
+                                            const newDashboards = dashboards.filter(dash => dash.id !== d.id);
+                                            onDashboardsChange(newDashboards);
+                                            if (activeDashboardId === d.id) {
+                                                setActiveDashboardId(newDashboards[0]?.id || '');
+                                            }
+                                            setConfirmDeleteId(null);
+                                        }}
+                                        className={`p-1 rounded bg-red-600 text-white hover:bg-red-500 transition-colors`}
+                                        title="Confirm Delete"
+                                    >
+                                        <CheckIcon className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setConfirmDeleteId(null)}
+                                        className={`p-1 rounded bg-slate-600 text-white hover:bg-slate-500 transition-colors`}
+                                        title="Cancel"
+                                    >
+                                        <XMarkIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <span className="flex-1 font-medium truncate pl-2">{d.name}</span>
+                                
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => handleMove(index, 'up')} disabled={index === 0} className={`p-1 rounded-full transition-colors disabled:opacity-30 ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg></button>
+                                    <button onClick={() => handleMove(index, 'down')} disabled={index === dashboards.length - 1} className={`p-1 rounded-full transition-colors disabled:opacity-30 ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></button>
+                                </div>
+                                
+                                <div className="h-4 w-px bg-slate-600 mx-1"></div>
+                                
+                                <button onClick={() => startEditing(d)} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`} title="Settings">
+                                    <CogIcon className="w-4 h-4" />
+                                </button>
+                                
+                                <button 
+                                    onClick={() => {
+                                        if (dashboards.length <= 1) {
+                                            alert("You cannot delete the last dashboard.");
+                                            return;
+                                        }
+                                        setConfirmDeleteId(d.id);
+                                    }}
+                                    className={`p-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}`} 
+                                    disabled={dashboards.length <= 1} 
+                                    title="Delete"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <button onClick={handleAddDashboard} className={`w-full flex items-center justify-center gap-2 p-2 rounded-lg border-2 border-dashed ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300 transition-colors`}>
+                <PlusIcon className="w-4 h-4" /> Add Dashboard
+            </button>
+        </div>
+    );
+};
+
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  settings,
+  onSettingsChange,
+  pageTitle,
+  onPageTitleChange,
+  themeClasses,
+  onExport,
+  onImport,
+  onReset,
+  dashboards,
+  onDashboardsChange,
+  activeDashboardId,
+  setActiveDashboardId,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('layout');
+  const [customColors, setCustomColors] = useState<CustomThemeColors>(settings.customThemeColors);
+  const [editingDashboardId, setEditingDashboardId] = useState<string | null>(null);
+
+  const handleClose = () => {
+    setEditingDashboardId(null);
+    onClose();
+  };
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -169,19 +426,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
 
   const handleCustomColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    onSettingsChange({
-      ...settings,
-      customThemeColors: {
-        ...settings.customThemeColors,
-        [name]: value,
-      }
-    });
+    const newColors = { ...customColors, [name]: value };
+    setCustomColors(newColors);
+    onSettingsChange({ ...settings, customThemeColors: newColors });
   };
 
   const ringColorClass = themeClasses.inputFocusRing.split(' ').find(c => c.startsWith('focus:ring-'))?.replace('focus:', '') || 'ring-indigo-500';
 
   const tabs = [
     { id: 'layout', name: 'Layout & Appearance' },
+    { id: 'dashboards', name: 'Dashboards' },
     { id: 'features', name: 'Features' },
     { id: 'theme', name: 'Theme' },
     { id: 'homey', name: 'Homey' },
@@ -192,8 +446,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
   return (
     <Modal 
       isOpen={isOpen} 
-      onClose={onClose} 
-      title="Settings" 
+      onClose={handleClose} 
+      title="Global Settings" 
       themeClasses={themeClasses} 
       hideOverlay={activeTab === 'theme' && settings.theme === 'custom'}
     >
@@ -207,7 +461,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                 className={`flex-shrink-0 whitespace-nowrap py-3 px-2 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === tab.id
                     ? `border-indigo-500 ${themeClasses.modalText}`
-                    : `border-transparent ${themeClasses.modalMutedText} hover:border-slate-400 hover:text-slate-200`
+                    : `border-transparent ${themeClasses.modalMutedText} hover:border-slate-400 ${themeClasses.buttonIconHoverText}`
                 }`}
               >
                 {tab.name}
@@ -219,6 +473,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         <div className="min-h-[350px]">
           {activeTab === 'layout' && (
             <div className="space-y-6">
+              <div>
+                <label htmlFor="pageTitle" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Page Title</label>
+                <input type="text" id="pageTitle" name="pageTitle" value={pageTitle} onChange={(e) => onPageTitleChange(e.target.value)} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+              </div>
+              
               <div>
                 <label htmlFor="columnGap" className="block text-sm font-medium">Column Gap</label>
                 <input
@@ -339,6 +598,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
             </div>
           )}
 
+          {activeTab === 'dashboards' && (
+              <DashboardsTab 
+                dashboards={dashboards} 
+                onDashboardsChange={onDashboardsChange} 
+                activeDashboardId={activeDashboardId} 
+                setActiveDashboardId={setActiveDashboardId} 
+                themeClasses={themeClasses}
+                settings={settings}
+                onSettingsChange={onSettingsChange}
+                editingDashboardId={editingDashboardId}
+                setEditingDashboardId={setEditingDashboardId}
+              />
+          )}
+
           {activeTab === 'features' && (
             <div className="space-y-6">
               <div className="space-y-4">
@@ -449,7 +722,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   {Object.entries(themes).map(([themeKey, themeData]) => (
                     <button
                       key={themeKey}
-                      onClick={() => onSettingsChange({ ...settings, theme: themeKey, backgroundImage: '', customBackgroundColor: '' })}
+                      onClick={() => onSettingsChange({ ...settings, theme: themeKey })}
                       className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
                         settings.theme === themeKey ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
                       }`}
@@ -460,7 +733,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                   ))}
                   
                   <button
-                    onClick={() => onSettingsChange({ ...settings, theme: 'custom', backgroundImage: '', customBackgroundColor: '' })}
+                    onClick={() => onSettingsChange({ ...settings, theme: 'custom' })}
                     className={`text-left p-2 rounded-lg border-2 transition-all flex items-center gap-3 ${
                       settings.theme === 'custom' ? `ring-2 ${ringColorClass} border-transparent shadow-lg scale-105` : 'border-slate-700 hover:border-slate-500 opacity-80 hover:opacity-100'
                     }`}
@@ -575,60 +848,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                     </div>
                 </div>
               )}
-
-              <div className="mt-6 pt-6 border-t border-slate-700">
-                <label htmlFor="customBackgroundColor" className="block text-sm font-medium">Custom Background Color (Override)</label>
-                <p className="text-xs text-slate-400 mt-1 mb-2">Overrides the theme background color. Clear to reset.</p>
-                <div className="flex items-center gap-2">
-                    <input 
-                        type="color" 
-                        id="customBackgroundColor"
-                        name="customBackgroundColor"
-                        value={settings.customBackgroundColor || '#000000'}
-                        onChange={(e) => onSettingsChange({ ...settings, customBackgroundColor: e.target.value })}
-                        className="h-9 w-12 bg-transparent border-0 p-0 cursor-pointer rounded" 
-                    />
-                    <input 
-                        type="text"
-                        value={settings.customBackgroundColor || ''}
-                        readOnly
-                        placeholder="No color set"
-                        className={`w-32 px-2 py-2 text-sm rounded-md ${themeClasses.inputBg} border-none font-mono`}
-                    />
-                    {settings.customBackgroundColor && (
-                        <button
-                            onClick={() => onSettingsChange({ ...settings, customBackgroundColor: '' })}
-                            className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg text-sm`}
-                        >
-                            Reset
-                        </button>
-                    )}
-                </div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t border-slate-700">
-                <label htmlFor="backgroundImage" className="block text-sm font-medium">Custom Background Image URL</label>
-                <p className="text-xs text-slate-400 mt-1 mb-2">Paste a direct link to an image to use it as a background.</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    id="backgroundImage"
-                    name="backgroundImage"
-                    value={settings.backgroundImage || ''}
-                    onChange={(e) => onSettingsChange({ ...settings, backgroundImage: e.target.value })}
-                    placeholder="https://images.unsplash.com/photo-15..."
-                    className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                  />
-                  {settings.backgroundImage && (
-                    <button
-                      onClick={() => onSettingsChange({ ...settings, backgroundImage: '' })}
-                      className={`${themeClasses.buttonSecondary} font-semibold py-2 px-3 rounded-lg text-sm`}
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
             </div>
           )}
           
@@ -650,7 +869,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
                       onChange={handleNumberChange}
                       className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                     >
-                      <option value={0}>Never</option>
+                      <option value="0">Never</option>
                       <option value={7}>Every 7 days</option>
                       <option value={14}>Every 14 days</option>
                       <option value={30}>Every 30 days</option>
@@ -694,7 +913,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
           )}
           
           {activeTab === 'about' && (
-            <div className="space-y-4 text-sm leading-relaxed max-h-[350px] overflow-y-auto pr-2">
+            <div className="space-y-4 text-sm leading-relaxed max-h-[350px] overflow-y-auto pr-2 overscroll-contain">
                 <h3 className={`text-lg font-bold ${themeClasses.modalText}`}>About My Startpage</h3>
                 <p className="text-xs text-slate-400">Version {APP_VERSION}</p>
                 
@@ -786,8 +1005,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 mt-6 border-t border-slate-700">
-          <button type="button" onClick={onClose} className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Done</button>
+        <div className="flex justify-between items-center pt-4 mt-6 border-t border-slate-700">
+          <span className={`text-xs ${themeClasses.textSubtle}`}>
+            Version {APP_VERSION}
+          </span>
+          <div className="flex justify-end gap-3">
+            {!editingDashboardId && (
+              <button type="button" onClick={handleClose} className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Done</button>
+            )}
+          </div>
         </div>
 
       </div>

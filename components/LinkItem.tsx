@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { DraggedItem, Link } from '../types';
 import { PencilIcon, TrashIcon, DragHandleIcon, GlobeIcon } from './Icons';
@@ -105,10 +104,10 @@ const LinkItem: React.FC<LinkItemProps> = ({
       </div>
       {isEditMode && (
         <div className="flex items-center gap-2 transition-opacity flex-shrink-0 ml-2">
-          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-600 transition-colors`}>
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}>
             <PencilIcon className="w-4 h-4" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-600 transition-colors`}>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}`}>
             <TrashIcon className="w-4 h-4" />
           </button>
         </div>

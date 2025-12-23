@@ -1,4 +1,3 @@
-
 import React, { ReactNode, useEffect } from 'react';
 import type { themes } from '../themes';
 
@@ -36,7 +35,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, themeCl
       >
         <div className="flex justify-between items-center mb-4">
           <h2 className={`text-xl font-bold ${themeClasses.modalText}`}>{title}</h2>
-          <button onClick={onClose} className={`${themeClasses.iconMuted} hover:text-white transition-colors`}>
+          <button onClick={onClose} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

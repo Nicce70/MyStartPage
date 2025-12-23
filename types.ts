@@ -154,6 +154,14 @@ export interface Column {
   width?: number;
 }
 
+export interface Dashboard {
+  id: string;
+  name: string;
+  columns: Column[];
+  backgroundImage?: string;
+  customBackgroundColor?: string;
+}
+
 // Single, unified DraggedItem type
 export type DraggedItem =
   | { type: 'groupItem'; item: AnyItemType; sourceGroupId: string; sourceColumnId: string }
@@ -182,13 +190,11 @@ export interface Settings {
   showColumnTitles: boolean;
   theme: string;
   customThemeColors: CustomThemeColors;
-  customBackgroundColor?: string; // Override theme background
   scale: number;
   openLinksInNewTab: boolean;
   showSearch: boolean;
   searchEngine: string;
   centerContent: boolean;
-  backgroundImage: string;
   showGroupToggles: boolean;
   backupReminderInterval: number; // Days. 0 = Never.
   showQuotes: boolean;
@@ -199,6 +205,8 @@ export interface Settings {
     apiToken?: string;
     pollingInterval?: number; // in seconds
   };
+  dashboardView: 'dropdown' | 'tabs';
+  // Removed global background settings
 }
 
 // FIX: Define and export the Theme interface
@@ -236,13 +244,14 @@ export interface Theme {
 
 export interface BackupData {
   version: number;
-  columns: Column[];
+  dashboards?: Dashboard[];
+  columns?: Column[]; // legacy
   settings: Settings;
   pageTitle: string;
   todos: ToDoItem[];
 }
 
-export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName' | 'addFlowButton' | 'editFlowButton' | 'deleteFlowButton' | 'moveFlowButton' | 'deleteTodoItem';
+export type ModalType = 'addGroup' | 'editGroup' | 'addLink' | 'editLink' | 'deleteGroup' | 'deleteItem' | 'addColumn' | 'editColumn' | 'deleteColumn' | 'importConfirm' | 'resetConfirm' | 'addWidget' | 'editWidgetSettings' | 'addLinkOrSeparator' | 'exportOptions' | 'addHomeyCustomItem' | 'selectHomeyItem' | 'addOrEditTextItem' | 'editHomeyCustomItemName' | 'addFlowButton' | 'editFlowButton' | 'deleteFlowButton' | 'moveFlowButton' | 'deleteTodoItem' | 'dashboardSettings';
 
 export interface ModalState {
   type: ModalType;

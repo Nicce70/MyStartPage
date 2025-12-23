@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { themes } from '../themes';
 import { PhotoIcon, MagnifyingGlassPlusIcon, ArrowTopRightOnSquareIcon, XMarkIcon } from './Icons';
 
@@ -69,6 +69,7 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   const [cacheBust, setCacheBust] = useState(0);
   const [showOptions, setShowOptions] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const widgetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (updateInterval > 0 && sourceType === 'url' && url) {
@@ -78,6 +79,21 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
       return () => clearInterval(intervalId);
     }
   }, [updateInterval, sourceType, url]);
+
+  useEffect(() => {
+    if (!showOptions) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (widgetRef.current && !widgetRef.current.contains(event.target as Node)) {
+        setShowOptions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showOptions]);
 
   let imgSrc = sourceType === 'upload' ? base64 : url;
 
@@ -142,6 +158,7 @@ const PictureWidget: React.FC<PictureWidgetProps> = ({
   return (
     <>
         <div 
+            ref={widgetRef}
             className={`relative w-full overflow-hidden ${cursorClass}`} 
             style={{ height: `${height}px` }}
             onClick={handleWrapperClick}

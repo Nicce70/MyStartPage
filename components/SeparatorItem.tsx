@@ -51,7 +51,7 @@ const SeparatorItem: React.FC<SeparatorItemProps> = ({
         <hr className={`w-full ${themeClasses.dashedBorder} border-dashed`} />
       </div>
       <div className="flex items-center gap-2 transition-opacity">
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-600 transition-colors`}>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}`}>
           <TrashIcon className="w-4 h-4" />
         </button>
       </div>

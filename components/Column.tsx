@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { Column, ModalState, ToDoItem, CalculatorState, Settings, DraggedItem, AnyItemType, Group } from '../types';
 import GroupItem from './GroupColumn';
@@ -76,14 +75,14 @@ const ColumnComponent: React.FC<ColumnProps> = ({
           </div>
           {isEditMode && (
             <div className="flex items-center gap-2 transition-opacity flex-shrink-0 ml-2">
-              <button onClick={() => openModal('addWidget', { columnId: column.id })} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+              <button onClick={() => openModal('addWidget', { columnId: column.id })} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}>
                 <PlusIcon className="w-5 h-5" />
               </button>
-              <button onClick={() => openModal('editColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-white rounded-full hover:bg-slate-700 transition-colors`}>
+              <button onClick={() => openModal('editColumn', column)} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} ${themeClasses.buttonIconHoverText} ${themeClasses.buttonIconHoverBg}`}>
                 <PencilIcon className="w-4 h-4" />
               </button>
               {isDeletable && (
-                <button onClick={() => openModal('deleteColumn', column)} className={`p-1 ${themeClasses.iconMuted} hover:text-red-400 rounded-full hover:bg-slate-700 transition-colors`}>
+                <button onClick={() => openModal('deleteColumn', column)} className={`p-1 rounded-full transition-colors ${themeClasses.iconMuted} hover:text-red-400 ${themeClasses.buttonIconHoverBg}`}>
                   <TrashIcon className="w-4 h-4" />
                 </button>
               )}

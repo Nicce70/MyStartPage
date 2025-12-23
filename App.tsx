@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ColumnComponent from './components/Column';
 import SettingsModal from './components/SettingsModal';
@@ -16,11 +15,11 @@ import QuotePopup from './components/QuotePopup';
 import HomeyItemSelector from './components/HomeyItemSelector';
 import HomeyCustomSettingsForm from './components/HomeyCustomSettingsForm';
 import LinkGroupPopup from './components/LinkGroupPopup';
-import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon, CpuChipIcon } from './components/Icons';
+import { PlusIcon, PencilIcon, CogIcon, MagnifyingGlassIcon, SunIcon, ClockIcon, TimerIcon, RssIcon, LinkIcon, ClipboardDocumentCheckIcon, CalculatorIcon, DocumentTextIcon, MinusIcon, PartyPopperIcon, CalendarDaysIcon, BanknotesIcon, BoltIcon, ScaleIcon, ExclamationTriangleIcon, WifiIcon, MoonIcon, HomeIcon, RadioIcon, HeartIcon, HeartIconSolid, PhotoIcon, WindowIcon, SquaresPlusIcon, LightBulbIcon, PlayIcon, CpuChipIcon, ChevronDownIcon } from './components/Icons';
 import useLocalStorage from './hooks/useLocalStorage';
 import { themes, generateCustomTheme } from './themes';
 import ThemeStyles from './components/ThemeStyles';
-import type { Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton, RadioStation } from './types';
+import type { Dashboard, Column, Group, Link, Settings, ModalState, BackupData, Theme, ToDoItem, CalculatorState, GroupItemType, AnyItemType, DraggedItem, ButtonHolderItem, FlowButton, RadioStation } from './types';
 import { CALENDAR_WIDGET_ID, TODO_WIDGET_ID, CALCULATOR_WIDGET_ID, WEATHER_WIDGET_ID } from './types';
 // @ts-ignore
 import { io } from "socket.io-client";
@@ -33,40 +32,44 @@ const uuidv4 = () => {
   });
 };
 
-const DEFAULT_COLUMNS: Column[] = [
-  {
-    id: uuidv4(),
-    name: "Entertainment",
-    width: 3,
-    groups: [
+const DEFAULT_DASHBOARD: Dashboard = {
+  id: uuidv4(),
+  name: "Home",
+  columns: [
       {
         id: uuidv4(),
-        name: "Music",
-        items: [
-          { id: uuidv4(), type: 'link', name: "Spotify", url: "https://spotify.com", comment: "Spotify" },
-          { id: uuidv4(), type: 'link', name: "YouTube Music", url: "https://music.youtube.com/" },
-        ],
-        type: 'links',
+        name: "Entertainment",
+        width: 3,
+        groups: [
+          {
+            id: uuidv4(),
+            name: "Music",
+            items: [
+              { id: uuidv4(), type: 'link', name: "Spotify", url: "https://spotify.com", comment: "Spotify" },
+              { id: uuidv4(), type: 'link', name: "YouTube Music", url: "https://music.youtube.com/" },
+            ],
+            type: 'links',
+          },
+        ]
       },
-    ]
-  },
-  {
-    id: uuidv4(),
-    name: "Social",
-    width: 3,
-    groups: [
       {
         id: uuidv4(),
-        name: "General",
-        items: [
-          { id: uuidv4(), type: 'link', name: "Reddit", url: "https://reddit.com" },
-          { id: uuidv4(), type: 'link', name: "Bluesky", url: "https://bsky.social/about" },
-        ],
-        type: 'links'
-      },
-    ]
-  }
-];
+        name: "Social",
+        width: 3,
+        groups: [
+          {
+            id: uuidv4(),
+            name: "General",
+            items: [
+              { id: uuidv4(), type: 'link', name: "Reddit", url: "https://reddit.com" },
+              { id: uuidv4(), type: 'link', name: "Bluesky", url: "https://bsky.social/about" },
+            ],
+            type: 'links'
+          },
+        ]
+      }
+  ]
+};
 
 const DEFAULT_RADIO_STATIONS: RadioStation[] = [
   { id: 'sr-p1', name: 'Sveriges Radio P1', url: 'https://sverigesradio.se/topsy/direkt/srapi/132.mp3' },
@@ -81,40 +84,50 @@ const DEFAULT_RADIO_STATIONS: RadioStation[] = [
   { id: 'star-fm', name: 'Star FM', url: 'https://fm05-ice.stream.khz.se/fm05_mp3' },
 ];
 
-const runDataMigrationAndValidation = (data: any): Column[] => {
-  if (!Array.isArray(data)) {
-    console.warn('LocalStorage data for columns is not an array, resetting to default.');
-    return DEFAULT_COLUMNS;
+const runDataMigrationAndValidation = (dashboardsData: any, oldColumnsData: any): Dashboard[] => {
+  // If dashboardsData is valid, use it
+  if (Array.isArray(dashboardsData) && dashboardsData.length > 0 && dashboardsData[0].columns) {
+    // Basic validation
+    return dashboardsData.map(d => ({
+        id: d.id || uuidv4(),
+        name: d.name || 'Dashboard',
+        columns: Array.isArray(d.columns) ? d.columns : [],
+        backgroundImage: d.backgroundImage,
+        customBackgroundColor: d.customBackgroundColor,
+    }));
   }
 
-  const validatedColumns = data.map(col => {
-    if (!col || typeof col !== 'object' || !col.id) return null;
+  // If dashboardsData is empty/invalid, check for old columns data
+  if (Array.isArray(oldColumnsData) && oldColumnsData.length > 0) {
+    console.log("Migrating old 'columns' data to new dashboard structure.");
+    return [{
+        id: uuidv4(),
+        name: "Home",
+        columns: oldColumnsData.map(col => {
+            if (!col || typeof col !== 'object' || !col.id) return null;
+            const groups = Array.isArray(col.groups) ? col.groups.map(group => {
+                if (!group || typeof group !== 'object' || !group.id) return null;
+                let items = group.items;
+                if (Array.isArray(group.links) && !items) {
+                    items = group.links.map((link: any) => ({ ...link, type: 'link' as const }));
+                }
+                if (!Array.isArray(items)) {
+                    items = [];
+                } else {
+                    items = items.filter(item => item && typeof item === 'object' && item.id && item.type);
+                }
+                const migratedGroup = { ...group, items };
+                delete migratedGroup.links;
+                return migratedGroup;
+            }).filter(Boolean) : [];
+            return { ...col, groups };
+        }).filter(Boolean)
+    }];
+  }
 
-    const groups = Array.isArray(col.groups) ? col.groups.map(group => {
-      if (!group || typeof group !== 'object' || !group.id) return null;
-      
-      let items = group.items;
-      // Migration from old `links` property
-      if (Array.isArray(group.links) && !items) {
-        items = group.links.map((link: any) => ({ ...link, type: 'link' as const }));
-      }
-      
-      // Ensure items is a valid array and filter out bad entries
-      if (!Array.isArray(items)) {
-        items = [];
-      } else {
-        items = items.filter(item => item && typeof item === 'object' && item.id && item.type);
-      }
-      
-      const migratedGroup = { ...group, items };
-      delete migratedGroup.links; // remove old property
-      return migratedGroup;
-    }).filter(Boolean) : [];
-
-    return { ...col, groups };
-  }).filter(Boolean);
-
-  return validatedColumns as Column[];
+  // If nothing exists, return default
+  console.warn('No valid data found in localStorage, resetting to default dashboard.');
+  return [DEFAULT_DASHBOARD];
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -130,13 +143,11 @@ const DEFAULT_SETTINGS: Settings = {
     secondary: '#475569',  // slate-600
     text: '#f1f5f9',       // slate-100
   },
-  customBackgroundColor: '',
   scale: 6,
   openLinksInNewTab: true,
   showSearch: false,
   searchEngine: 'google',
   centerContent: false,
-  backgroundImage: '',
   showGroupToggles: true,
   backupReminderInterval: 30,
   showQuotes: false,
@@ -147,6 +158,7 @@ const DEFAULT_SETTINGS: Settings = {
     apiToken: '',
     pollingInterval: 10,
   },
+  dashboardView: 'dropdown',
 };
 
 const sanitizeSettings = (data: any): Settings => {
@@ -178,11 +190,11 @@ const scaleMap: { [key: number]: string } = {
   11: '15px',
 };
 
-const searchEngines: { [key: string]: { name: string; url: string } } = {
-  google: { name: 'Google', url: 'https://www.google.com/search?q=' },
-  duckduckgo: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
-  bing: { name: 'Bing', url: 'https://www.bing.com/search?q=' },
-  brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=' },
+const searchEngines: { [key: string]: { name: string; url: string; home: string } } = {
+  google: { name: 'Google', url: 'https://www.google.com/search?q=', home: 'https://www.google.com' },
+  duckduckgo: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=', home: 'https://duckduckgo.com' },
+  bing: { name: 'Bing', url: 'https://www.bing.com/search?q=', home: 'https://www.bing.com' },
+  brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=', home: 'https://search.brave.com' },
 };
 
 const timezones = (Intl as any).supportedValuesOf?.('timeZone') ?? [Intl.DateTimeFormat().resolvedOptions().timeZone];
@@ -427,7 +439,10 @@ const GlobalDragStyles = () => (
 
 
 function App() {
-  const [rawColumns, setColumns] = useLocalStorage<Column[]>('startpage-columns', DEFAULT_COLUMNS);
+  const [rawDashboards, setDashboards] = useLocalStorage<Dashboard[]>('startpage-dashboards', []);
+  const [oldColumnsData] = useLocalStorage<Column[]>('startpage-columns', []);
+  const [activeDashboardId, setActiveDashboardId] = useLocalStorage<string>('startpage-active-dashboard-id', '');
+  
   const [rawSettings, setSettings] = useLocalStorage<Settings>('startpage-settings', DEFAULT_SETTINGS);
   const [pageTitle, setPageTitle] = useLocalStorage<string>('startpage-title', 'My Startpage');
   const [todos, setTodos] = useLocalStorage<ToDoItem[]>('startpage-todos', []);
@@ -435,9 +450,11 @@ function App() {
   const [installDate, setInstallDate] = useLocalStorage<string>('startpage-install-date', '');
   const [linkGroupPopupData, setLinkGroupPopupData] = useState<{ group: Group; columnId: string } | null>(null);
 
-  const columns = useMemo(() => runDataMigrationAndValidation(rawColumns), [rawColumns]);
+  const dashboards = useMemo(() => runDataMigrationAndValidation(rawDashboards, oldColumnsData), [rawDashboards, oldColumnsData]);
   const settings = useMemo(() => sanitizeSettings(rawSettings), [rawSettings]);
-
+  
+  const activeDashboard = useMemo(() => dashboards.find(d => d.id === activeDashboardId) || dashboards[0], [dashboards, activeDashboardId]);
+  
   // Universal Drag and Drop State
   const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -460,10 +477,25 @@ function App() {
   
   const formRef = useRef<HTMLFormElement>(null);
   const collapsedGroupsBeforeEdit = useRef<Set<string>>(new Set());
+  const dashboardDropdownRef = useRef<HTMLDivElement>(null);
+  const [isDashboardDropdownOpen, setIsDashboardDropdownOpen] = useState(false);
 
   // Centering & Firefox-specific logic
   const isFirefox = useMemo(() => navigator.userAgent.toLowerCase().includes('firefox'), []);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    // Sync dashboards back to localStorage if migration occurred
+    if (JSON.stringify(rawDashboards) !== JSON.stringify(dashboards)) {
+        setDashboards(dashboards);
+        // Clean up old columns data after migration
+        localStorage.removeItem('startpage-columns');
+    }
+    // Set active dashboard ID if it's missing
+    if (!activeDashboardId || !dashboards.some(d => d.id === activeDashboardId)) {
+        setActiveDashboardId(dashboards[0]?.id || '');
+    }
+  }, [dashboards, rawDashboards, setDashboards, activeDashboardId, setActiveDashboardId]);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -472,13 +504,13 @@ function App() {
   }, []);
 
   const calculatedContentWidth = useMemo(() => {
-    if (!isFirefox || !settings.centerContent || isEditMode) {
+    if (!isFirefox || !settings.centerContent || isEditMode || !activeDashboard) {
         return null;
     }
 
     const rootFontSizePx = parseFloat(scaleMap[settings.scale] || '12.5px');
 
-    const totalColumnsWidthPx = columns.reduce((acc, col) => {
+    const totalColumnsWidthPx = activeDashboard.columns.reduce((acc, col) => {
         const individualWidth = col.width || 3;
         const baseWidth = baseWidthsInRem[individualWidth];
         const multiplier = globalMultipliers[settings.columnWidth];
@@ -486,12 +518,12 @@ function App() {
         return acc + (columnWidthRem * rootFontSizePx);
     }, 0);
 
-    const totalGaps = columns.length > 0 ? columns.length - 1 : 0;
+    const totalGaps = activeDashboard.columns.length > 0 ? activeDashboard.columns.length - 1 : 0;
     const gapWidthRem = settings.columnGap * 0.25;
     const totalGapsWidthPx = totalGaps * gapWidthRem * rootFontSizePx;
 
     return totalColumnsWidthPx + totalGapsWidthPx;
-  }, [columns, settings.scale, settings.columnWidth, settings.columnGap, isFirefox, settings.centerContent, isEditMode]);
+  }, [activeDashboard, settings.scale, settings.columnWidth, settings.columnGap, isFirefox, settings.centerContent, isEditMode]);
 
 
   // --- START OF CENTRAL HOMEY ENGINE ---
@@ -506,8 +538,8 @@ function App() {
   const homeySocketRef = useRef<any>(null);
   const homeyHeartbeatRef = useRef<number | null>(null);
   const homeyHasActiveWidgets = useMemo(() => 
-    columns.some(c => c.groups.some(g => g.widgetType?.startsWith('homey')))
-  , [columns]);
+    activeDashboard.columns.some(c => c.groups.some(g => g.widgetType?.startsWith('homey')))
+  , [activeDashboard]);
 
   const addHomeyLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -687,12 +719,6 @@ function App() {
   }, [lastBackupDate, installDate, settings.backupReminderInterval]);
 
   useEffect(() => {
-    if (JSON.stringify(rawColumns) !== JSON.stringify(columns)) {
-      setColumns(columns);
-    }
-  }, [rawColumns, columns, setColumns]);
-
-  useEffect(() => {
     if (JSON.stringify(rawSettings) !== JSON.stringify(settings)) {
         setSettings(settings);
     }
@@ -705,8 +731,8 @@ function App() {
   }, [installDate, setInstallDate]);
 
   useEffect(() => {
-    document.title = pageTitle;
-  }, [pageTitle]);
+    document.title = `${activeDashboard?.name || ''} - ${pageTitle}`;
+  }, [pageTitle, activeDashboard]);
   
   useEffect(() => {
     document.documentElement.style.fontSize = scaleMap[settings.scale] || '16px';
@@ -723,24 +749,28 @@ function App() {
     
     document.body.className = activeTheme.body;
     
-    if (settings.backgroundImage) {
-      document.body.style.backgroundImage = `url('${settings.backgroundImage}')`;
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundAttachment = 'fixed';
-    } else if (settings.customBackgroundColor) {
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundColor = settings.customBackgroundColor;
+    const dashboardBgImage = activeDashboard?.backgroundImage;
+    const dashboardBgColor = activeDashboard?.customBackgroundColor;
+
+    // Dashboard specific overrides
+    if (dashboardBgImage) {
+        document.body.style.backgroundImage = `url('${dashboardBgImage}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundAttachment = 'fixed';
+    } else if (dashboardBgColor) {
+        document.body.style.backgroundImage = '';
+        document.body.style.backgroundColor = dashboardBgColor;
     } else {
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundColor = '';
-      document.body.style.backgroundSize = '';
-      document.body.style.backgroundPosition = '';
-      document.body.style.backgroundAttachment = '';
+        // No dashboard override, clear any inline styles to let the theme's class take over
+        document.body.style.backgroundImage = '';
+        document.body.style.backgroundColor = '';
+        document.body.style.backgroundSize = '';
+        document.body.style.backgroundPosition = '';
+        document.body.style.backgroundAttachment = '';
     }
 
-    return () => {};
-  }, [settings.theme, settings.customThemeColors, settings.backgroundImage, settings.customBackgroundColor]);
+  }, [settings.theme, settings.customThemeColors, activeDashboard]);
   
   useEffect(() => {
     if (modal) {
@@ -766,9 +796,10 @@ function App() {
     if (modal?.type === 'moveFlowButton') {
         const { direction, button, holderId, groupId, columnId } = modal.data;
         
-        setColumns(prevColumns => {
-            const newColumns = JSON.parse(JSON.stringify(prevColumns));
-            const col = newColumns.find((c: Column) => c.id === columnId);
+        setDashboards(prevDashboards => {
+            const newDashboards = JSON.parse(JSON.stringify(prevDashboards));
+            const currentDashboard = newDashboards.find((d: Dashboard) => d.id === activeDashboardId);
+            const col = currentDashboard?.columns.find((c: Column) => c.id === columnId);
             const group = col?.groups.find((g: Group) => g.id === groupId);
             const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
 
@@ -783,12 +814,12 @@ function App() {
                     }
                 }
             }
-            return newColumns;
+            return newDashboards;
         });
         
         closeModal();
     }
-}, [modal]);
+  }, [modal, activeDashboardId]);
 
   const handlePointerUp = useCallback(() => {
     if (isPendingDrag.current && longPressTimeout.current) {
@@ -866,7 +897,6 @@ function App() {
         window.removeEventListener('mouseup', handlePointerUp);
         window.removeEventListener('touchmove', handlePointerMove);
         window.removeEventListener('touchend', handlePointerUp);
-        window.removeEventListener('touchcancel', handlePointerUp);
     };
   }, [isDragging, handlePointerMove, handlePointerUp]);
 
@@ -915,6 +945,10 @@ function App() {
     }
   };
 
+  const updateActiveDashboard = (updater: (dashboard: Dashboard) => Dashboard) => {
+    setDashboards(prev => prev.map(d => d.id === activeDashboardId ? updater(d) : d));
+  };
+  
 
   const openModal = (type: ModalState['type'], data?: any) => setModal({ type, data });
   const closeModal = () => {
@@ -932,80 +966,80 @@ function App() {
   };
 
   const handleCalculatorStateChange = (newState: CalculatorState) => {
-    setColumns(prevColumns => 
-      prevColumns.map(column => ({
-        ...column,
-        groups: column.groups.map(group => {
-          if (group.id === CALCULATOR_WIDGET_ID) {
-            return { ...group, calculatorState: newState };
-          }
-          return group;
-        })
-      }))
-    );
+    updateActiveDashboard(dashboard => ({
+        ...dashboard,
+        columns: dashboard.columns.map(column => ({
+            ...column,
+            groups: column.groups.map(group => {
+                if (group.id === CALCULATOR_WIDGET_ID) {
+                    return { ...group, calculatorState: newState };
+                }
+                return group;
+            })
+        }))
+    }));
   };
 
   const handleScratchpadChange = (groupId: string, newContent: string) => {
-    setColumns(prevColumns => 
-      prevColumns.map(column => ({
-        ...column,
-        groups: column.groups.map(group => {
-          if (group.id === groupId) {
-            return { 
-              ...group, 
-              widgetSettings: {
-                ...group.widgetSettings,
-                scratchpadContent: newContent
-              } 
-            };
-          }
-          return group;
-        })
-      }))
-    );
+    updateActiveDashboard(dashboard => ({
+        ...dashboard,
+        columns: dashboard.columns.map(column => ({
+            ...column,
+            groups: column.groups.map(group => {
+                if (group.id === groupId) {
+                    return { ...group, widgetSettings: { ...group.widgetSettings, scratchpadContent: newContent } };
+                }
+                return group;
+            })
+        }))
+    }));
   };
 
   const handleRemoveFavorite = (linkId: string) => {
-    setColumns(prevColumns => {
-        const newColumns = JSON.parse(JSON.stringify(prevColumns));
-        for (const col of newColumns) {
-            for (const group of col.groups) {
-                if (group.items) {
-                    for (const item of group.items) {
-                        if (item.type === 'link' && item.id === linkId) {
-                            item.isFavorite = false;
-                            return newColumns; 
-                        }
+    setDashboards(prevDashboards => prevDashboards.map(dashboard => ({
+        ...dashboard,
+        columns: dashboard.columns.map(col => ({
+            ...col,
+            groups: col.groups.map(group => ({
+                ...group,
+                items: group.items.map(item => {
+                    if (item.type === 'link' && item.id === linkId) {
+                        return { ...item, isFavorite: false };
                     }
-                }
-            }
-        }
-        return newColumns;
-    });
+                    return item;
+                })
+            }))
+        }))
+    })));
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
     setSettings(newSettings);
+  };
+  
+  const handleDashboardsChange = (newDashboards: Dashboard[]) => {
+    setDashboards(newDashboards);
   };
 
   const handleHomeySelect = (data: { deviceId: string; capabilityId: string } | { flowId: string }) => {
       if (!modal || !modal.data) return;
       const { groupId, columnId } = modal.data;
       
-      const newColumns = JSON.parse(JSON.stringify(columns));
-      const col = newColumns.find((c: Column) => c.id === columnId);
-      const group = col?.groups.find((g: Group) => g.id === groupId);
-      
-      if (group) {
-          let newItem: AnyItemType;
-          if ('deviceId' in data) {
-              newItem = { id: uuidv4(), type: 'homey_capability', deviceId: data.deviceId, capabilityId: data.capabilityId };
-          } else {
-              newItem = { id: uuidv4(), type: 'homey_flow', flowId: data.flowId };
+      updateActiveDashboard(dashboard => {
+          const newDashboard = JSON.parse(JSON.stringify(dashboard));
+          const col = newDashboard.columns.find((c: Column) => c.id === columnId);
+          const group = col?.groups.find((g: Group) => g.id === groupId);
+          if (group) {
+              let newItem: AnyItemType;
+              if ('deviceId' in data) {
+                  newItem = { id: uuidv4(), type: 'homey_capability', deviceId: data.deviceId, capabilityId: data.capabilityId };
+              } else {
+                  newItem = { id: uuidv4(), type: 'homey_flow', flowId: data.flowId };
+              }
+              group.items.push(newItem);
           }
-          group.items.push(newItem);
-          setColumns(newColumns);
-      }
+          return newDashboard;
+      });
       closeModal();
   };
 
@@ -1028,34 +1062,38 @@ function App() {
     const isFavorite = formData.has('isFavorite');
     const customName = formData.get('customName') as string;
 
-    const newColumns = JSON.parse(JSON.stringify(columns));
+    const newDashboards = JSON.parse(JSON.stringify(dashboards));
+    const currentDashboard = newDashboards.find((d: Dashboard) => d.id === activeDashboardId);
+    if (!currentDashboard) return;
 
     switch (modal.type) {
       case 'addColumn':
-        setColumns([...columns, { id: uuidv4(), name, groups: [], width: width || 3 }]);
+        currentDashboard.columns.push({ id: uuidv4(), name, groups: [], width: width || 3 });
+        setDashboards(newDashboards);
         break;
       case 'editColumn':
-        setColumns(columns.map(c => c.id === modal.data.id ? { ...c, name, width: width || 3 } : c));
+        currentDashboard.columns = currentDashboard.columns.map((c:Column) => c.id === modal.data.id ? { ...c, name, width: width || 3 } : c);
+        setDashboards(newDashboards);
         break;
       case 'addGroup': {
-        const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+        const col = currentDashboard.columns.find((c: Column) => c.id === modal.data.columnId);
         if (col) col.groups.push({ id: uuidv4(), name, items: [], type: 'links' });
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'editGroup': {
-        const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+        const col = currentDashboard.columns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) group.name = name;
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'editWidgetSettings': {
-        const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+        const col = currentDashboard.columns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.group.id);
         if (group) {
             if (name) group.name = name;
-            if (formData.has('colorVariant')) group.colorVariant = formData.get('colorVariant');
+            if (formData.has('colorVariant')) group.colorVariant = formData.get('colorVariant') as any;
             if (!group.widgetSettings) group.widgetSettings = {};
             
             if (group.type !== 'widget') {
@@ -1095,7 +1133,7 @@ function App() {
             } else if (group.widgetType === 'countdown') {
                 group.widgetSettings.countdownTitle = formData.get('countdownTitle') as string;
                 group.widgetSettings.countdownDate = new Date(formData.get('countdownDate') as string).toISOString();
-                group.widgetSettings.countdownBehavior = formData.get('countdownBehavior') as string;
+                group.widgetSettings.countdownBehavior = formData.get('countdownBehavior') as any;
                 group.widgetSettings.countdownPlaySound = formData.has('countdownPlaySound');
             } else if (group.widgetType === 'calendar') {
                 group.widgetSettings.holidayCountry = formData.get('holidayCountry') as string;
@@ -1155,18 +1193,18 @@ function App() {
                 group.widgetSettings.homeyCustomSettings.flowsInTwoColumns = formData.has('homeyCustomFlowsInTwoColumns');
             }
         }
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'addLink': {
-        const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+        const col = newDashboards.find((d: Dashboard) => d.id === activeDashboardId).columns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
         if (group) group.items.push({ id: uuidv4(), type: 'link', name, url: url.startsWith('https://') || url.startsWith('http://') ? url : `https://${url}`, comment, isFavorite });
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'editLink': {
-        const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+        const col = newDashboards.find((d: Dashboard) => d.id === activeDashboardId).columns.find((c: Column) => c.id === modal.data.columnId);
         const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
         const link = group?.items.find((l: AnyItemType) => l.id === modal.data.link.id);
         if (link && link.type === 'link') {
@@ -1175,11 +1213,11 @@ function App() {
           link.comment = comment;
           link.isFavorite = isFavorite;
         }
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'addOrEditTextItem': {
-          const col = newColumns.find((c: Column) => c.id === modal.data.columnId);
+          const col = newDashboards.find((d: Dashboard) => d.id === activeDashboardId).columns.find((c: Column) => c.id === modal.data.columnId);
           const group = col?.groups.find((g: Group) => g.id === modal.data.groupId);
           if (group) {
               const textContent = formData.get('textContent') as string;
@@ -1189,13 +1227,13 @@ function App() {
               } else {
                   group.items.push({ id: uuidv4(), type: 'text', content: textContent });
               }
-              setColumns(newColumns);
+              setDashboards(newDashboards);
           }
           break;
       }
       case 'editHomeyCustomItemName': {
         const { columnId, groupId, item: modalItem } = modal.data;
-        const col = newColumns.find((c: Column) => c.id === columnId);
+        const col = newDashboards.find((d: Dashboard) => d.id === activeDashboardId).columns.find((c: Column) => c.id === columnId);
         const group = col?.groups.find((g: Group) => g.id === groupId);
         if (group) {
             const item = group.items.find((i: any) => i.id === modalItem.id);
@@ -1203,7 +1241,7 @@ function App() {
                 item.customName = customName.trim() ? customName.trim() : undefined; 
             }
         }
-        setColumns(newColumns);
+        setDashboards(newDashboards);
         break;
       }
       case 'addFlowButton':
@@ -1213,7 +1251,7 @@ function App() {
           const [flowId, flowName] = flowValue.split('|');
           const symbol = formData.get('symbol') as string;
 
-          const col = newColumns.find((c: Column) => c.id === columnId);
+          const col = newDashboards.find((d: Dashboard) => d.id === activeDashboardId).columns.find((c: Column) => c.id === columnId);
           const group = col?.groups.find((g: Group) => g.id === groupId);
           const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
 
@@ -1229,7 +1267,7 @@ function App() {
                       buttonToEdit.flowName = flowName;
                   }
               }
-              setColumns(newColumns);
+              setDashboards(newDashboards);
           }
           break;
       }
@@ -1238,135 +1276,122 @@ function App() {
   };
   
   const handleAddSeparator = (groupId: string, columnId: string) => {
-    setColumns(prevColumns => prevColumns.map(col => {
-      if (col.id === columnId) {
-        return {
-          ...col,
-          groups: col.groups.map(g => {
-            if (g.id === groupId) {
-              return {
-                ...g,
-                items: [...g.items, { id: uuidv4(), type: 'separator' }]
-              };
-            }
-            return g;
-          })
-        };
-      }
-      return col;
-    }));
+    updateActiveDashboard(dashboard => {
+        const newDashboard = JSON.parse(JSON.stringify(dashboard));
+        const col = newDashboard.columns.find((c: Column) => c.id === columnId);
+        const group = col?.groups.find((g: Group) => g.id === groupId);
+        if (group) {
+            group.items.push({ id: uuidv4(), type: 'separator' });
+        }
+        return newDashboard;
+    });
     closeModal();
   };
 
   const handleAddButtonHolder = (groupId: string, columnId: string) => {
-    setColumns(prevColumns => prevColumns.map(col => {
-        if (col.id === columnId) {
-            return {
-                ...col,
-                groups: col.groups.map(g => {
-                    if (g.id === groupId) {
-                        const newHolder: ButtonHolderItem = { id: uuidv4(), type: 'button_holder', buttons: [] };
-                        return { ...g, items: [...g.items, newHolder] };
-                    }
-                    return g;
-                })
-            };
+    updateActiveDashboard(dashboard => {
+        const newDashboard = JSON.parse(JSON.stringify(dashboard));
+        const col = newDashboard.columns.find((c: Column) => c.id === columnId);
+        const group = col?.groups.find((g: Group) => g.id === groupId);
+        if (group) {
+            const newHolder: ButtonHolderItem = { id: uuidv4(), type: 'button_holder', buttons: [] };
+            group.items.push(newHolder);
         }
-        return col;
-    }));
+        return newDashboard;
+    });
     closeModal();
   };
 
   const handleAddWidget = (widgetType: string, columnId: string) => {
-    const newColumns = JSON.parse(JSON.stringify(columns));
-    const col = newColumns.find((c: Column) => c.id === columnId);
-    if (!col) return;
+    updateActiveDashboard(dashboard => {
+        const newDashboard = JSON.parse(JSON.stringify(dashboard));
+        const col = newDashboard.columns.find((c: Column) => c.id === columnId);
+        if (!col) return newDashboard;
 
-    let newWidget: Group;
+        let newWidget: Group;
 
-    if (widgetType === 'weather') {
-        newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone, weatherUpdateInterval: 60 } };
-    } else if (widgetType === 'clock') {
-      newWidget = { id: uuidv4(), name: "Clock", items: [], type: 'widget', widgetType: 'clock', widgetSettings: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, showSeconds: true, showDate: true } };
-    } else if (widgetType === 'timer') {
-        newWidget = { id: uuidv4(), name: "Timer / Stopwatch", items: [], type: 'widget', widgetType: 'timer', widgetSettings: { timerDuration: 300, timerPlaySound: true, isStopwatch: false, timerOvertime: false } };
-    } else if (widgetType === 'rss') {
-        newWidget = { id: uuidv4(), name: "RSS Feed", items: [], type: 'widget', widgetType: 'rss', widgetSettings: { rssUrl: '', rssItemCount: 5, rssUpdateInterval: 60 } };
-    } else if (widgetType === 'todo') {
-        newWidget = { id: TODO_WIDGET_ID, name: 'To-Do List', items: [], isCollapsed: false, type: 'widget', widgetType: 'todo', widgetSettings: { todoConfirmDelete: true } };
-    } else if (widgetType === 'calculator') {
-        newWidget = { id: CALCULATOR_WIDGET_ID, name: 'Calculator', items: [], isCollapsed: false, type: 'widget', widgetType: 'calculator', calculatorState: { currentValue: '0', previousValue: null, operator: null, isNewEntry: true } };
-    } else if (widgetType === 'scratchpad') {
-        newWidget = { id: uuidv4(), name: "Notepad", items: [], type: 'widget', widgetType: 'scratchpad', widgetSettings: { scratchpadContent: '' } };
-    } else if (widgetType === 'countdown') {
-        newWidget = { id: uuidv4(), name: "Countdown", items: [], type: 'widget', widgetType: 'countdown', widgetSettings: { countdownTitle: 'My Event', countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), countdownBehavior: 'discrete', countdownPlaySound: false } };
-    } else if (widgetType === 'calendar') {
-        newWidget = { id: CALENDAR_WIDGET_ID, name: 'Calendar', items: [], isCollapsed: false, type: 'widget', widgetType: 'calendar', widgetSettings: { holidayCountry: 'SE' } };
-    } else if (widgetType === 'currency') {
-        newWidget = { id: uuidv4(), name: "Currency Converter", items: [], type: 'widget', widgetType: 'currency', widgetSettings: { currencyBase: 'SEK', currencyTargets: ['USD', 'EUR', 'NOK'] } };
-    } else if (widgetType === 'webhook') {
-        newWidget = { id: uuidv4(), name: "Webhook Buttons", items: [], type: 'widget', widgetType: 'webhook', widgetSettings: { webhookItems: [] } };
-    } else if (widgetType === 'unit_converter') {
-        newWidget = { id: uuidv4(), name: "Unit Converter", items: [], type: 'widget', widgetType: 'unit_converter' };
-    } else if (widgetType === 'network') {
-        newWidget = { id: uuidv4(), name: "Network Info", items: [], type: 'widget', widgetType: 'network' };
-    } else if (widgetType === 'solar') {
-        newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false, solarDynamicPath: true } };
-    } else if (widgetType === 'radio') {
-        newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: DEFAULT_RADIO_STATIONS } };
-    } else if (widgetType === 'favorites') {
-        newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites', widgetSettings: { favoritesOrder: [] } };
-    } else if (widgetType === 'picture') {
-        newWidget = { id: uuidv4(), name: "Image", items: [], type: 'widget', widgetType: 'picture', widgetSettings: { pictureSourceType: 'url', pictureHeight: 200, pictureFit: 'cover', pictureBorderRadius: true } };
-    } else if (widgetType === 'iframe') {
-        newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
-    } else if (widgetType === 'homey_custom') {
-        newWidget = { id: uuidv4(), name: "Homey Pro Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
-    } else if (widgetType === 'homey_status') {
-        newWidget = { id: uuidv4(), name: "Homey Pro Status", items: [], type: 'widget', widgetType: 'homey_status' };
-    } else {
-        return;
-    }
+        if (widgetType === 'weather') {
+            newWidget = { id: uuidv4(), name: "Weather", items: [], type: 'widget', widgetType: 'weather', widgetSettings: { city: 'Stockholm', weatherShowForecast: false, weatherShowTime: false, weatherTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone, weatherUpdateInterval: 60 } };
+        } else if (widgetType === 'clock') {
+            newWidget = { id: uuidv4(), name: "Clock", items: [], type: 'widget', widgetType: 'clock', widgetSettings: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, showSeconds: true, showDate: true } };
+        } else if (widgetType === 'timer') {
+            newWidget = { id: uuidv4(), name: "Timer / Stopwatch", items: [], type: 'widget', widgetType: 'timer', widgetSettings: { timerDuration: 300, timerPlaySound: true, isStopwatch: false, timerOvertime: false } };
+        } else if (widgetType === 'rss') {
+            newWidget = { id: uuidv4(), name: "RSS Feed", items: [], type: 'widget', widgetType: 'rss', widgetSettings: { rssUrl: '', rssItemCount: 5, rssUpdateInterval: 60 } };
+        } else if (widgetType === 'todo') {
+            newWidget = { id: TODO_WIDGET_ID, name: 'To-Do List', items: [], isCollapsed: false, type: 'widget', widgetType: 'todo', widgetSettings: { todoConfirmDelete: true } };
+        } else if (widgetType === 'calculator') {
+            newWidget = { id: CALCULATOR_WIDGET_ID, name: 'Calculator', items: [], isCollapsed: false, type: 'widget', widgetType: 'calculator', calculatorState: { currentValue: '0', previousValue: null, operator: null, isNewEntry: true } };
+        } else if (widgetType === 'scratchpad') {
+            newWidget = { id: uuidv4(), name: "Notepad", items: [], type: 'widget', widgetType: 'scratchpad', widgetSettings: { scratchpadContent: '' } };
+        } else if (widgetType === 'countdown') {
+            newWidget = { id: uuidv4(), name: "Countdown", items: [], type: 'widget', widgetType: 'countdown', widgetSettings: { countdownTitle: 'My Event', countdownDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), countdownBehavior: 'discrete', countdownPlaySound: false } };
+        } else if (widgetType === 'calendar') {
+            newWidget = { id: CALENDAR_WIDGET_ID, name: 'Calendar', items: [], isCollapsed: false, type: 'widget', widgetType: 'calendar', widgetSettings: { holidayCountry: 'SE' } };
+        } else if (widgetType === 'currency') {
+            newWidget = { id: uuidv4(), name: "Currency Converter", items: [], type: 'widget', widgetType: 'currency', widgetSettings: { currencyBase: 'SEK', currencyTargets: ['USD', 'EUR', 'NOK'] } };
+        } else if (widgetType === 'webhook') {
+            newWidget = { id: uuidv4(), name: "Webhook Buttons", items: [], type: 'widget', widgetType: 'webhook', widgetSettings: { webhookItems: [] } };
+        } else if (widgetType === 'unit_converter') {
+            newWidget = { id: uuidv4(), name: "Unit Converter", items: [], type: 'widget', widgetType: 'unit_converter' };
+        } else if (widgetType === 'network') {
+            newWidget = { id: uuidv4(), name: "Network Info", items: [], type: 'widget', widgetType: 'network' };
+        } else if (widgetType === 'solar') {
+            newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false, solarDynamicPath: true } };
+        } else if (widgetType === 'radio') {
+            newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: DEFAULT_RADIO_STATIONS } };
+        } else if (widgetType === 'favorites') {
+            newWidget = { id: uuidv4(), name: "Favorites", items: [], type: 'widget', widgetType: 'favorites', widgetSettings: { favoritesOrder: [] } };
+        } else if (widgetType === 'picture') {
+            newWidget = { id: uuidv4(), name: "Image", items: [], type: 'widget', widgetType: 'picture', widgetSettings: { pictureSourceType: 'url', pictureHeight: 200, pictureFit: 'cover', pictureBorderRadius: true } };
+        } else if (widgetType === 'iframe') {
+            newWidget = { id: uuidv4(), name: "Iframe", items: [], type: 'widget', widgetType: 'iframe', widgetSettings: { iframeUrl: '', iframeHeight: 400, iframeViewMode: 'desktop', iframeUpdateInterval: 0 } };
+        } else if (widgetType === 'homey_custom') {
+            newWidget = { id: uuidv4(), name: "Homey Pro Custom", items: [], type: 'widget', widgetType: 'homey_custom' };
+        } else if (widgetType === 'homey_status') {
+            newWidget = { id: uuidv4(), name: "Homey Pro Status", items: [], type: 'widget', widgetType: 'homey_status' };
+        } else {
+            return newDashboard;
+        }
 
-    col.groups.push(newWidget);
-    setColumns(newColumns);
+        col.groups.push(newWidget);
+        return newDashboard;
+    });
     closeModal();
   };
 
   const handleToggleEditMode = () => {
     if (!isEditMode) {
-      // Entering edit mode: store collapsed state and expand all
-      const newColumns = JSON.parse(JSON.stringify(columns));
       const collapsedIds = new Set<string>();
-      let hasChanges = false;
-      
-      newColumns.forEach((c: Column) => {
-        c.groups.forEach((g: Group) => {
-          if (g.isCollapsed) {
-            collapsedIds.add(g.id);
-            g.isCollapsed = false;
-            hasChanges = true;
-          }
-        });
+      updateActiveDashboard(dashboard => {
+          const newDashboard = JSON.parse(JSON.stringify(dashboard));
+          let hasChanges = false;
+          newDashboard.columns.forEach((c: Column) => {
+              c.groups.forEach((g: Group) => {
+                  if (g.isCollapsed) {
+                      collapsedIds.add(g.id);
+                      g.isCollapsed = false;
+                      hasChanges = true;
+                  }
+              });
+          });
+          collapsedGroupsBeforeEdit.current = collapsedIds;
+          return hasChanges ? newDashboard : dashboard;
       });
-      
-      collapsedGroupsBeforeEdit.current = collapsedIds;
-      if (hasChanges) {
-        setColumns(newColumns);
-      }
       setIsEditMode(true);
     } else {
-      // Exiting edit mode: restore collapsed state
       if (collapsedGroupsBeforeEdit.current.size > 0) {
-        const newColumns = JSON.parse(JSON.stringify(columns));
-        newColumns.forEach((c: Column) => {
-          c.groups.forEach((g: Group) => {
-            if (collapsedGroupsBeforeEdit.current.has(g.id)) {
-              g.isCollapsed = true;
-            }
+          updateActiveDashboard(dashboard => {
+              const newDashboard = JSON.parse(JSON.stringify(dashboard));
+              newDashboard.columns.forEach((c: Column) => {
+                  c.groups.forEach((g: Group) => {
+                      if (collapsedGroupsBeforeEdit.current.has(g.id)) {
+                          g.isCollapsed = true;
+                      }
+                  });
+              });
+              return newDashboard;
           });
-        });
-        setColumns(newColumns);
       }
       collapsedGroupsBeforeEdit.current.clear();
       setIsEditMode(false);
@@ -1381,140 +1406,106 @@ function App() {
     if (!modal) return;
     const { type, data } = modal;
 
-    // Handle ToDo deletion separately as it uses a different state
     if (type === 'deleteTodoItem') {
       setTodos(prev => prev.filter(t => t.id !== data.todoId));
       closeModal();
       return;
     }
     
-    const newColumns = JSON.parse(JSON.stringify(columns));
-
-    if (type === 'deleteColumn') {
-      setColumns(newColumns.filter((c: Column) => c.id !== data.id));
-    } else if (type === 'deleteGroup') {
-      const col = newColumns.find((c: Column) => c.id === data.columnId);
-      if (col) {
-        col.groups = col.groups.filter((g: Group) => g.id !== data.group.id);
-        setColumns(newColumns);
-      }
-    } else if (type === 'deleteItem') {
-      const col = newColumns.find((c: Column) => c.id === data.columnId);
-      const group = col?.groups.find((g: Group) => g.id === data.groupId);
-      if (group) {
-        group.items = group.items.filter((i: AnyItemType) => i.id !== data.item.id);
-        setColumns(newColumns);
-      }
-    } else if (type === 'deleteFlowButton') {
-        const { columnId, groupId, holderId, button } = data;
-        const col = newColumns.find((c: Column) => c.id === columnId);
-        const group = col?.groups.find((g: Group) => g.id === groupId);
-        const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
-        if (holder) {
-            holder.buttons = holder.buttons.filter(b => b.id !== button.id);
-            setColumns(newColumns);
+    updateActiveDashboard(dashboard => {
+        const newDashboard = JSON.parse(JSON.stringify(dashboard));
+        if (type === 'deleteColumn') {
+            newDashboard.columns = newDashboard.columns.filter((c: Column) => c.id !== data.id);
+        } else if (type === 'deleteGroup') {
+            const col = newDashboard.columns.find((c: Column) => c.id === data.columnId);
+            if (col) col.groups = col.groups.filter((g: Group) => g.id !== data.group.id);
+        } else if (type === 'deleteItem') {
+            const col = newDashboard.columns.find((c: Column) => c.id === data.columnId);
+            const group = col?.groups.find((g: Group) => g.id === data.groupId);
+            if (group) group.items = group.items.filter((i: AnyItemType) => i.id !== data.item.id);
+        } else if (type === 'deleteFlowButton') {
+            const { columnId, groupId, holderId, button } = data;
+            const col = newDashboard.columns.find((c: Column) => c.id === columnId);
+            const group = col?.groups.find((g: Group) => g.id === groupId);
+            const holder = group?.items.find(i => i.id === holderId) as ButtonHolderItem | undefined;
+            if (holder) holder.buttons = holder.buttons.filter(b => b.id !== button.id);
         }
-    }
+        return newDashboard;
+    });
     closeModal();
   };
 
   const handleDrop = (target: { columnId: string; groupId?: string; itemId?: string }) => {
-    if (!draggedItem) return;
+    if (!draggedItem || !activeDashboard) return;
 
-    const newColumns = JSON.parse(JSON.stringify(columns));
+    updateActiveDashboard(dashboard => {
+        const newDashboard = JSON.parse(JSON.stringify(dashboard));
+        let newColumns = newDashboard.columns;
 
-    if (draggedItem.type === 'column') {
-        const sourceIndex = newColumns.findIndex((c: Column) => c.id === draggedItem.column.id);
-        const targetIndex = newColumns.findIndex((c: Column) => c.id === target.columnId);
-        
-        if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
-            const [movedColumn] = newColumns.splice(sourceIndex, 1);
-            newColumns.splice(targetIndex, 0, movedColumn);
-            setColumns(newColumns);
-        }
-    } 
-    else if (draggedItem.type === 'group') {
-        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
-        const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
-        
-        if (sourceCol && targetCol) {
-            const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === draggedItem.group.id);
-            if (sourceGroupIndex !== -1) {
-                const [movedGroup] = sourceCol.groups.splice(sourceGroupIndex, 1);
-                
-                if (target.groupId) {
-                    const targetGroupIndex = targetCol.groups.findIndex((g: Group) => g.id === target.groupId);
-                    if (targetGroupIndex !== -1) {
-                        targetCol.groups.splice(targetGroupIndex, 0, movedGroup);
-                    } else {
-                        targetCol.groups.push(movedGroup);
-                    }
-                } else {
-                    targetCol.groups.push(movedGroup);
+        if (draggedItem.type === 'column') {
+            const sourceIndex = newColumns.findIndex((c: Column) => c.id === draggedItem.column.id);
+            const targetIndex = newColumns.findIndex((c: Column) => c.id === target.columnId);
+            if (sourceIndex !== -1 && targetIndex !== -1 && sourceIndex !== targetIndex) {
+                const [movedColumn] = newColumns.splice(sourceIndex, 1);
+                newColumns.splice(targetIndex, 0, movedColumn);
+            }
+        } else if (draggedItem.type === 'group') {
+            const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
+            const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
+            if (sourceCol && targetCol) {
+                const sourceGroupIndex = sourceCol.groups.findIndex((g: Group) => g.id === draggedItem.group.id);
+                if (sourceGroupIndex !== -1) {
+                    const [movedGroup] = sourceCol.groups.splice(sourceGroupIndex, 1);
+                    if (target.groupId) {
+                        const targetGroupIndex = targetCol.groups.findIndex((g: Group) => g.id === target.groupId);
+                        if (targetGroupIndex !== -1) {
+                            targetCol.groups.splice(targetGroupIndex, 0, movedGroup);
+                        } else { targetCol.groups.push(movedGroup); }
+                    } else { targetCol.groups.push(movedGroup); }
                 }
-                setColumns(newColumns);
             }
-        }
-    }
-    else if (draggedItem.type === 'groupItem') {
-        const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
-        const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
-        
-        const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
-        const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
+        } else if (draggedItem.type === 'groupItem') {
+            const sourceCol = newColumns.find((c: Column) => c.id === draggedItem.sourceColumnId);
+            const sourceGroup = sourceCol?.groups.find((g: Group) => g.id === draggedItem.sourceGroupId);
+            const targetCol = newColumns.find((c: Column) => c.id === target.columnId);
+            const targetGroup = targetCol?.groups.find((g: Group) => g.id === target.groupId);
 
-        if (sourceGroup && targetGroup) {
-            const itemType = draggedItem.item.type;
-            const isTargetLinkGroup = !targetGroup.widgetType || targetGroup.type === 'links';
-            const isTargetHomeyCustom = targetGroup.widgetType === 'homey_custom';
+            if (sourceGroup && targetGroup) {
+                const itemType = draggedItem.item.type;
+                const isTargetLinkGroup = !targetGroup.widgetType || targetGroup.type === 'links';
+                const isTargetHomeyCustom = targetGroup.widgetType === 'homey_custom';
 
-            let isCompatible = false;
-            if (itemType === 'separator') {
-                isCompatible = true;
-            } else if (isTargetLinkGroup) {
-                isCompatible = ['link'].includes(itemType);
-            } else if (isTargetHomeyCustom) {
-                isCompatible = ['homey_capability', 'homey_flow', 'text', 'button_holder'].includes(itemType);
-            }
+                let isCompatible = false;
+                if (itemType === 'separator') { isCompatible = true; } 
+                else if (isTargetLinkGroup) { isCompatible = ['link'].includes(itemType); } 
+                else if (isTargetHomeyCustom) { isCompatible = ['homey_capability', 'homey_flow', 'text', 'button_holder'].includes(itemType); }
+                if (sourceGroup.id !== targetGroup.id && !isCompatible) return dashboard;
 
-            if (sourceGroup.id !== targetGroup.id && !isCompatible) {
-                return;
-            }
-
-            const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === draggedItem.item.id);
-            if (sourceItemIndex !== -1) {
-                const [movedItem] = sourceGroup.items.splice(sourceItemIndex, 1);
-                
-                if (target.itemId) {
-                    const targetItemIndex = targetGroup.items.findIndex((i: AnyItemType) => i.id === target.itemId);
-                    if (targetItemIndex !== -1) {
-                        targetGroup.items.splice(targetItemIndex, 0, movedItem);
-                    } else {
-                        targetGroup.items.push(movedItem);
-                    }
-                } else {
-                    targetGroup.items.push(movedItem);
+                const sourceItemIndex = sourceGroup.items.findIndex((i: AnyItemType) => i.id === draggedItem.item.id);
+                if (sourceItemIndex !== -1) {
+                    const [movedItem] = sourceGroup.items.splice(sourceItemIndex, 1);
+                    if (target.itemId) {
+                        const targetItemIndex = targetGroup.items.findIndex((i: AnyItemType) => i.id === target.itemId);
+                        if (targetItemIndex !== -1) {
+                            targetGroup.items.splice(targetItemIndex, 0, movedItem);
+                        } else { targetGroup.items.push(movedItem); }
+                    } else { targetGroup.items.push(movedItem); }
                 }
-                setColumns(newColumns);
             }
         }
-    }
+        return { ...newDashboard, columns: newColumns };
+    });
   };
 
   const handleToggleGroupCollapsed = (columnId: string, groupId: string) => {
-    setColumns(columns.map(col => {
-      if (col.id === columnId) {
-        return {
-          ...col,
-          groups: col.groups.map(g => {
-            if (g.id === groupId) {
-              return { ...g, isCollapsed: !g.isCollapsed };
+    updateActiveDashboard(dashboard => ({
+        ...dashboard,
+        columns: dashboard.columns.map(col => {
+            if (col.id === columnId) {
+                return { ...col, groups: col.groups.map(g => g.id === groupId ? { ...g, isCollapsed: !g.isCollapsed } : g) };
             }
-            return g;
-          })
-        };
-      }
-      return col;
+            return col;
+        })
     }));
   };
 
@@ -1524,8 +1515,8 @@ function App() {
 
   const handleExportDownload = (filename: string) => {
       const backup: BackupData = {
-          version: 1,
-          columns,
+          version: 2,
+          dashboards,
           settings,
           pageTitle,
           todos
@@ -1552,7 +1543,7 @@ function App() {
           try {
               const content = e.target?.result as string;
               const data = JSON.parse(content);
-              if (data && (data.columns || data.settings)) {
+              if (data && (data.columns || data.settings || data.dashboards)) {
                   setImportData(data);
                   openModal('importConfirm');
               } else {
@@ -1569,7 +1560,14 @@ function App() {
 
   const applyImport = () => {
       if (!importData) return;
-      if (importData.columns) setColumns(importData.columns);
+      if (importData.dashboards) {
+          setDashboards(importData.dashboards);
+          setActiveDashboardId(importData.dashboards[0]?.id || '');
+      } else if (importData.columns) { // Legacy import
+          const migratedDashboards = runDataMigrationAndValidation(null, importData.columns);
+          setDashboards(migratedDashboards);
+          setActiveDashboardId(migratedDashboards[0]?.id || '');
+      }
       if (importData.settings) setSettings({ ...DEFAULT_SETTINGS, ...importData.settings });
       if (importData.pageTitle) setPageTitle(importData.pageTitle);
       if (importData.todos) setTodos(importData.todos);
@@ -1579,7 +1577,8 @@ function App() {
   };
 
   const handleResetToDefaults = () => {
-      setColumns(DEFAULT_COLUMNS);
+      setDashboards([DEFAULT_DASHBOARD]);
+      setActiveDashboardId(DEFAULT_DASHBOARD.id);
       setSettings(DEFAULT_SETTINGS);
       setPageTitle('My Startpage');
       setTodos([]);
@@ -1590,661 +1589,634 @@ function App() {
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!searchQuery.trim()) return;
-      const engine = searchEngines[settings.searchEngine] || searchEngines.google;
-      window.location.href = `${engine.url}${encodeURIComponent(searchQuery)}`;
+    e.preventDefault();
+    const engine = searchEngines[settings.searchEngine] || searchEngines.google;
+    let targetUrl: string;
+
+    if (!searchQuery.trim()) {
+      targetUrl = engine.home;
+    } else {
+      targetUrl = `${engine.url}${encodeURIComponent(searchQuery)}`;
+    }
+    
+    if (settings.openLinksInNewTab) {
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    } else {
+        window.location.href = targetUrl;
+    }
+    
+    // Clear search input only if there was a query
+    if (searchQuery.trim()) {
+      setSearchQuery('');
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (dashboardDropdownRef.current && !dashboardDropdownRef.current.contains(event.target as Node)) {
+            setIsDashboardDropdownOpen(false);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  if (!activeDashboard) {
+    return (
+        <div className={`h-screen w-screen flex items-center justify-center ${themeClasses.body}`}>
+            <p>Loading dashboards...</p>
+        </div>
+    );
+  }
+
+  const shouldUsePaddingFix = calculatedContentWidth !== null;
+  const columns = activeDashboard.columns;
+
+  const getColumnStyle = (widthIndex: number = 3) => {
+    const baseWidth = baseWidthsInRem[widthIndex] || baseWidthsInRem[3];
+    const multiplier = globalMultipliers[settings.columnWidth];
+    const widthRem = baseWidth * multiplier;
+    return {
+      width: `${widthRem}rem`,
+      minWidth: `${widthRem}rem`,
+      maxWidth: `${widthRem}rem`
+    };
+  };
+
+  const getModalTitle = () => {
+    if (!modal) return '';
+    switch (modal.type) {
+        case 'addColumn': return 'Add Column';
+        case 'editColumn': return 'Edit Column';
+        case 'deleteColumn': return 'Delete Column';
+        case 'addGroup': return 'Add Group';
+        case 'editGroup': return 'Edit Group';
+        case 'deleteGroup': return 'Delete Group';
+        case 'addLink': return 'Add Link';
+        case 'editLink': return 'Edit Link';
+        case 'deleteItem': return 'Delete Item';
+        case 'importConfirm': return 'Confirm Import';
+        case 'resetConfirm': return 'Reset Application';
+        case 'addWidget': return 'Add Widget';
+        case 'editWidgetSettings': return 'Widget Settings';
+        case 'addLinkOrSeparator': return 'Add Item';
+        case 'exportOptions': return 'Export Data';
+        case 'addHomeyCustomItem': return 'Add Homey Item';
+        case 'selectHomeyItem': return 'Select Homey Capability';
+        case 'addOrEditTextItem': return modal.data?.item ? 'Edit Header' : 'Add Header';
+        case 'editHomeyCustomItemName': return 'Edit Item Name';
+        case 'addFlowButton': return 'Add Flow Button';
+        case 'editFlowButton': return 'Edit Flow Button';
+        case 'deleteFlowButton': return 'Delete Button';
+        case 'moveFlowButton': return 'Move Button';
+        case 'deleteTodoItem': return 'Delete Task';
+        case 'dashboardSettings': return 'Dashboard Settings';
+        default: return '';
+    }
   };
 
   const getModalContent = () => {
     if (!modal) return null;
-    
     const { type, data } = modal;
 
-    if (type === 'exportOptions') {
-        const defaultFilename = `startpage-backup-${new Date().toISOString().slice(0, 10)}`;
+    switch (type) {
+      case 'addColumn':
+      case 'editColumn':
         return (
-            <form onSubmit={handleFormSubmit}>
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+              <input type="text" name="name" defaultValue={data?.name} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            <div>
+              <label htmlFor="width" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Column Width</label>
+              <input type="range" name="width" min="1" max="5" defaultValue={data?.width || 3} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer" />
+              <div className="flex justify-between text-xs text-slate-500 mt-1"><span>Narrow</span><span>Wide</span></div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
+            </div>
+          </form>
+        );
+      case 'addGroup':
+      case 'editGroup':
+        return (
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+              <input type="text" name="name" defaultValue={data?.group ? data.group.name : ''} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            {(type === 'editGroup' && data.group.type !== 'widget') && (
+              <>
+                <ColorSelector currentColor={data.group.colorVariant || 'default'} themeClasses={themeClasses} />
+                <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+                    <label htmlFor="compactMode" className="text-sm font-medium">Compact Mode</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            id="compactMode"
+                            name="compactMode"
+                            defaultChecked={data.group.widgetSettings?.compactMode}
+                            className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+                    <label htmlFor="displayAsPopup" className="text-sm font-medium">Display as Popup</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            id="displayAsPopup"
+                            name="displayAsPopup"
+                            defaultChecked={data.group.widgetSettings?.displayAsPopup}
+                            className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
+            </div>
+          </form>
+        );
+      case 'addLink':
+      case 'editLink':
+        return (
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+              <input type="text" name="name" defaultValue={data?.link?.name} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            <div>
+              <label htmlFor="url" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>URL</label>
+              <input type="text" name="url" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            <div>
+              <label htmlFor="comment" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Comment / Tooltip (optional)</label>
+              <input type="text" name="comment" defaultValue={data?.link?.comment} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-700">
+                <label htmlFor="isFavorite" className="text-sm font-medium">Add to Favorites</label>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                        type="checkbox"
+                        id="isFavorite"
+                        name="isFavorite"
+                        defaultChecked={data?.link?.isFavorite}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
+            </div>
+          </form>
+        );
+      case 'deleteColumn':
+      case 'deleteGroup':
+      case 'deleteItem':
+      case 'deleteTodoItem':
+      case 'deleteFlowButton':
+        return (
+          <div className="space-y-4">
+            <p className="text-slate-300">Are you sure you want to delete this? This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button onClick={handleDelete} className={`${themeClasses.buttonDanger} px-4 py-2 rounded-lg`}>Delete</button>
+            </div>
+          </div>
+        );
+      case 'resetConfirm':
+        return (
+          <div className="space-y-4">
+            <p className="text-red-400 font-bold">Warning: This will delete ALL your data including dashboards, links, and settings.</p>
+            <p className="text-slate-300">Make sure you have exported a backup if you want to save your current configuration.</p>
+            <div className="flex justify-end gap-3 mt-4">
+              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button onClick={handleResetToDefaults} className={`${themeClasses.buttonDanger} px-4 py-2 rounded-lg`}>Reset Everything</button>
+            </div>
+          </div>
+        );
+      case 'importConfirm':
+        return (
+          <div className="space-y-4">
+            <p className="text-slate-300">This will overwrite your current configuration with the data from the backup file.</p>
+            <p className="text-sm text-slate-400">Current settings will be lost.</p>
+            <div className="flex justify-end gap-3 mt-4">
+              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button onClick={applyImport} className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Import</button>
+            </div>
+          </div>
+        );
+      case 'addWidget':
+        const columnId = data.columnId;
+        const hasTodo = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
+        const hasCalendar = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
+        const hasCalculator = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'calculator'));
+        const hasNetwork = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'network'));
+        const hasRadio = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'radio'));
+        const hasFavorites = activeDashboard.columns.some(col => col.groups.some(g => g.widgetType === 'favorites'));
+
+        const WidgetBtn = ({ label, icon, onClick, fullWidth }: any) => (
+            <button 
+                onClick={onClick} 
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${themeClasses.buttonSecondary} hover:brightness-110 ${fullWidth ? 'col-span-2' : ''}`}
+            >
+                <div className={themeClasses.iconMuted}>{icon}</div>
+                <span className="font-semibold text-sm">{label}</span>
+            </button>
+        );
+
+        return (
+          <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+            <div>
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${themeClasses.modalMutedText} mb-3`}>Multi Instance Widgets</h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <WidgetBtn label="Link Group" icon={<LinkIcon className="w-5 h-5" />} onClick={() => openModal('addGroup', { columnId })} fullWidth />
+                    
+                    <WidgetBtn label="Weather" icon={<SunIcon className="w-5 h-5" />} onClick={() => handleAddWidget('weather', columnId)} />
+                    <WidgetBtn label="Clock" icon={<ClockIcon className="w-5 h-5" />} onClick={() => handleAddWidget('clock', columnId)} />
+                    
+                    <WidgetBtn label="Timer" icon={<TimerIcon className="w-5 h-5" />} onClick={() => handleAddWidget('timer', columnId)} />
+                    <WidgetBtn label="RSS Feed" icon={<RssIcon className="w-5 h-5" />} onClick={() => handleAddWidget('rss', columnId)} />
+                    
+                    <WidgetBtn label="Currency" icon={<BanknotesIcon className="w-5 h-5" />} onClick={() => handleAddWidget('currency', columnId)} />
+                    <WidgetBtn label="Webhook" icon={<BoltIcon className="w-5 h-5" />} onClick={() => handleAddWidget('webhook', columnId)} />
+                    
+                    <WidgetBtn label="Notepad" icon={<DocumentTextIcon className="w-5 h-5" />} onClick={() => handleAddWidget('scratchpad', columnId)} />
+                    <WidgetBtn label="Countdown" icon={<PartyPopperIcon className="w-5 h-5" />} onClick={() => handleAddWidget('countdown', columnId)} />
+                    
+                    <WidgetBtn label="Unit Converter" icon={<ScaleIcon className="w-5 h-5" />} onClick={() => handleAddWidget('unit_converter', columnId)} />
+                    <WidgetBtn label="Sunrise / Sunset" icon={<MoonIcon className="w-5 h-5" />} onClick={() => handleAddWidget('solar', columnId)} />
+                    
+                    <WidgetBtn label="Image" icon={<PhotoIcon className="w-5 h-5" />} onClick={() => handleAddWidget('picture', columnId)} />
+                    <WidgetBtn label="Iframe (Limited)" icon={<WindowIcon className="w-5 h-5" />} onClick={() => handleAddWidget('iframe', columnId)} />
+                </div>
+            </div>
+
+            <div>
+                <h3 className={`text-xs font-bold uppercase tracking-wider ${themeClasses.modalMutedText} mb-3`}>Single-Instance Widgets</h3>
+                <div className="grid grid-cols-2 gap-3">
+                    {!hasCalculator && <WidgetBtn label="Calculator" icon={<CalculatorIcon className="w-5 h-5" />} onClick={() => handleAddWidget('calculator', columnId)} />}
+                    {!hasNetwork && <WidgetBtn label="Network Info" icon={<WifiIcon className="w-5 h-5" />} onClick={() => handleAddWidget('network', columnId)} />}
+                    {!hasCalendar && <WidgetBtn label="Calendar" icon={<CalendarDaysIcon className="w-5 h-5" />} onClick={() => handleAddWidget('calendar', columnId)} />}
+                    {!hasTodo && <WidgetBtn label="To-Do List" icon={<ClipboardDocumentCheckIcon className="w-5 h-5" />} onClick={() => handleAddWidget('todo', columnId)} />}
+                    {!hasRadio && <WidgetBtn label="Radio Player" icon={<RadioIcon className="w-5 h-5" />} onClick={() => handleAddWidget('radio', columnId)} />}
+                    {!hasFavorites && <WidgetBtn label="Favorites" icon={<HeartIcon className="w-5 h-5" />} onClick={() => handleAddWidget('favorites', columnId)} />}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-yellow-500/80 mb-3">Homey Pro Widgets</h3>
+                <div className="grid grid-cols-2 gap-3">
+                    <WidgetBtn label="Homey Pro Auto Zones" icon={<HomeIcon className="w-5 h-5" />} onClick={() => handleAddWidget('homey', columnId)} />
+                    <WidgetBtn label="Homey Pro Custom" icon={<HomeIcon className="w-5 h-5" />} onClick={() => handleAddWidget('homey_custom', columnId)} />
+                    <WidgetBtn label="Homey Pro Status" icon={<CpuChipIcon className="w-5 h-5" />} onClick={() => handleAddWidget('homey_status', columnId)} />
+                </div>
+            </div>
+          </div>
+        );
+      case 'editWidgetSettings':
+        return (
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+            {data.group.widgetType !== 'calculator' && data.group.widgetType !== 'scratchpad' && data.group.widgetType !== 'unit_converter' && data.group.widgetType !== 'network' && data.group.widgetType !== 'homey_status' && (
+                <div className="mb-4">
+                    <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span></label>
+                    <input type="text" name="name" defaultValue={data.group.name} required maxLength={30} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                </div>
+            )}
+            
+            <ColorSelector currentColor={data.group.colorVariant || 'default'} themeClasses={themeClasses} />
+
+            {/* Widget Specific Forms */}
+            {data.group.widgetType === 'weather' && <WeatherSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'clock' && (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="timezone" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Timezone</label>
+                  <select name="timezone" defaultValue={data.group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} max-h-60`}>
+                    {timezones.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                    <label htmlFor="showSeconds" className="text-sm font-medium">Show Seconds</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="showSeconds" name="showSeconds" defaultChecked={data.group.widgetSettings?.showSeconds ?? true} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                    <label htmlFor="showDate" className="text-sm font-medium">Show Date</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="showDate" name="showDate" defaultChecked={data.group.widgetSettings?.showDate ?? true} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+              </div>
+            )}
+            {data.group.widgetType === 'timer' && <TimerSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'rss' && (
                 <div className="space-y-4">
-                    <div className="p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-md text-sm text-yellow-200">
-                        <strong>Note:</strong> The backup file is unencrypted and contains potentially sensitive data (like API keys). Please store it in a secure location.
-                    </div>
-                    <p className={themeClasses.modalMutedText}>Enter a name for your backup file:</p>
                     <div>
-                        <label htmlFor="filename" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Filename</label>
-                        <div className="flex items-center">
-                            <input
-                                type="text"
-                                id="filename"
-                                name="filename"
-                                defaultValue={defaultFilename}
-                                required
-                                className={`flex-1 p-2 rounded-l-md border-y border-l ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                            />
-                            <span className={`p-2 border border-l-0 rounded-r-md bg-slate-800/50 text-slate-400`}>.json</span>
+                        <label htmlFor="rssUrl" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>RSS Feed URL</label>
+                        <input type="url" name="rssUrl" defaultValue={data.group.widgetSettings?.rssUrl} placeholder="https://example.com/feed.xml" required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="rssItemCount" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Items to show</label>
+                            <input type="number" name="rssItemCount" defaultValue={data.group.widgetSettings?.rssItemCount || 5} min="1" max="20" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                        </div>
+                        <div>
+                            <label htmlFor="rssUpdateInterval" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Refresh (mins)</label>
+                            <input type="number" name="rssUpdateInterval" defaultValue={data.group.widgetSettings?.rssUpdateInterval || 60} min="0" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end gap-3 pt-6">
-                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Download</button>
+            )}
+            {data.group.widgetType === 'countdown' && (
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="countdownTitle" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Title</label>
+                        <input type="text" name="countdownTitle" defaultValue={data.group.widgetSettings?.countdownTitle} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                    </div>
+                    <div>
+                        <label htmlFor="countdownDate" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Target Date & Time</label>
+                        <input type="datetime-local" name="countdownDate" defaultValue={data.group.widgetSettings?.countdownDate?.slice(0, 16)} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                    </div>
+                    <div>
+                        <label htmlFor="countdownBehavior" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Completion Effect</label>
+                        <select name="countdownBehavior" defaultValue={data.group.widgetSettings?.countdownBehavior || 'discrete'} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}>
+                            <option value="discrete">Text Only</option>
+                            <option value="confetti">Confetti 🎉</option>
+                            <option value="fullscreen">Fullscreen Alert</option>
+                            <option value="intense">Flashing Red (Intense)</option>
+                        </select>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                        <label htmlFor="countdownPlaySound" className="text-sm font-medium">Play Alarm Sound</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="countdownPlaySound" name="countdownPlaySound" defaultChecked={data.group.widgetSettings?.countdownPlaySound} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
                 </div>
-            </form>
-        );
-    }
+            )}
+            {data.group.widgetType === 'calendar' && (
+                <div>
+                    <label htmlFor="holidayCountry" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Country for Holidays</label>
+                    <select name="holidayCountry" defaultValue={data.group.widgetSettings?.holidayCountry || 'SE'} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}>
+                        {countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    </select>
+                </div>
+            )}
+            {data.group.widgetType === 'todo' && (
+                <div className="flex items-center justify-between pt-2">
+                    <label htmlFor="todoConfirmDelete" className="text-sm font-medium">Confirm before deleting tasks</label>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="todoConfirmDelete" name="todoConfirmDelete" defaultChecked={data.group.widgetSettings?.todoConfirmDelete ?? true} className="sr-only peer" />
+                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+            )}
+            {data.group.widgetType === 'currency' && <CurrencySettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'webhook' && <WebhookSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'solar' && (
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="solarCity" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label>
+                        <input type="text" name="solarCity" defaultValue={data.group.widgetSettings?.solarCity} placeholder="e.g. London" required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                        <label htmlFor="solarUse24HourFormat" className="text-sm font-medium">24-hour Time Format</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="solarUse24HourFormat" name="solarUse24HourFormat" defaultChecked={data.group.widgetSettings?.solarUse24HourFormat} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                        <label htmlFor="solarCompactMode" className="text-sm font-medium">Compact Mode</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="solarCompactMode" name="solarCompactMode" defaultChecked={data.group.widgetSettings?.solarCompactMode} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                        <label htmlFor="solarDynamicPath" className="text-sm font-medium">Dynamic Sun Path Height</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="solarDynamicPath" name="solarDynamicPath" defaultChecked={data.group.widgetSettings?.solarDynamicPath ?? true} className="sr-only peer" />
+                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                </div>
+            )}
+            {data.group.widgetType === 'homey' && <HomeySettingsForm group={data.group} themeClasses={themeClasses} globalIp={settings.homey?.localIp} globalToken={settings.homey?.apiToken} />}
+            {data.group.widgetType === 'radio' && <RadioSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'favorites' && <FavoritesSettingsForm group={data.group} allColumns={activeDashboard.columns} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'picture' && <PictureSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'iframe' && <IframeSettingsForm group={data.group} themeClasses={themeClasses} />}
+            {data.group.widgetType === 'homey_custom' && <HomeyCustomSettingsForm group={data.group} themeClasses={themeClasses} />}
 
-    if (type === 'addLinkOrSeparator') {
-      return (
-        <div>
-            <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to the group:</p>
-            <div className="space-y-3">
-                <button 
-                    onClick={() => setModal({ type: 'addLink', data })}
-                    className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                >
-                   <LinkIcon className="w-5 h-5" />
-                   <span className="font-semibold">Link</span>
-                </button>
-                <button 
-                    onClick={() => handleAddSeparator(data.groupId, data.columnId)}
-                    className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                >
-                   <MinusIcon className="w-5 h-5" />
-                   <span className="font-semibold">Separator</span>
-                </button>
+            <div className="flex justify-end gap-3 mt-6">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
             </div>
-        </div>
-      );
-    }
-
-    if (type === 'addHomeyCustomItem') {
+          </form>
+        );
+      case 'addLinkOrSeparator':
         return (
+          <div className="grid grid-cols-1 gap-2">
+            <button onClick={() => openModal('addLink', { groupId: data.groupId, columnId: data.columnId })} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
+                <LinkIcon className="w-5 h-5" /> Add Link
+            </button>
+            <button onClick={() => handleAddButtonHolder(data.groupId, data.columnId)} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
+                <SquaresPlusIcon className="w-5 h-5" /> Add Button Holder
+            </button>
+            <button onClick={() => openModal('addOrEditTextItem', { groupId: data.groupId, columnId: data.columnId })} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
+                <span className="text-lg font-bold">H</span> Add Header
+            </button>
+            <button onClick={() => handleAddSeparator(data.groupId, data.columnId)} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
+                <MinusIcon className="w-5 h-5" /> Add Separator
+            </button>
+          </div>
+        );
+      case 'exportOptions':
+        return (
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
             <div>
-                <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item type to add:</p>
-                <div className="space-y-3">
-                    <button 
-                        onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'capability' })}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <LightBulbIcon className="w-5 h-5" />
-                       <span className="font-semibold">Capability (Sensor/Toggle)</span>
-                    </button>
-                    <button 
-                        onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'flow' })}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <PlayIcon className="w-5 h-5" />
-                       <span className="font-semibold">Flow</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddButtonHolder(data.groupId, data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <SquaresPlusIcon className="w-5 h-5" />
-                       <span className="font-semibold">Button Holder</span>
-                    </button>
-                    <button 
-                        onClick={() => openModal('addOrEditTextItem', { ...data })}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <DocumentTextIcon className="w-5 h-5" />
-                       <span className="font-semibold">Text / Header</span>
-                    </button>
-                    <button 
-                        onClick={() => handleAddSeparator(data.groupId, data.columnId)}
-                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary}`}
-                    >
-                       <MinusIcon className="w-5 h-5" />
-                       <span className="font-semibold">Separator</span>
-                    </button>
-                </div>
+                <label htmlFor="filename" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Filename</label>
+                <input type="text" name="filename" defaultValue={`startpage-backup-${new Date().toISOString().slice(0, 10)}`} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+              <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Download</button>
+            </div>
+          </form>
+        );
+      case 'addHomeyCustomItem':
+        return (
+            <div className="flex flex-col gap-3">
+                <button
+                    onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'capability' })}
+                    className={`p-3 rounded border hover:bg-slate-700 ${themeClasses.inputBg} ${themeClasses.dashedBorder} text-left`}
+                >
+                    <span className="font-semibold block">Add Device Capability</span>
+                    <span className="text-xs text-slate-400">Sensors, toggles, etc.</span>
+                </button>
+                <button
+                    onClick={() => openModal('selectHomeyItem', { ...data, itemType: 'flow' })}
+                    className={`p-3 rounded border hover:bg-slate-700 ${themeClasses.inputBg} ${themeClasses.dashedBorder} text-left`}
+                >
+                    <span className="font-semibold block">Add Flow Button</span>
+                    <span className="text-xs text-slate-400">Trigger a flow manually</span>
+                </button>
+                <button onClick={() => openModal('addOrEditTextItem', { ...data })} className={`p-3 rounded border hover:bg-slate-700 ${themeClasses.inputBg} ${themeClasses.dashedBorder} text-left`}>
+                    <span className="font-semibold block">Add Header</span>
+                </button>
+                <button onClick={() => handleAddButtonHolder(data.groupId, data.columnId)} className={`p-3 rounded border hover:bg-slate-700 ${themeClasses.inputBg} ${themeClasses.dashedBorder} text-left`}>
+                    <span className="font-semibold block">Add Button Holder</span>
+                </button>
+                <button onClick={() => handleAddSeparator(data.groupId, data.columnId)} className={`p-3 rounded border hover:bg-slate-700 ${themeClasses.inputBg} ${themeClasses.dashedBorder} text-left`}>
+                    <span className="font-semibold block">Add Separator</span>
+                </button>
             </div>
         );
-    }
-
-    if (type === 'selectHomeyItem') {
+      case 'selectHomeyItem':
         return (
-            <HomeyItemSelector 
+            <HomeyItemSelector
                 themeClasses={themeClasses}
                 globalIp={settings.homey?.localIp}
                 globalToken={settings.homey?.apiToken}
                 itemType={data.itemType}
-                onSelect={handleHomeySelect}
+                onSelect={(selected) => handleHomeySelect({ ...selected, ...data })}
             />
         );
-    }
-
-    if (type === 'addFlowButton' || type === 'editFlowButton') {
-        return <FlowButtonForm />;
-    }
-
-    if (type === 'addOrEditTextItem') {
-        const currentText = data.item ? data.item.content : '';
+      case 'addOrEditTextItem':
         return (
-            <form onSubmit={handleFormSubmit}>
-                <div className="space-y-4">
-                    <div>
-                        <label htmlFor="textContent" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Text Content</label>
-                        <input
-                            type="text"
-                            id="textContent"
-                            name="textContent"
-                            defaultValue={currentText}
-                            required
-                            maxLength={50}
-                            placeholder="Enter header or text..."
-                            className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                        />
-                    </div>
+            <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+                <div>
+                    <label htmlFor="textContent" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Header Text</label>
+                    <input type="text" name="textContent" defaultValue={data.item?.content || ''} autoFocus required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
                 </div>
-                <div className="flex justify-end gap-3 pt-6">
-                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+                <div className="flex justify-end gap-3 mt-4">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
                 </div>
             </form>
         );
-    }
-    
-    if (type === 'editHomeyCustomItemName') {
-        const { item, staticData } = data;
-        const currentName = (item as any).customName || '';
-
-        let originalName = '...';
-        if (staticData) {
-            originalName = staticData.name;
-            if (item.type === 'homey_capability' && staticData.capabilityTitle) {
-                originalName += ` - ${staticData.capabilityTitle}`;
-            }
-        }
-        
+      case 'editHomeyCustomItemName':
         return (
-            <form onSubmit={handleFormSubmit} ref={formRef}>
-                <div className="space-y-4">
-                    <div>
-                        <label className={`block text-xs font-medium ${themeClasses.modalMutedText} mb-1`}>Original Name</label>
-                        <p className={`p-2 rounded-md ${themeClasses.inputBg} border border-slate-700 text-sm text-slate-400`}>{originalName}</p>
-                    </div>
-                    <div>
-                        <label htmlFor="customName" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Custom Display Name (optional)</label>
-                        <input
-                            type="text"
-                            id="customName"
-                            name="customName"
-                            defaultValue={currentName}
-                            maxLength={50}
-                            placeholder="Leave blank to use default"
-                            className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                        />
-                    </div>
+            <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+                <div className="text-sm text-slate-400 mb-2">
+                    Editing: <span className="font-semibold text-white">{data.item.customName || data.staticData.name}</span>
                 </div>
-                <div className="flex justify-end gap-3 pt-6">
-                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                    <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
+                <div>
+                    <label htmlFor="customName" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Custom Name (Optional)</label>
+                    <input type="text" name="customName" defaultValue={data.item.customName || ''} placeholder="Leave empty to use default name" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+                </div>
+                <div className="flex justify-end gap-3 mt-4">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
                 </div>
             </form>
         );
-    }
-
-    if (type === 'addWidget') {
-        const todoExists = columns.some(col => col.groups.some(g => g.widgetType === 'todo'));
-        const calculatorExists = columns.some(col => col.groups.some(g => g.widgetType === 'calculator'));
-        const calendarExists = columns.some(col => col.groups.some(g => g.widgetType === 'calendar'));
-        const radioExists = columns.some(col => col.groups.some(g => g.widgetType === 'radio'));
-        const favoritesExists = columns.some(col => col.groups.some(g => g.widgetType === 'favorites'));
-        const networkExists = columns.some(col => col.groups.some(g => g.widgetType === 'network'));
-
-        const multiInstanceWidgets = (
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setModal({ type: 'addGroup', data })} className={`col-span-2 w-full text-left p-2.5 rounded-lg transition-colors flex items-center gap-3 ${themeClasses.buttonSecondary} text-sm`}>
-                <LinkIcon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-semibold">Link Group</span>
-            </button>
-            <button onClick={() => handleAddWidget('weather', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><SunIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Weather</span></button>
-            <button onClick={() => handleAddWidget('clock', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ClockIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Clock</span></button>
-            <button onClick={() => handleAddWidget('timer', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><TimerIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Timer</span></button>
-            <button onClick={() => handleAddWidget('rss', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><RssIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">RSS Feed</span></button>
-            <button onClick={() => handleAddWidget('currency', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><BanknotesIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Currency</span></button>
-            <button onClick={() => handleAddWidget('webhook', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><BoltIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Webhook</span></button>
-            <button onClick={() => handleAddWidget('scratchpad', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><DocumentTextIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Notepad</span></button>
-            <button onClick={() => handleAddWidget('countdown', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><PartyPopperIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Countdown</span></button>
-            <button onClick={() => handleAddWidget('unit_converter', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ScaleIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Unit Converter</span></button>
-            <button onClick={() => handleAddWidget('solar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><MoonIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Sunrise / Sunset</span></button>
-            <button onClick={() => handleAddWidget('picture', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><PhotoIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Image</span></button>
-            <button onClick={() => handleAddWidget('iframe', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WindowIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Iframe (Limited)</span></button>
-          </div>
-        );
-
-        const singleInstanceWidgets = (
-          <div className="grid grid-cols-2 gap-2">
-            {!calendarExists && <button onClick={() => handleAddWidget('calendar', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalendarDaysIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calendar</span></button>}
-            {!todoExists && <button onClick={() => handleAddWidget('todo', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><ClipboardDocumentCheckIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">To-Do List</span></button>}
-            {!calculatorExists && <button onClick={() => handleAddWidget('calculator', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CalculatorIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Calculator</span></button>}
-            {!networkExists && <button onClick={() => handleAddWidget('network', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><WifiIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Network Info</span></button>}
-            {!radioExists && <button onClick={() => handleAddWidget('radio', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><RadioIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Radio Player</span></button>}
-            {!favoritesExists && <button onClick={() => handleAddWidget('favorites', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HeartIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Favorites</span></button>}
-          </div>
-        );
-
-        const homeyProWidgets = (
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => handleAddWidget('homey', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Auto Zones</span></button>
-            <button onClick={() => handleAddWidget('homey_custom', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><HomeIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Custom</span></button>
-            <button onClick={() => handleAddWidget('homey_status', data.columnId)} className={`w-full flex items-center gap-2 p-2.5 text-sm rounded-lg transition-colors ${themeClasses.buttonSecondary}`}><CpuChipIcon className="w-5 h-5 flex-shrink-0" /><span className="font-semibold">Homey Pro Status</span></button>
-          </div>
-        );
-
+      case 'addFlowButton':
+      case 'editFlowButton':
         return (
-            <div>
-                <p className={`${themeClasses.modalMutedText} mb-4`}>Select an item to add to this column:</p>
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Multi Instance Widgets</h3>{multiInstanceWidgets}</div>
-                    <hr className={`border-slate-700`}/>
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold ${themeClasses.modalMutedText} mb-2`}>Single-Instance Widgets</h3>{singleInstanceWidgets}</div>
-                    <hr className={`border-slate-700`}/>
-                    <div><h3 className={`text-xs uppercase tracking-wider font-bold text-yellow-500/80 mb-2`}>HOMEY PRO Widgets</h3>{homeyProWidgets}</div>
+            <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+               {type === 'addFlowButton' && (
+                   <div>
+                       <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Flow</label>
+                       <div className="h-48 border rounded-md overflow-hidden">
+                           <HomeyItemSelector
+                                themeClasses={themeClasses}
+                                globalIp={settings.homey?.localIp}
+                                globalToken={settings.homey?.apiToken}
+                                itemType='flow'
+                                onSelect={(selected) => {
+                                    // We need to fetch the flow name or assume it from selection context if we want to store it
+                                    // For simplicity, we just set the hidden input value
+                                    const input = document.getElementById('flowIdInput') as HTMLInputElement;
+                                    if(input && 'flowId' in selected) {
+                                        input.value = `${selected.flowId}|Flow`; // Rough, name is not passed back easily here without refetch. 
+                                        // A better way would be if selector returned name too. 
+                                        // Assuming selector logic handles it or we re-fetch.
+                                        // Actually `HomeyItemSelector` does not return name in `onSelect`.
+                                        // Let's rely on the user to pick and we'll save ID.
+                                        input.value = `${selected.flowId}|Linked Flow`;
+                                    }
+                                }}
+                           />
+                       </div>
+                       <input type="hidden" name="flowId" id="flowIdInput" defaultValue={data.button ? `${data.button.flowId}|${data.button.flowName}` : ''} required />
+                       <p className="text-xs text-slate-500 mt-1">Click a flow above to select it.</p>
+                   </div>
+               )}
+               <div>
+                   <label htmlFor="symbol" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Button Symbol/Text</label>
+                   <input type="text" name="symbol" defaultValue={data.button?.symbol || ''} placeholder="Emoji or short text (e.g. 🏠)" required maxLength={4} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
+               </div>
+               <div className="flex justify-end gap-3 mt-4">
+                    <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} px-4 py-2 rounded-lg`}>Cancel</button>
+                    <button type="submit" className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Save</button>
                 </div>
-            </div>
+            </form>
         );
-    }
-    
-    if (type === 'importConfirm') {
-        return (
-          <div>
-            <p className={themeClasses.modalMutedText}>Are you sure you want to import this file? This will overwrite all your current settings, columns, and links.</p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-              <button onClick={applyImport} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Yes, Overwrite</button>
-            </div>
-          </div>
-        );
-    }
-      
-    if (type === 'resetConfirm') {
-        return (
-          <div>
-            <p className={themeClasses.modalMutedText}>Are you sure you want to reset everything? All your columns, groups, links, and settings will be permanently deleted and restored to the default configuration. This action cannot be undone.</p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-              <button onClick={handleResetToDefaults} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Yes, Reset Everything</button>
-            </div>
-          </div>
-        );
-    }
-      
-    if (type.startsWith('delete')) {
-        let itemName = '';
-        if (type === 'deleteColumn') itemName = data.name;
-        if (type === 'deleteGroup') itemName = data.group.name;
-        if (type === 'deleteItem') itemName = data.item.type === 'link' ? data.item.name : 'this item';
-        if (type === 'deleteFlowButton') itemName = `button "${data.button.symbol}"`;
-
-        let message = `Are you sure you want to delete "${itemName}"?`;
-        if (type === 'deleteTodoItem') {
-            message = 'Are you sure you want to delete this task?';
-        }
-
-        return (
-          <div>
-            <p className={themeClasses.modalMutedText}>{message}</p>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-              <button onClick={handleDelete} className={`${themeClasses.buttonDanger} font-semibold py-2 px-4 rounded-lg transition-colors`}>Delete</button>
-            </div>
-          </div>
-        );
-    }
-
-    if (type === 'editWidgetSettings') {
-        const { group } = data;
-        let widgetContent = null;
-        
-        if (group.widgetType === 'homey') {
-            widgetContent = <HomeySettingsForm group={group} themeClasses={themeClasses} globalIp={settings.homey?.localIp} globalToken={settings.homey?.apiToken} />;
-        } else if (group.widgetType === 'weather') {
-            widgetContent = <WeatherSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'clock') {
-            const currentTimezone = group.widgetSettings?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const currentShowSeconds = group.widgetSettings?.showSeconds ?? true;
-            const currentShowDate = group.widgetSettings?.showDate ?? true;
-            widgetContent = (
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="timezone" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Timezone</label>
-                            <select id="timezone" name="timezone" defaultValue={currentTimezone} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing} max-h-60`}>
-                                {timezones.map((tz: string) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
-                            </select>
-                        </div>
-                        <div className="flex items-center justify-between pt-2">
-                            <label htmlFor="showSeconds" className="text-sm font-medium">Show Seconds</label>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="showSeconds" name="showSeconds" defaultChecked={currentShowSeconds} className="sr-only peer" />
-                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-                        <div className="flex items-center justify-between pt-2">
-                            <label htmlFor="showDate" className="text-sm font-medium">Show Date</label>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="showDate" name="showDate" defaultChecked={currentShowDate} className="sr-only peer" />
-                            <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-                    </div>
-            );
-        } else if (group.widgetType === 'timer') {
-            widgetContent = <TimerSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'rss') {
-            const currentUrl = group.widgetSettings?.rssUrl || '';
-            const currentItemCount = group.widgetSettings?.rssItemCount || 5;
-            const currentInterval = group.widgetSettings?.rssUpdateInterval ?? 60;
-            widgetContent = (
-                <div className="space-y-4">
-                    <div><label htmlFor="rssUrl" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>RSS Feed URL</label><input type="url" id="rssUrl" name="rssUrl" defaultValue={currentUrl} required placeholder="https://example.com/feed.xml" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                    <div><label htmlFor="rssItemCount" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Number of Items to Show</label><input type="number" id="rssItemCount" name="rssItemCount" defaultValue={currentItemCount} min="1" max="20" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                    <div>
-                        <label htmlFor="rssUpdateInterval" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Update Interval (minutes)</label>
-                        <input type="number" id="rssUpdateInterval" name="rssUpdateInterval" defaultValue={currentInterval} min="0" max="999" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
-                        <p className="text-xs text-slate-500 mt-1">Set to 0 to disable auto-updates.</p>
-                    </div>
-                </div>
-            );
-        } else if (group.widgetType === 'countdown') {
-            const targetDate = new Date(group.widgetSettings?.countdownDate || Date.now());
-            const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(targetDate.getTime() - tzoffset)).toISOString().slice(0, 16);
-            const behavior = group.widgetSettings?.countdownBehavior || 'discrete';
-            const playSound = group.widgetSettings?.countdownPlaySound ?? false;
-            widgetContent = (
-                <div className="space-y-4">
-                    <div><label htmlFor="countdownTitle" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Event Title</label><input type="text" id="countdownTitle" name="countdownTitle" defaultValue={group.widgetSettings?.countdownTitle || 'My Event'} required placeholder="e.g., Vacation" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                    <div><label htmlFor="countdownDate" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Date and Time</label><input type="datetime-local" id="countdownDate" name="countdownDate" defaultValue={localISOTime} required className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                    <div><label htmlFor="countdownBehavior" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>On Finish Behavior</label><select id="countdownBehavior" name="countdownBehavior" defaultValue={behavior} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}><option value="discrete">Discrete (Text Only)</option><option value="confetti">Confetti Explosion 🎉</option><option value="fullscreen">Fullscreen Alert 📢</option><option value="intense">Intense Flashing 🚨</option></select></div>
-                    <div className="flex items-center justify-between pt-2"><label htmlFor="countdownPlaySound" className="text-sm font-medium">Play Sound on Finish</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="countdownPlaySound" name="countdownPlaySound" defaultChecked={playSound} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
-                </div>
-            );
-        } else if (group.widgetType === 'calendar') {
-            widgetContent = (<div><label htmlFor="holidayCountry" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Country for Holidays</label><select id="holidayCountry" name="holidayCountry" defaultValue={group.widgetSettings?.holidayCountry || 'SE'} className={`w-full p-2 mt-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}>{countries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></div>);
-        } else if (group.widgetType === 'todo') {
-            widgetContent = (
-              <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700">
-                <label htmlFor="todoConfirmDelete" className="text-sm font-medium">Confirm before deleting</label>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="todoConfirmDelete"
-                    name="todoConfirmDelete"
-                    defaultChecked={group.widgetSettings?.todoConfirmDelete ?? true}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </label>
-              </div>
-            );
-        } else if (group.widgetType === 'currency') {
-            widgetContent = <CurrencySettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'webhook') {
-            widgetContent = <WebhookSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'network') {
-            widgetContent = <div className={`${themeClasses.textSubtle} text-sm text-center py-4`}>This widget automatically displays your network information. No configuration needed.</div>;
-        } else if (group.widgetType === 'solar') {
-            widgetContent = (
-                <div className="space-y-4">
-                    <div><label htmlFor="solarCity" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>City</label><input type="text" id="solarCity" name="solarCity" defaultValue={group.widgetSettings?.solarCity || ''} required placeholder="e.g., Stockholm" className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} /></div>
-                    <div className="flex items-center justify-between pt-2"><label htmlFor="solarUse24HourFormat" className="text-sm font-medium">Use 24-hour format</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarUse24HourFormat" name="solarUse24HourFormat" defaultChecked={group.widgetSettings?.solarUse24HourFormat} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
-                    <div className="flex items-center justify-between"><label htmlFor="solarCompactMode" className="text-sm font-medium">Compact Mode</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarCompactMode" name="solarCompactMode" defaultChecked={group.widgetSettings?.solarCompactMode} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-700"><label htmlFor="solarDynamicPath" className="text-sm font-medium">Dynamic Sun Path</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="solarDynamicPath" name="solarDynamicPath" defaultChecked={group.widgetSettings?.solarDynamicPath ?? true} className="sr-only peer" /><div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label></div>
-                </div>
-            );
-        } else if (group.widgetType === 'radio') {
-            widgetContent = <RadioSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'favorites') {
-            widgetContent = <FavoritesSettingsForm group={group} allColumns={columns} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'picture') {
-            widgetContent = <PictureSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'iframe') {
-            widgetContent = <IframeSettingsForm group={group} themeClasses={themeClasses} />;
-        } else if (group.widgetType === 'homey_custom') {
-            widgetContent = <HomeyCustomSettingsForm group={group} themeClasses={themeClasses} />;
-        }
-
-        return (
-            <form onSubmit={handleFormSubmit} ref={formRef}>
-                {group.widgetType !== 'homey' && (
-                    <>
-                        <div className="mb-4">
-                            <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name <span className="text-xs font-normal opacity-70">(max 30 chars)</span></label>
-                            <input type="text" id="name" name="name" defaultValue={group.name} required maxLength={30} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
-                        </div>
-                        <ColorSelector currentColor={group.colorVariant || 'default'} themeClasses={themeClasses} />
-                    </>
-                )}
-                
-                {group.type !== 'widget' && (
-                  <div className="pt-4 mt-4 border-t border-slate-700 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="compactMode" className="text-sm font-medium">Compact Mode</label>
-                        <label className="relative inline-flex items-center cursor-pointer">
+      case 'dashboardSettings':
+         return (
+             <div className="space-y-4">
+                 <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Name</label>
+                    <input 
+                        type="text" 
+                        value={activeDashboard.name} 
+                        onChange={(e) => updateActiveDashboard(d => ({ ...d, name: e.target.value }))}
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    />
+                 </div>
+                 <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Background Image URL</label>
+                    <input 
+                        type="text" 
+                        value={activeDashboard.backgroundImage || ''} 
+                        onChange={(e) => updateActiveDashboard(d => ({ ...d, backgroundImage: e.target.value }))}
+                        placeholder="https://..."
+                        className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
+                    />
+                 </div>
+                 <div>
+                    <label className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Background Color</label>
+                    <div className="flex gap-2">
                         <input 
-                            type="checkbox" 
-                            id="compactMode" 
-                            name="compactMode" 
-                            defaultChecked={group.widgetSettings?.compactMode} 
-                            className="sr-only peer" 
+                            type="color" 
+                            value={activeDashboard.customBackgroundColor || '#000000'} 
+                            onChange={(e) => updateActiveDashboard(d => ({ ...d, customBackgroundColor: e.target.value }))}
+                            className="h-10 w-12 bg-transparent border-0 p-0 cursor-pointer rounded"
                         />
-                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="displayAsPopup" className="text-sm font-medium">Display as Pop-up</label>
-                        <label className="relative inline-flex items-center cursor-pointer">
                         <input 
-                            type="checkbox" 
-                            id="displayAsPopup" 
-                            name="displayAsPopup" 
-                            defaultChecked={group.widgetSettings?.displayAsPopup} 
-                            className="sr-only peer" 
+                            type="text" 
+                            value={activeDashboard.customBackgroundColor || ''} 
+                            onChange={(e) => updateActiveDashboard(d => ({ ...d, customBackgroundColor: e.target.value }))}
+                            placeholder="#..."
+                            className={`flex-1 p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
                         />
-                        <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
                     </div>
-                    <p className="text-xs text-slate-500 -mt-2">Instead of unfolding, the group will open in a centered window.</p>
-                  </div>
-                )}
-
-                {widgetContent}
-                <div className="flex justify-end gap-3 pt-6"><button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button><button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button></div>
-            </form>
-        );
-    }
-    
-    const isLink = type === 'addLink' || type === 'editLink';
-    const isColumn = type === 'addColumn' || type === 'editColumn';
-    
-    const currentName = type.startsWith('edit') ? (data.group?.name || data.link?.name || data.name) : '';
-    const currentComment = type === 'editLink' ? data.link.comment : '';
-    const currentColumnWidth = isColumn ? (data?.width || 3) : 3;
-    const currentIsFavorite = type === 'editLink' ? (data.link.isFavorite ?? false) : false;
-    const isFileUrl = urlInput.trim().toLowerCase().startsWith('file:///');
-
-    return (
-      <form onSubmit={handleFormSubmit} ref={formRef}>
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="name" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>
-              Name <span className="text-xs font-normal opacity-70">{isLink ? '(max 40 chars)' : '(max 30 chars)'}</span>
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              defaultValue={currentName}
-              required
-              maxLength={isLink ? 40 : 30}
-              className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-            />
-          </div>
-          {isColumn && (
-             <div>
-                <label htmlFor="width" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Column Width</label>
-                <input type="range" id="width" name="width" min="1" max="5" defaultValue={currentColumnWidth} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer mt-2" />
-                <div className="flex justify-between text-xs text-slate-400 px-1"><span>Narrow</span><span>Normal</span><span>Wide</span></div>
-              </div>
-          )}
-          {isLink && (
-            <>
-              <div>
-                <label htmlFor="url" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>URL</label>
-                <input
-                  type="url"
-                  id="url"
-                  name="url"
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  required
-                  className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                />
-                {isFileUrl && (
-                    <p className="text-xs text-red-400 mt-2">
-                        Local file links (`file:///`) are blocked by browsers for security reasons. Please use a web address (`http://` or `https://`).
-                    </p>
-                )}
-              </div>
-              <div>
-                <label htmlFor="comment" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Comment (optional) <span className="text-xs font-normal opacity-70">(max 150 chars)</span></label>
-                <input type="text" id="comment" name="comment" defaultValue={currentComment} maxLength={150} className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`} />
-              </div>
-              
-              <div className="flex items-center justify-between pt-2 border-t border-slate-700 mt-2">
-                <label htmlFor="isFavorite" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                    <HeartIconSolid className={`w-5 h-5 ${currentIsFavorite ? 'text-red-500' : 'text-slate-500'}`} />
-                    <span>Mark as Favorite</span>
-                </label>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="isFavorite"
-                    name="isFavorite"
-                    defaultChecked={currentIsFavorite}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-red-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                </label>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="flex justify-end gap-3 pt-6">
-          <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-          <button type="submit" disabled={isLink && isFileUrl} className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}>Save</button>
-        </div>
-      </form>
-    );
-  };
-  
-  const getModalTitle = () => {
-    if (!modal) return '';
-    switch (modal.type) {
-      case 'addColumn': return 'Add Column';
-      case 'editColumn': return 'Edit Column';
-      case 'addGroup': return 'Add Link Group';
-      case 'editGroup': return 'Edit Group Name';
-      case 'addLink': return 'Add Link';
-      case 'editLink': return 'Edit Link';
-      case 'deleteColumn': return 'Delete Column';
-      case 'deleteGroup': return 'Delete Group';
-      case 'deleteItem': return `Delete ${modal.data.item.type === 'link' ? 'Link' : 'this item'}`;
-      case 'deleteTodoItem': return 'Delete Task';
-      case 'importConfirm': return 'Confirm Import';
-      case 'resetConfirm': return 'Confirm Reset';
-      case 'addWidget': return 'Add to Column';
-      case 'addLinkOrSeparator': return 'Add to Group';
-      case 'editWidgetSettings': return modal.data.group?.type === 'widget' ? 'Widget Settings' : 'Group Settings';
-      case 'exportOptions': return 'Export Backup';
-      case 'addHomeyCustomItem': return 'Add Item to Widget';
-      case 'selectHomeyItem': return 'Select Item';
-      case 'addOrEditTextItem': return modal.data.item ? 'Edit Text' : 'Add Text';
-      case 'editHomeyCustomItemName': return 'Edit Display Name';
-      case 'addFlowButton': return 'Add Flow Button';
-      case 'editFlowButton': return 'Edit Flow Button';
-      case 'deleteFlowButton': return 'Delete Button';
-      case 'moveFlowButton': return '';
-      default: return '';
+                 </div>
+                 <div className="flex justify-end mt-4">
+                     <button onClick={closeModal} className={`${themeClasses.buttonPrimary} px-4 py-2 rounded-lg`}>Done</button>
+                 </div>
+             </div>
+         );
+      default:
+        return null;
     }
   };
-
-  const getColumnStyle = (columnWidth: number | undefined) => {
-    const individualWidth = columnWidth || 3;
-    const baseWidth = baseWidthsInRem[individualWidth];
-    const multiplier = globalMultipliers[settings.columnWidth];
-    return { flexBasis: `${baseWidth * multiplier}rem` };
-  };
-  
-  const FlowButtonForm = () => {
-      const { button } = modal?.data || {};
-      const [isLoading, setIsLoading] = useState(true);
-      const [error, setError] = useState<string | null>(null);
-
-      const SPACER_ID = '---SPACER---';
-
-      const sortedFlows = useMemo(() => Object.values(homeyFlows)
-          .filter((flow: any) => flow.triggerable)
-          .sort((a: any, b: any) => a.name.localeCompare(b.name)),
-      [homeyFlows]);
-
-      useEffect(() => {
-          if (!homeyHasActiveWidgets) {
-              setError("Homey functionality is not active.");
-              setIsLoading(false);
-          } else if (Object.keys(homeyFlows).length > 0) {
-              setIsLoading(false);
-          }
-          // If loading, the central engine will provide the data
-      }, [homeyFlows, homeyHasActiveWidgets]);
-
-      if (isLoading) return <div className="text-center p-4">Loading flows from central engine...</div>;
-      if (error) return <div className="text-center p-4 text-red-400">{error}</div>;
-
-      return (
-          <form onSubmit={handleFormSubmit} ref={formRef}>
-              <div className="space-y-4">
-                  <div>
-                      <label htmlFor="flowId" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Select Action</label>
-                      <select
-                          id="flowId"
-                          name="flowId"
-                          defaultValue={button ? `${button.flowId}|${button.flowName || ''}` : undefined}
-                          required
-                          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                      >
-                          <option value={`${SPACER_ID}|No Action (Spacer)`}>--- No Action (Spacer) ---</option>
-                          {sortedFlows.map((flow: any) => (
-                              <option key={flow.id} value={`${flow.id}|${flow.name}`}>{flow.name}</option>
-                          ))}
-                      </select>
-                  </div>
-                  <div>
-                      <label htmlFor="symbol" className={`block text-sm font-medium ${themeClasses.modalMutedText} mb-1`}>Button Symbol (optional for spacer)</label>
-                      <input
-                          type="text"
-                          id="symbol"
-                          name="symbol"
-                          defaultValue={button?.symbol || ''}
-                          maxLength={3}
-                          placeholder="e.g. Vol, 🔊"
-                          className={`w-full p-2 rounded-md border ${themeClasses.inputBg} ${themeClasses.inputFocusRing}`}
-                      />
-                      <p className="text-xs text-slate-500 mt-1">Up to 3 characters or an emoji.</p>
-                      <p className="text-xs text-slate-500 mt-1">In Windows press: "WIN - ."</p>
-                  </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-6">
-                  <button type="button" onClick={closeModal} className={`${themeClasses.buttonSecondary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Cancel</button>
-                  <button type="submit" className={`${themeClasses.buttonPrimary} font-semibold py-2 px-4 rounded-lg transition-colors`}>Save</button>
-              </div>
-          </form>
-      );
-  };
-
-  const shouldUsePaddingFix = calculatedContentWidth !== null;
 
   return (
     <>
@@ -2254,33 +2226,10 @@ function App() {
         {dragGhost}
       </DragGhost>
 
-      {false && shouldUsePaddingFix && (
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '20px',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          border: '1px solid #fff',
-          padding: '1rem',
-          borderRadius: '8px',
-          zIndex: 9999,
-          fontFamily: 'monospace',
-          color: 'white',
-          fontSize: '14px',
-          lineHeight: '1.5',
-          boxShadow: '0 0 15px rgba(0,0,0,0.5)'
-        }}>
-          <h4 style={{ margin: 0, paddingBottom: '0.5rem', borderBottom: '1px solid #555', fontSize: '16px', fontWeight: 'bold' }}>Centering Debug Info</h4>
-          <div style={{ paddingTop: '0.5rem' }}>
-            <p style={{ margin: 0 }}>Screen Width: <strong>{windowWidth}px</strong></p>
-            <p style={{ margin: 0 }}>Content Width: <strong>{calculatedContentWidth}px</strong></p>
-            {calculatedContentWidth && <p style={{ margin: 0 }}>Calculated Padding: <strong>{((windowWidth - calculatedContentWidth) / 2).toFixed(2)}px</strong></p>}
-          </div>
-        </div>
-      )}
-
       <main className={`h-screen flex flex-col py-4 px-2 sm:py-6 sm:px-4 lg:py-8 lg:px-6 transition-colors duration-300 font-sans`}>
-        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[auto_1fr_auto] items-center md:items-end gap-4 mb-6">
+        <header className="flex-shrink-0 grid grid-cols-2 md:grid-cols-[auto_1fr_auto] grid-rows-[auto_auto] items-end gap-y-4 gap-x-2 mb-6">
+
+          {/* Row 1 Content */}
           <div className="justify-self-start w-full min-w-0 col-span-1 md:col-auto">
               {isEditMode ? (
                 <input type="text" value={pageTitle} onChange={(e) => setPageTitle(e.target.value)} maxLength={30} className={`text-3xl font-bold bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none pl-2 w-full ${themeClasses.header}`} placeholder="Page Title" />
@@ -2306,6 +2255,39 @@ function App() {
           )}
 
           <div className="justify-self-end flex items-center gap-3 col-span-1 md:col-auto">
+              {dashboards.length > 1 && settings.dashboardView === 'dropdown' && (
+                <div className="relative" ref={dashboardDropdownRef}>
+                    <button
+                      onClick={() => setIsDashboardDropdownOpen(prev => !prev)}
+                      className={`flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors ${themeClasses.buttonSecondary}`}>
+                      <span className="truncate max-w-[150px] text-base font-semibold">{activeDashboard.name}</span>
+                      <ChevronDownIcon
+                        className={`w-5 h-5 transition-transform ${isDashboardDropdownOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                    {isDashboardDropdownOpen && (
+                        <div className={`absolute z-20 top-full mt-2 w-48 rounded-md shadow-lg border ${themeClasses.modalBg} ${themeClasses.dashedBorder}`}>
+                            <ul className="py-1">
+                                {dashboards.map(d => (
+                                    <li key={d.id}>
+                                        <button 
+                                            onClick={() => {
+                                                setActiveDashboardId(d.id);
+                                                setIsDashboardDropdownOpen(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 text-sm font-medium ${d.id === activeDashboardId ? themeClasses.header : themeClasses.modalMutedText} ${themeClasses.linkHoverBg}`}
+                                        >
+                                            {d.name}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+              )}
+
+
             <button onClick={handleToggleEditMode} className={`${isEditMode ? themeClasses.buttonPrimary : themeClasses.buttonSecondary} flex items-center gap-2 font-semibold py-2 px-4 rounded-lg transition-colors`}>
               <PencilIcon className="w-5 h-5" /><span>{isEditMode ? 'Done' : 'Edit'}</span>
             </button>
@@ -2316,6 +2298,23 @@ function App() {
               </div>
             )}
           </div>
+
+          {/* Row 2 Content */}              
+          {dashboards.length > 1 && settings.dashboardView === 'tabs' && (
+              <div className="col-span-2 md:col-span-3 md:row-start-2 -mb-6 pb-2 overflow-x-auto">
+                   <div className="flex items-center border-b-2 border-slate-700 space-x-2">
+                        {dashboards.map(d => (
+                           <button 
+                                key={d.id}
+                                onClick={() => setActiveDashboardId(d.id)}
+                                className={`py-2 px-4 font-semibold text-sm whitespace-nowrap transition-colors rounded-t-md ${d.id === activeDashboardId ? `${themeClasses.buttonPrimary} border-b-2 border-transparent` : `${themeClasses.textMuted} ${themeClasses.linkHoverBg}`}`}
+                           >
+                               {d.name}
+                           </button>
+                        ))}
+                   </div>
+              </div>
+          )}
         </header>
 
         <div className={`flex-grow overflow-x-auto pb-4`}>
@@ -2398,10 +2397,16 @@ function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         settings={settings}
         onSettingsChange={handleSettingsChange}
+        pageTitle={pageTitle}
+        onPageTitleChange={setPageTitle}
         themeClasses={themeClasses}
         onExport={onRequestExport}
         onImport={handleImport}
         onReset={() => openModal('resetConfirm')}
+        dashboards={dashboards}
+        onDashboardsChange={handleDashboardsChange}
+        activeDashboardId={activeDashboardId}
+        setActiveDashboardId={setActiveDashboardId}
       />
       
       <Modal

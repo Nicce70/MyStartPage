@@ -29,7 +29,7 @@ interface SettingsModalProps {
   setActiveDashboardId: (id: string) => void;
 }
 
-const APP_VERSION = '4.3d';
+const APP_VERSION = '4.3e';
 
 const HomeySettingsTab: React.FC<{ settings: Settings, onSettingsChange: (newSettings: Settings) => void, themeClasses: Theme }> = ({ settings, onSettingsChange, themeClasses }) => {
     const [testState, setTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');

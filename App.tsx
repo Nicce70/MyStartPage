@@ -1338,6 +1338,8 @@ function App() {
             newWidget = { id: uuidv4(), name: "Network Info", items: [], type: 'widget', widgetType: 'network' };
         } else if (widgetType === 'solar') {
             newWidget = { id: uuidv4(), name: "Sunrise / Sunset", items: [], type: 'widget', widgetType: 'solar', widgetSettings: { solarCity: 'Stockholm', solarUse24HourFormat: true, solarCompactMode: false, solarDynamicPath: true } };
+        } else if (widgetType === 'homey') {
+            newWidget = { id: uuidv4(), name: "Homey Pro Auto Zones", items: [], type: 'widget', widgetType: 'homey' };
         } else if (widgetType === 'radio') {
             newWidget = { id: uuidv4(), name: "Radio", items: [], type: 'widget', widgetType: 'radio', widgetSettings: { radioStations: DEFAULT_RADIO_STATIONS } };
         } else if (widgetType === 'favorites') {
@@ -1659,9 +1661,9 @@ function App() {
         case 'resetConfirm': return 'Reset Application';
         case 'addWidget': return 'Add Widget';
         case 'editWidgetSettings': return 'Widget Settings';
-        case 'addLinkOrSeparator': return 'Add Item';
+        case 'addLinkOrSeparator': return 'Add to Link Group';
         case 'exportOptions': return 'Export Data';
-        case 'addHomeyCustomItem': return 'Add Homey Item';
+        case 'addHomeyCustomItem': return 'Add Item to Homey Custom Widget';
         case 'selectHomeyItem': return 'Select Homey Capability';
         case 'addOrEditTextItem': return modal.data?.item ? 'Edit Header' : 'Add Header';
         case 'editHomeyCustomItemName': return 'Edit Item Name';
@@ -2031,19 +2033,18 @@ function App() {
         );
       case 'addLinkOrSeparator':
         return (
-          <div className="grid grid-cols-1 gap-2">
-            <button onClick={() => openModal('addLink', { groupId: data.groupId, columnId: data.columnId })} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
-                <LinkIcon className="w-5 h-5" /> Add Link
-            </button>
-            <button onClick={() => handleAddButtonHolder(data.groupId, data.columnId)} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
-                <SquaresPlusIcon className="w-5 h-5" /> Add Button Holder
-            </button>
-            <button onClick={() => openModal('addOrEditTextItem', { groupId: data.groupId, columnId: data.columnId })} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
-                <span className="text-lg font-bold">H</span> Add Header
-            </button>
-            <button onClick={() => handleAddSeparator(data.groupId, data.columnId)} className={`p-4 rounded-lg border hover:border-indigo-500 hover:bg-slate-700/50 transition-all font-semibold ${themeClasses.inputBg} ${themeClasses.dashedBorder} flex items-center justify-center gap-2`}>
-                <MinusIcon className="w-5 h-5" /> Add Separator
-            </button>
+          <div>
+            <p className={`${themeClasses.modalMutedText} text-sm mb-4`}>Select an item to add to the group:</p>
+            <div className="grid grid-cols-1 gap-3">
+              <button onClick={() => openModal('addLink', { groupId: data.groupId, columnId: data.columnId })} className={`w-full flex items-center justify-center gap-3 p-3 rounded-lg transition-colors font-semibold ${themeClasses.buttonSecondary} hover:brightness-110`}>
+                  <div className={themeClasses.iconMuted}><LinkIcon className="w-5 h-5" /></div>
+                  <span>Add Link</span>
+              </button>
+              <button onClick={() => handleAddSeparator(data.groupId, data.columnId)} className={`w-full flex items-center justify-center gap-3 p-3 rounded-lg transition-colors font-semibold ${themeClasses.buttonSecondary} hover:brightness-110`}>
+                  <div className={themeClasses.iconMuted}><MinusIcon className="w-5 h-5" /></div>
+                  <span>Add Separator</span>
+              </button>
+            </div>
           </div>
         );
       case 'exportOptions':
@@ -2318,65 +2319,75 @@ function App() {
         </header>
 
         <div className={`flex-grow overflow-x-auto pb-4`}>
-           <div 
-             className={`h-full ${settings.centerContent && !shouldUsePaddingFix ? 'text-center' : ''}`}
-             style={shouldUsePaddingFix && calculatedContentWidth ? { 
-                 paddingLeft: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`,
-                 paddingRight: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`
-             } : {}}
-           >
-             <div 
-               className={`inline-flex items-start h-full text-left ${settings.centerContent && !shouldUsePaddingFix ? 'mx-auto' : ''}`}
-               style={{ gap: `${settings.columnGap * 0.25}rem` }}
-             >
-                {columns.map(col => (
-                  <ColumnComponent
-                    key={col.id}
-                    column={col}
-                    allColumns={columns}
-                    isEditMode={isEditMode}
-                    onPointerDown={handlePointerDown}
-                    draggedItem={draggedItem}
-                    dropTarget={currentDropTarget}
-                    openModal={openModal}
-                    openLinkGroupPopup={openLinkGroupPopup}
-                    groupGap={settings.groupGap}
-                    showColumnTitles={isEditMode || settings.showColumnTitles}
-                    onToggleGroupCollapsed={handleToggleGroupCollapsed}
-                    themeClasses={themeClasses}
-                    openLinksInNewTab={settings.openLinksInNewTab}
-                    widthStyle={getColumnStyle(col.width)}
-                    isDeletable={columns.length > 0}
-                    todos={todos}
-                    setTodos={setTodos}
-                    onCalculatorStateChange={handleCalculatorStateChange}
-                    onScratchpadChange={handleScratchpadChange}
-                    showGroupToggles={settings.showGroupToggles}
-                    homeyGlobalSettings={settings.homey}
-                    onRequestDeleteTodo={handleRequestDeleteTodo}
-                    homeyDevices={homeyDevices}
-                    homeyZones={homeyZones}
-                    homeyFlows={homeyFlows}
-                    homeyConnectionState={homeyConnectionState}
-                    homeyLastUpdate={homeyLastUpdate}
-                    homeyCountdown={homeyCountdown}
-                    homeyLog={homeyLog}
-                    onHomeyToggle={handleHomeyToggle}
-                    onHomeyTriggerFlow={handleHomeyTriggerFlow}
-                    onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
-                    onRemoveFavorite={handleRemoveFavorite}
-                  />
-                ))}
-
-                {isEditMode && (
-                  <div className={`flex-shrink-0`} style={getColumnStyle(3)}>
-                    <button onClick={() => openModal('addColumn')} className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}>
-                      <PlusIcon /> Add Column
-                    </button>
+          {columns.length === 0 && !isEditMode ? (
+              <div className="h-full w-full flex items-center justify-center">
+                  <div className={`text-center ${themeClasses.textSubtle} p-8`}>
+                      <SquaresPlusIcon className="w-16 h-16 mx-auto opacity-30" />
+                      <h2 className={`mt-4 text-2xl font-semibold ${themeClasses.header}`}>This dashboard is empty</h2>
+                      <p className="mt-2 text-lg">Click the 'Edit' button to add your first column.</p>
                   </div>
-                )}
               </div>
-            </div>
+          ) : (
+            <div 
+              className={`h-full ${settings.centerContent && !shouldUsePaddingFix ? 'text-center' : ''}`}
+              style={shouldUsePaddingFix && calculatedContentWidth ? { 
+                  paddingLeft: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`,
+                  paddingRight: `max(0px, calc(50% - ${calculatedContentWidth / 2}px))`
+              } : {}}
+            >
+              <div 
+                className={`inline-flex items-start h-full text-left ${settings.centerContent && !shouldUsePaddingFix ? 'mx-auto' : ''}`}
+                style={{ gap: `${settings.columnGap * 0.25}rem` }}
+              >
+                  {columns.map(col => (
+                    <ColumnComponent
+                      key={col.id}
+                      column={col}
+                      allColumns={columns}
+                      isEditMode={isEditMode}
+                      onPointerDown={handlePointerDown}
+                      draggedItem={draggedItem}
+                      dropTarget={currentDropTarget}
+                      openModal={openModal}
+                      openLinkGroupPopup={openLinkGroupPopup}
+                      groupGap={settings.groupGap}
+                      showColumnTitles={isEditMode || settings.showColumnTitles}
+                      onToggleGroupCollapsed={handleToggleGroupCollapsed}
+                      themeClasses={themeClasses}
+                      openLinksInNewTab={settings.openLinksInNewTab}
+                      widthStyle={getColumnStyle(col.width)}
+                      isDeletable={columns.length > 0}
+                      todos={todos}
+                      setTodos={setTodos}
+                      onCalculatorStateChange={handleCalculatorStateChange}
+                      onScratchpadChange={handleScratchpadChange}
+                      showGroupToggles={settings.showGroupToggles}
+                      homeyGlobalSettings={settings.homey}
+                      onRequestDeleteTodo={handleRequestDeleteTodo}
+                      homeyDevices={homeyDevices}
+                      homeyZones={homeyZones}
+                      homeyFlows={homeyFlows}
+                      homeyConnectionState={homeyConnectionState}
+                      homeyLastUpdate={homeyLastUpdate}
+                      homeyCountdown={homeyCountdown}
+                      homeyLog={homeyLog}
+                      onHomeyToggle={handleHomeyToggle}
+                      onHomeyTriggerFlow={handleHomeyTriggerFlow}
+                      onHomeyOptimisticUpdate={handleHomeyOptimisticUpdate}
+                      onRemoveFavorite={handleRemoveFavorite}
+                    />
+                  ))}
+
+                  {isEditMode && (
+                    <div className={`flex-shrink-0`} style={getColumnStyle(3)}>
+                      <button onClick={() => openModal('addColumn')} className={`w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed rounded-lg transition-colors ${themeClasses.dashedBorder} ${themeClasses.textSubtle} hover:border-slate-500 hover:text-slate-300`}>
+                        <PlusIcon /> Add Column
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+          )}
         </div>
       </main>
       
